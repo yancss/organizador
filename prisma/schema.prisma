@@ -1,0 +1,353 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+
+  // Credentials auth (optional)
+  passwordHash  String?   @db.VarChar(255)
+
+  // Profile
+  birthDate     DateTime?
+
+  // Basic access control
+  role          String    @default("user")
+  active        Boolean   @default(true)
+
+  accounts      Account[]
+  sessions      Session[]
+
+  memberships   WorkspaceMember[]
+  orders        Order[] @relation("OrderOwner")
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Workspace {
+  id          String            @id @default(cuid())
+  name        String
+  members     WorkspaceMember[]
+
+  orders      Order[]
+  clients     Client[]
+  products    Product[]
+  inventories Inventory[]
+  purchases   Purchase[]
+  consumptions Consumption[]
+  recipes     Recipe[]
+  financialEntries FinancialEntry[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model WorkspaceMember {
+  id           String    @id @default(cuid())
+  workspaceId  String
+  userId       String
+  role         String    @default("owner")
+
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt    DateTime  @default(now())
+
+  @@unique([workspaceId, userId])
+  @@index([userId])
+  @@index([workspaceId])
+}
+
+model Order {
+  id            String   @id @default(cuid())
+  workspaceId   String
+  ownerId       String
+
+  // Renomeado de Event.title
+  name          String   @map("title")
+
+  // Renomeado de Event.notes
+  observations  String?  @map("notes")
+
+  clientId      String?
+  orderedAt     DateTime?
+  deliveryAt    DateTime?
+  delivered     Boolean  @default(false)
+  value         Decimal? @db.Decimal(12, 2)
+
+  // Manual ordering within a view/list (optional)
+  orderIndex    String?  @db.VarChar(64)
+
+  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  owner         User      @relation("OrderOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  client        Client?   @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  items         OrderItem[]
+  consumptions  Consumption[]
+  financialEntries FinancialEntry[]
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("Event")
+  @@index([workspaceId])
+  @@index([ownerId])
+  @@index([deliveryAt])
+  @@index([orderedAt])
+  @@index([clientId])
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  productId String
+
+  quantity  Decimal @db.Decimal(14, 3)
+
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+
+  @@index([orderId])
+  @@index([productId])
+  @@unique([orderId, productId])
+}
+
+model Client {
+  id          String   @id @default(cuid())
+  workspaceId String
+
+  name        String
+  phone       String?
+  address     String?
+  observations String?
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  orders      Order[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([workspaceId])
+  @@unique([workspaceId, name])
+}
+
+enum ProductKind {
+  RAW
+  FINISHED
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  workspaceId String
+
+  name        String
+  brand       String?
+  kind        ProductKind @default(RAW)
+  unit        String   // unidade padrão (ex.: gr, kg, ml, un)
+  active      Boolean  @default(true)
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  inventory   Inventory?
+  orderItems  OrderItem[]
+  purchases   Purchase[]
+  consumptions Consumption[]
+  recipeItems RecipeItem[]
+  recipesAsFinal Recipe[] @relation("RecipeProductFinal")
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([workspaceId])
+  @@unique([workspaceId, name])
+}
+
+model Inventory {
+  id           String   @id @default(cuid())
+  workspaceId  String
+  productId    String   @unique
+
+  quantity     Decimal  @db.Decimal(14, 3)
+  minimum      Decimal? @db.Decimal(14, 3)
+
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  product      Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([workspaceId])
+}
+
+model Purchase {
+  id          String   @id @default(cuid())
+  workspaceId String
+
+  productId   String
+  date        DateTime @default(now())
+  quantity    Decimal  @db.Decimal(14, 3)
+  cost        Decimal? @db.Decimal(12, 2)
+  supplier    String?
+  observations String?
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  product     Product   @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  financialEntries FinancialEntry[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([workspaceId])
+  @@index([productId])
+  @@index([date])
+}
+
+model Consumption {
+  id          String   @id @default(cuid())
+  workspaceId String
+
+  date        DateTime @default(now())
+  productId   String
+  quantity    Decimal  @db.Decimal(14, 3)
+
+  orderId     String?
+  recipeId    String?
+  observations String?
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  product     Product   @relation(fields: [productId], references: [id], onDelete: Restrict)
+  order       Order?    @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  recipe      Recipe?   @relation(fields: [recipeId], references: [id], onDelete: SetNull)
+
+  financialEntries FinancialEntry[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([workspaceId])
+  @@index([productId])
+  @@index([date])
+  @@index([orderId])
+  @@index([recipeId])
+}
+
+model Recipe {
+  id          String   @id @default(cuid())
+  workspaceId String
+
+  productId   String   // produto final
+  yieldQty    Decimal? @db.Decimal(14, 3)
+  observations String?
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  product     Product   @relation("RecipeProductFinal", fields: [productId], references: [id], onDelete: Restrict)
+
+  items       RecipeItem[]
+  consumptions Consumption[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([workspaceId])
+  @@index([productId])
+}
+
+model RecipeItem {
+  id        String  @id @default(cuid())
+  recipeId  String
+  productId String  // insumo
+
+  quantity  Decimal @db.Decimal(14, 3)
+
+  recipe    Recipe  @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+
+  @@index([recipeId])
+  @@index([productId])
+  @@unique([recipeId, productId])
+}
+
+model FinancialEntry {
+  id          String   @id @default(cuid())
+  workspaceId String
+
+  date        DateTime @default(now())
+  type        String   // Entrada | Saida
+  category    String
+  value       Decimal  @db.Decimal(12, 2)
+  observations String?
+
+  orderId     String?
+  purchaseId  String?
+  consumptionId String?
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  order       Order?    @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  purchase    Purchase? @relation(fields: [purchaseId], references: [id], onDelete: SetNull)
+  consumption Consumption? @relation(fields: [consumptionId], references: [id], onDelete: SetNull)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([workspaceId])
+  @@index([date])
+  @@index([type])
+  @@index([orderId])
+  @@index([purchaseId])
+  @@index([consumptionId])
+}
+
+// NextAuth models (Prisma schema from Auth.js/NextAuth docs)
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
