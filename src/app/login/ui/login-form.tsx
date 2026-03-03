@@ -3,7 +3,25 @@
 import { signIn } from 'next-auth/react'
 import { useState } from 'react'
 
-export default function LoginForm() {
+export type LoginFormLabels = {
+  email: string
+  password: string
+  submit: string
+  submitting: string
+  invalid: string
+}
+
+export default function LoginForm({
+  labels = {
+    email: 'Email',
+    password: 'Senha',
+    submit: 'Entrar',
+    submitting: 'Entrando…',
+    invalid: 'Email ou senha inválidos.',
+  },
+}: {
+  labels?: LoginFormLabels
+}) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -24,7 +42,7 @@ export default function LoginForm() {
     setLoading(false)
 
     if (!res || res.error) {
-      setError('Email ou senha inválidos.')
+      setError(labels.invalid)
       return
     }
 
@@ -34,7 +52,7 @@ export default function LoginForm() {
   return (
     <form className="grid gap-3" onSubmit={onSubmit}>
       <label className="grid gap-1">
-        <span className="text-xs font-medium text-[var(--foreground)]">Email</span>
+        <span className="text-xs font-medium text-[var(--foreground)]">{labels.email}</span>
         <input
           value={email}
           onChange={(e) => setEmail(e.target.value)}
@@ -45,7 +63,7 @@ export default function LoginForm() {
       </label>
 
       <label className="grid gap-1">
-        <span className="text-xs font-medium text-[var(--foreground)]">Senha</span>
+        <span className="text-xs font-medium text-[var(--foreground)]">{labels.password}</span>
         <input
           value={password}
           onChange={(e) => setPassword(e.target.value)}
@@ -62,7 +80,7 @@ export default function LoginForm() {
         className="rounded-md bg-[var(--primary)] px-4 py-2 text-sm font-medium text-[var(--primary-foreground)] disabled:opacity-50"
         disabled={loading || !email.trim() || !password.trim()}
       >
-        {loading ? 'Entrando…' : 'Entrar'}
+        {loading ? labels.submitting : labels.submit}
       </button>
     </form>
   )

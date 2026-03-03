@@ -14,7 +14,33 @@ async function api<T>(url: string, init?: RequestInit): Promise<T> {
   return (await res.json()) as T
 }
 
-export default function RegisterForm() {
+export type RegisterFormLabels = {
+  name: string
+  email: string
+  birthDate: string
+  password: string
+  password2: string
+  submit: string
+  submitting: string
+  passwordMismatch: string
+  success: string
+}
+
+export default function RegisterForm({
+  labels = {
+    name: 'Nome',
+    email: 'Email',
+    birthDate: 'Data de nascimento (opcional)',
+    password: 'Senha',
+    password2: 'Confirmar senha',
+    submit: 'Criar usuário',
+    submitting: 'Criando…',
+    passwordMismatch: 'As senhas não conferem.',
+    success: 'Usuário criado. Você já pode entrar.',
+  },
+}: {
+  labels?: RegisterFormLabels
+}) {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [birthDate, setBirthDate] = useState('')
@@ -30,7 +56,7 @@ export default function RegisterForm() {
     setOk(false)
 
     if (password !== password2) {
-      setError('As senhas não conferem.')
+      setError(labels.passwordMismatch)
       return
     }
 
@@ -53,7 +79,7 @@ export default function RegisterForm() {
   return (
     <form className="grid gap-3" onSubmit={onSubmit}>
       <label className="grid gap-1">
-        <span className="text-xs font-medium text-[var(--foreground)]">Nome</span>
+        <span className="text-xs font-medium text-[var(--foreground)]">{labels.name}</span>
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -62,7 +88,7 @@ export default function RegisterForm() {
       </label>
 
       <label className="grid gap-1">
-        <span className="text-xs font-medium text-[var(--foreground)]">Email</span>
+        <span className="text-xs font-medium text-[var(--foreground)]">{labels.email}</span>
         <input
           value={email}
           onChange={(e) => setEmail(e.target.value)}
@@ -74,7 +100,7 @@ export default function RegisterForm() {
       </label>
 
       <label className="grid gap-1">
-        <span className="text-xs font-medium text-[var(--foreground)]">Data de nascimento (opcional)</span>
+        <span className="text-xs font-medium text-[var(--foreground)]">{labels.birthDate}</span>
         <input
           value={birthDate}
           onChange={(e) => setBirthDate(e.target.value)}
@@ -84,7 +110,7 @@ export default function RegisterForm() {
       </label>
 
       <label className="grid gap-1">
-        <span className="text-xs font-medium text-[var(--foreground)]">Senha</span>
+        <span className="text-xs font-medium text-[var(--foreground)]">{labels.password}</span>
         <input
           value={password}
           onChange={(e) => setPassword(e.target.value)}
@@ -96,7 +122,7 @@ export default function RegisterForm() {
       </label>
 
       <label className="grid gap-1">
-        <span className="text-xs font-medium text-[var(--foreground)]">Confirmar senha</span>
+        <span className="text-xs font-medium text-[var(--foreground)]">{labels.password2}</span>
         <input
           value={password2}
           onChange={(e) => setPassword2(e.target.value)}
@@ -107,7 +133,7 @@ export default function RegisterForm() {
         />
       </label>
 
-      {ok ? <div className="text-sm text-green-700">Usuário criado. Você já pode entrar.</div> : null}
+      {ok ? <div className="text-sm text-green-700">{labels.success}</div> : null}
       {error ? <div className="text-sm text-red-700">{error}</div> : null}
 
       <button
@@ -115,7 +141,7 @@ export default function RegisterForm() {
         className="rounded-md bg-[var(--primary)] px-4 py-2 text-sm font-medium text-[var(--primary-foreground)] disabled:opacity-50"
         disabled={loading || !email.trim() || !password.trim()}
       >
-        {loading ? 'Criando…' : 'Criar usuário'}
+        {loading ? labels.submitting : labels.submit}
       </button>
     </form>
   )

@@ -29,7 +29,7 @@ async function api<T>(url: string, init?: RequestInit): Promise<T> {
   return (await res.json()) as T
 }
 
-const UNIT_OPTIONS = ['gr', 'kg', 'ml', 'un']
+const UNIT_OPTIONS = ['gr', 'kg', 'ml', 'un','dz']
 
 type Draft = {
   id?: string

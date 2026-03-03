@@ -23,29 +23,29 @@ export default async function AppPage() {
           ))}
         </ul>
         <p className="mt-3 text-sm">
-          Depois disso, acesse{' '}
-          <Link className="underline" href="/api/auth/signin">
-            /api/auth/signin
-          </Link>
-          .
+          Depois disso, acesse <Link className="underline" href="/login">/login</Link>.
         </p>
       </div>
     )
   }
 
   const session = await getServerSession(authOptions)
+
+  // TEMP: bypass auth for local testing
+  if (process.env.DISABLE_AUTH === '1') {
+    return <OrderBoard view="upcoming" />
+  }
+
   if (!session) {
     return (
       <div className="rounded-md border p-6">
         <h1 className="text-xl font-semibold">Entrar</h1>
-        <p className="mt-2 text-sm text-neutral-600">
-          Use o Google (produção) ou o <strong>login de teste</strong> (dev) para entrar.
-        </p>
+        <p className="mt-2 text-sm text-neutral-600">Faça login para acessar o app.</p>
         <Link
-          href="/api/auth/signin?callbackUrl=/app"
+          href="/login"
           className="mt-4 inline-flex rounded-md bg-black px-4 py-2 text-white hover:opacity-90"
         >
-          Escolher método de login
+          Ir para login
         </Link>
       </div>
     )
