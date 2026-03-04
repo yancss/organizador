@@ -235,7 +235,7 @@ export default function EventBoard() {
         <section className="surface rounded-xl border border-theme">
           <div className="divide-y">
             {listWithDate.length === 0 && listNoDate.length === 0 ? (
-              <div className="p-6 text-sm text-neutral-700">{i.board.empty}</div>
+              <div className="p-6 text-sm text-[var(--muted-foreground)]">{i.board.empty}</div>
             ) : (
               <>
                 {listWithDate.length ? (
@@ -245,11 +245,11 @@ export default function EventBoard() {
                         <button type="button" onClick={() => openEdit(e)} className="w-full text-left">
                           <div className="flex items-start justify-between gap-3">
                             <div>
-                              <div className="font-medium text-neutral-900">{e.title}</div>
+                              <div className="font-medium text-[var(--foreground)]">{e.title}</div>
                               {e.notes ? (
-                                <div className="mt-1 line-clamp-2 text-sm text-neutral-700">{e.notes}</div>
+                                <div className="mt-1 line-clamp-2 text-sm text-[var(--text-muted)]">{e.notes}</div>
                               ) : null}
-                              <div className="mt-2 text-xs text-neutral-700">
+                              <div className="mt-2 text-xs text-[var(--muted-foreground)]">
                                 {e.startAt ? new Date(e.startAt).toLocaleString() : i.board.noDateSection}
                                 {e.endAt ? ` → ${new Date(e.endAt).toLocaleString()}` : ''}
                               </div>
@@ -268,18 +268,18 @@ export default function EventBoard() {
 
                 <ul>
                   {listNoDate.length === 0 ? (
-                    <li className="p-4 text-sm text-neutral-700">{i.board.noDateEmpty}</li>
+                    <li className="p-4 text-sm text-[var(--muted-foreground)]">{i.board.noDateEmpty}</li>
                   ) : (
                     listNoDate.map((e) => (
                       <li key={e.id} className="p-4 hover:bg-[var(--muted)]">
                         <button type="button" onClick={() => openEdit(e)} className="w-full text-left">
                           <div className="flex items-start justify-between gap-3">
                             <div>
-                              <div className="font-medium text-neutral-900">{e.title}</div>
+                              <div className="font-medium text-[var(--foreground)]">{e.title}</div>
                               {e.notes ? (
-                                <div className="mt-1 line-clamp-2 text-sm text-neutral-700">{e.notes}</div>
+                                <div className="mt-1 line-clamp-2 text-sm text-[var(--text-muted)]">{e.notes}</div>
                               ) : null}
-                              <div className="mt-2 text-xs text-neutral-700">{i.board.noDateSection}</div>
+                              <div className="mt-2 text-xs text-[var(--muted-foreground)]">{i.board.noDateSection}</div>
                             </div>
                             <div className="text-xs text-neutral-600">{i.board.editHint}</div>
                           </div>
@@ -324,11 +324,11 @@ export default function EventBoard() {
                 <h2 className="text-lg font-semibold">
                   {draft.id ? i.modal.editTitle : i.modal.newTitle}
                 </h2>
-                <p className="text-sm text-neutral-700">{i.modal.subtitle}</p>
+                <p className="text-sm text-[var(--text-muted)]">{i.modal.subtitle}</p>
               </div>
               <button
                 aria-label="Fechar"
-                className="grid size-9 place-items-center rounded-md text-lg text-neutral-800 hover:bg-neutral-100"
+                className="grid size-9 place-items-center rounded-md text-lg text-[var(--foreground)] hover:bg-[var(--muted)]"
                 onClick={() => setIsOpen(false)}
                 type="button"
               >
@@ -338,7 +338,7 @@ export default function EventBoard() {
 
             <div className="mt-4 grid gap-3">
               <label className="grid gap-1">
-                <span className="text-xs font-medium text-neutral-700">{i.modal.titleLabel}</span>
+                <span className="text-xs font-medium text-[var(--foreground)]">{i.modal.titleLabel}</span>
                 <input
                   value={draft.title}
                   onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
@@ -354,7 +354,7 @@ export default function EventBoard() {
               </label>
 
               <label className="grid gap-1">
-                <span className="text-xs font-medium text-neutral-700">{i.modal.notesLabel}</span>
+                <span className="text-xs font-medium text-[var(--foreground)]">{i.modal.notesLabel}</span>
                 <textarea
                   value={draft.notes}
                   onChange={(e) => setDraft((d) => ({ ...d, notes: e.target.value }))}
@@ -365,7 +365,7 @@ export default function EventBoard() {
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <label className="grid gap-1">
-                  <span className="text-xs font-medium text-neutral-700">{i.modal.startLabel}</span>
+                  <span className="text-xs font-medium text-[var(--foreground)]">{i.modal.startLabel}</span>
                   <input
                     type="datetime-local"
                     value={draft.startAt}
@@ -374,7 +374,7 @@ export default function EventBoard() {
                   />
                 </label>
                 <label className="grid gap-1">
-                  <span className="text-xs font-medium text-neutral-700">{i.modal.endLabel}</span>
+                  <span className="text-xs font-medium text-[var(--foreground)]">{i.modal.endLabel}</span>
                   <input
                     type="datetime-local"
                     value={draft.endAt}
@@ -384,7 +384,7 @@ export default function EventBoard() {
                 </label>
               </div>
 
-              <label className="mt-1 flex items-center gap-2 text-sm text-neutral-800">
+              <label className="mt-1 flex items-center gap-2 text-sm text-[var(--foreground)]">
                 <input
                   type="checkbox"
                   checked={draft.allDay}

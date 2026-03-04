@@ -1,12 +1,13 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 
 import { useDraftStorage } from '../use-draft-storage'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { t } from '../i18n'
 import { useSettings } from '../settings-context'
+import DataTable from '../ui/data-table'
 
 type Product = {
   id: string
@@ -91,12 +92,6 @@ export default function ProductsPage() {
 
   const products = productsQ.data?.products ?? []
 
-  const sorted = useMemo(() => {
-    const items = [...products]
-    items.sort((a, b) => a.name.localeCompare(b.name))
-    return items
-  }, [products])
-
   function openCreate() {
     draftStore.clear()
     setIsOpen(true)
@@ -160,31 +155,57 @@ export default function ProductsPage() {
           Erro ao carregar: {String(productsQ.error)}
         </div>
       ) : (
-        <section className="surface rounded-xl border border-theme">
-          <div className="divide-y">
-            {sorted.length === 0 ? (
-              <div className="p-6 text-sm text-neutral-700">{i.products.empty}</div>
-            ) : (
-              <ul>
-                {sorted.map((p) => (
-                  <li key={p.id} className="p-4 hover:bg-[var(--muted)]">
-                    <button type="button" onClick={() => openEdit(p)} className="w-full text-left">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <div className="font-medium text-neutral-900">{p.name}</div>
-                          <div className="mt-1 text-sm text-neutral-700">
-                            {p.brand ? `${p.brand} • ` : ''}{i.products.unit}: {p.unit}
-                          </div>
-                        </div>
-                        <div className="text-xs text-neutral-600">{i.products.editHint}</div>
-                      </div>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </section>
+        <DataTable
+          rows={products}
+          empty={i.products.empty}
+          labels={i.table}
+          initialSort={{ key: 'name', dir: 'asc' }}
+          onRowClick={openEdit}
+          columns={[
+            {
+              key: 'name',
+              header: language === 'pt' ? 'Produto' : language === 'es' ? 'Producto' : 'Product',
+              sortValue: (r) => r.name,
+              searchValue: (r) => r.name,
+              render: (r) => <div className="font-medium text-[var(--foreground)]">{r.name}</div>,
+            },
+            {
+              key: 'brand',
+              header: language === 'pt' ? 'Marca' : language === 'es' ? 'Marca' : 'Brand',
+              sortValue: (r) => r.brand ?? '',
+              searchValue: (r) => r.brand ?? '',
+              render: (r) => <div className="text-[var(--muted-foreground)]">{r.brand ?? '—'}</div>,
+            },
+            {
+              key: 'unit',
+              header: language === 'pt' ? 'Unidade' : language === 'es' ? 'Unidad' : 'Unit',
+              sortValue: (r) => r.unit,
+              searchValue: (r) => r.unit,
+              render: (r) => <div className="text-[var(--muted-foreground)]">{r.unit}</div>,
+            },
+            {
+              key: 'kind',
+              header: language === 'pt' ? 'Tipo' : language === 'es' ? 'Tipo' : 'Type',
+              sortValue: (r) => r.kind ?? '',
+              searchValue: (r) => r.kind ?? '',
+              render: (r) => (
+                <span className="rounded-full border border-theme bg-[var(--surface-2)] px-2 py-1 text-xs text-[var(--foreground)]">
+                  {r.kind === 'FINISHED'
+                    ? language === 'pt'
+                      ? 'Final'
+                      : language === 'es'
+                        ? 'Final'
+                        : 'Finished'
+                    : language === 'pt'
+                      ? 'Insumo'
+                      : language === 'es'
+                        ? 'Insumo'
+                        : 'Raw'}
+                </span>
+              ),
+            },
+          ]}
+        />
       )}
 
       {isOpen ? (
@@ -194,11 +215,11 @@ export default function ProductsPage() {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-lg font-semibold">{draft.id ? i.products.editTitle : i.products.newTitle}</h2>
-                <p className="text-sm text-neutral-700">{i.products.modalSubtitle}</p>
+                <p className="text-sm text-[var(--text-muted)]">{i.products.modalSubtitle}</p>
               </div>
               <button
                 aria-label="Fechar"
-                className="grid size-9 place-items-center rounded-md text-lg text-neutral-800 hover:bg-neutral-100"
+                className="grid size-9 place-items-center rounded-md text-lg text-[var(--foreground)] hover:bg-[var(--muted)]"
                 onClick={() => setIsOpen(false)}
                 type="button"
               >
@@ -208,7 +229,7 @@ export default function ProductsPage() {
 
             <div className="mt-4 grid gap-3">
               <label className="grid gap-1">
-                <span className="text-xs font-medium text-neutral-700">{i.products.nameLabel}</span>
+                <span className="text-xs font-medium text-[var(--foreground)]">{i.products.nameLabel}</span>
                 <input
                   value={draft.name}
                   onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
@@ -217,7 +238,7 @@ export default function ProductsPage() {
               </label>
 
               <label className="grid gap-1">
-                <span className="text-xs font-medium text-neutral-700">{i.products.brandLabel}</span>
+                <span className="text-xs font-medium text-[var(--foreground)]">{i.products.brandLabel}</span>
                 <input
                   value={draft.brand}
                   onChange={(e) => setDraft((d) => ({ ...d, brand: e.target.value }))}
@@ -227,7 +248,7 @@ export default function ProductsPage() {
               </label>
 
               <label className="grid gap-1">
-                <span className="text-xs font-medium text-neutral-700">{i.products.kindLabel}</span>
+                <span className="text-xs font-medium text-[var(--foreground)]">{i.products.kindLabel}</span>
                 <select
                   value={draft.kind}
                   onChange={(e) => setDraft((d) => ({ ...d, kind: e.target.value as any }))}
@@ -239,7 +260,7 @@ export default function ProductsPage() {
               </label>
 
               <label className="grid gap-1">
-                <span className="text-xs font-medium text-neutral-700">{i.products.unitLabel}</span>
+                <span className="text-xs font-medium text-[var(--foreground)]">{i.products.unitLabel}</span>
                 <select
                   value={draft.unit}
                   onChange={(e) => setDraft((d) => ({ ...d, unit: e.target.value }))}

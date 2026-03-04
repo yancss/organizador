@@ -1,12 +1,13 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 
 import { useDraftStorage } from '../use-draft-storage'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { t } from '../i18n'
 import { useSettings } from '../settings-context'
+import DataTable from '../ui/data-table'
 
 type Client = {
   id: string
@@ -93,12 +94,6 @@ export default function ClientsPage() {
 
   const clients = clientsQ.data?.clients ?? []
 
-  const sorted = useMemo(() => {
-    const items = [...clients]
-    items.sort((a, b) => a.name.localeCompare(b.name))
-    return items
-  }, [clients])
-
   function openCreate() {
     draftStore.clear()
     setIsOpen(true)
@@ -168,31 +163,44 @@ export default function ClientsPage() {
           Erro ao carregar: {String(clientsQ.error)}
         </div>
       ) : (
-        <section className="surface rounded-xl border border-theme">
-          <div className="divide-y">
-            {sorted.length === 0 ? (
-              <div className="p-6 text-sm text-neutral-700">{i.clients.empty}</div>
-            ) : (
-              <ul>
-                {sorted.map((c) => (
-                  <li key={c.id} className="p-4 hover:bg-[var(--muted)]">
-                    <button type="button" onClick={() => openEdit(c)} className="w-full text-left">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <div className="font-medium text-neutral-900">{c.name}</div>
-                          <div className="mt-1 text-sm text-neutral-700">
-                            {c.phone ? `${i.clients.phone}: ${c.phone}` : i.clients.noPhone}
-                          </div>
-                        </div>
-                        <div className="text-xs text-neutral-600">{i.clients.editHint}</div>
-                      </div>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </section>
+        <DataTable
+          rows={clients}
+          empty={i.clients.empty}
+          labels={i.table}
+          initialSort={{ key: 'name', dir: 'asc' }}
+          onRowClick={openEdit}
+          columns={[
+            {
+              key: 'name',
+              header: language === 'pt' ? 'Nome' : language === 'es' ? 'Nombre' : 'Name',
+              sortValue: (r) => r.name,
+              searchValue: (r) => r.name,
+              render: (r) => <div className="font-medium text-[var(--foreground)]">{r.name}</div>,
+            },
+            {
+              key: 'phone',
+              header: language === 'pt' ? 'Telefone' : language === 'es' ? 'Teléfono' : 'Phone',
+              sortValue: (r) => r.phone ?? '',
+              searchValue: (r) => r.phone ?? '',
+              render: (r) => (
+                <div className="text-[var(--muted-foreground)]">
+                  {r.phone ? r.phone : i.clients.noPhone}
+                </div>
+              ),
+            },
+            {
+              key: 'notes',
+              header: language === 'pt' ? 'Obs.' : language === 'es' ? 'Notas' : 'Notes',
+              sortValue: (r) => r.observations ?? '',
+              searchValue: (r) => r.observations ?? '',
+              render: (r) => (
+                <div className="max-w-[32ch] truncate text-[var(--muted-foreground)]">
+                  {r.observations ?? '—'}
+                </div>
+              ),
+            },
+          ]}
+        />
       )}
 
       {isOpen ? (
@@ -202,11 +210,11 @@ export default function ClientsPage() {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-lg font-semibold">{draft.id ? i.clients.editTitle : i.clients.newTitle}</h2>
-                <p className="text-sm text-neutral-700">{i.clients.modalSubtitle}</p>
+                <p className="text-sm text-[var(--text-muted)]">{i.clients.modalSubtitle}</p>
               </div>
               <button
                 aria-label="Fechar"
-                className="grid size-9 place-items-center rounded-md text-lg text-neutral-800 hover:bg-neutral-100"
+                className="grid size-9 place-items-center rounded-md text-lg text-[var(--foreground)] hover:bg-[var(--muted)]"
                 onClick={() => setIsOpen(false)}
                 type="button"
               >
@@ -216,7 +224,7 @@ export default function ClientsPage() {
 
             <div className="mt-4 grid gap-3">
               <label className="grid gap-1">
-                <span className="text-xs font-medium text-neutral-700">{i.clients.nameLabel}</span>
+                <span className="text-xs font-medium text-[var(--foreground)]">{i.clients.nameLabel}</span>
                 <input
                   value={draft.name}
                   onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
@@ -225,7 +233,7 @@ export default function ClientsPage() {
               </label>
 
               <label className="grid gap-1">
-                <span className="text-xs font-medium text-neutral-700">{i.clients.phoneLabel}</span>
+                <span className="text-xs font-medium text-[var(--foreground)]">{i.clients.phoneLabel}</span>
                 <input
                   value={draft.phone}
                   onChange={(e) => setDraft((d) => ({ ...d, phone: e.target.value }))}
@@ -235,7 +243,7 @@ export default function ClientsPage() {
               </label>
 
               <label className="grid gap-1">
-                <span className="text-xs font-medium text-neutral-700">{i.clients.addressLabel}</span>
+                <span className="text-xs font-medium text-[var(--foreground)]">{i.clients.addressLabel}</span>
                 <input
                   value={draft.address}
                   onChange={(e) => setDraft((d) => ({ ...d, address: e.target.value }))}
@@ -245,7 +253,7 @@ export default function ClientsPage() {
               </label>
 
               <label className="grid gap-1">
-                <span className="text-xs font-medium text-neutral-700">{i.clients.observationsLabel}</span>
+                <span className="text-xs font-medium text-[var(--foreground)]">{i.clients.observationsLabel}</span>
                 <textarea
                   value={draft.observations}
                   onChange={(e) => setDraft((d) => ({ ...d, observations: e.target.value }))}

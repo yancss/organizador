@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from 'react'
 
+import DataTable from '../ui/data-table'
+
 import { useDraftStorage } from '../use-draft-storage'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
@@ -119,39 +121,63 @@ export default function InventoryPage() {
           Erro ao carregar: {String(invQ.error)}
         </div>
       ) : (
-        <section className="surface rounded-xl border border-theme">
-          <div className="divide-y">
-            {rows.length === 0 ? (
-              <div className="p-6 text-sm text-neutral-700">{i.inventory.empty}</div>
-            ) : (
-              <ul>
-                {rows.map((it) => (
-                  <li key={it.id} className={`p-4 hover:bg-[var(--muted)] ${it.below ? 'bg-red-50/50' : ''}`}>
-                    <button type="button" onClick={() => openEdit(it)} className="w-full text-left">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <div className="font-medium text-neutral-900">{it.product.name}</div>
-                          <div className="mt-1 text-sm text-neutral-700">
-                            {i.inventory.quantity}: {String(it.quantity)} {it.product.unit}
-                            {it.minimum != null ? (
-                              <span className="ml-2">• {i.inventory.minimum}: {String(it.minimum)} {it.product.unit}</span>
-                            ) : (
-                              <span className="ml-2 text-neutral-500">• {i.inventory.noMinimum}</span>
-                            )}
-                          </div>
-                          {it.below ? (
-                            <div className="mt-1 text-xs text-red-700">{i.inventory.belowMinimum}</div>
-                          ) : null}
-                        </div>
-                        <div className="text-xs text-neutral-600">{i.inventory.editHint}</div>
-                      </div>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </section>
+        <DataTable
+          rows={rows}
+          empty={i.inventory.empty}
+          labels={i.table}
+          initialSort={{ key: 'product', dir: 'asc' }}
+          onRowClick={openEdit}
+          columns={[
+            {
+              key: 'product',
+              header: language === 'pt' ? 'Produto' : language === 'es' ? 'Producto' : 'Product',
+              sortValue: (r) => r.product.name,
+              searchValue: (r) => r.product.name,
+              render: (r) => (
+                <div className="font-medium text-[var(--foreground)]">
+                  {r.product.name}
+                  {r.below ? (
+                    <span className="ml-2 rounded-full border border-theme bg-[var(--danger-bg)] px-2 py-0.5 text-xs text-[var(--danger)]">
+                      {language === 'pt' ? 'Abaixo do mín.' : language === 'es' ? 'Bajo mínimo' : 'Below min'}
+                    </span>
+                  ) : null}
+                </div>
+              ),
+            },
+            {
+              key: 'qty',
+              header: language === 'pt' ? 'Qtd.' : language === 'es' ? 'Cant.' : 'Qty',
+              sortValue: (r) => r.q,
+              searchValue: (r) => String(r.quantity),
+              render: (r) => (
+                <div className="text-[var(--muted-foreground)]">
+                  {String(r.quantity)} {r.product.unit}
+                </div>
+              ),
+            },
+            {
+              key: 'min',
+              header: language === 'pt' ? 'Mín.' : language === 'es' ? 'Mín.' : 'Min',
+              sortValue: (r) => (r.minimum == null ? -1 : r.m ?? -1),
+              searchValue: (r) => (r.minimum == null ? '' : String(r.minimum)),
+              render: (r) => (
+                <div className="text-[var(--muted-foreground)]">
+                  {r.minimum == null ? '—' : `${String(r.minimum)} ${r.product.unit}`}
+                </div>
+              ),
+            },
+            {
+              key: 'updated',
+              header: language === 'pt' ? 'Atualizado' : language === 'es' ? 'Actualizado' : 'Updated',
+              sortValue: (r) => new Date(r.updatedAt),
+              render: (r) => (
+                <div className="text-[var(--muted-foreground)]">
+                  {new Date(r.updatedAt).toLocaleString()}
+                </div>
+              ),
+            },
+          ]}
+        />
       )}
 
       {isOpen ? (
@@ -161,11 +187,11 @@ export default function InventoryPage() {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-lg font-semibold">{i.inventory.editTitle}: {draft.productName}</h2>
-                <p className="text-sm text-neutral-700">{i.inventory.modalSubtitle}</p>
+                <p className="text-sm text-[var(--text-muted)]">{i.inventory.modalSubtitle}</p>
               </div>
               <button
                 aria-label="Fechar"
-                className="grid size-9 place-items-center rounded-md text-lg text-neutral-800 hover:bg-neutral-100"
+                className="grid size-9 place-items-center rounded-md text-lg text-[var(--foreground)] hover:bg-[var(--muted)]"
                 onClick={() => setIsOpen(false)}
                 type="button"
               >
@@ -175,7 +201,7 @@ export default function InventoryPage() {
 
             <div className="mt-4 grid gap-3">
               <label className="grid gap-1">
-                <span className="text-xs font-medium text-neutral-700">{i.inventory.quantityLabel} ({draft.unit})</span>
+                <span className="text-xs font-medium text-[var(--foreground)]">{i.inventory.quantityLabel} ({draft.unit})</span>
                 <input
                   value={draft.quantity}
                   onChange={(e) => setDraft((d) => ({ ...d, quantity: e.target.value }))}
@@ -184,7 +210,7 @@ export default function InventoryPage() {
               </label>
 
               <label className="grid gap-1">
-                <span className="text-xs font-medium text-neutral-700">{i.inventory.minimumLabel} ({draft.unit})</span>
+                <span className="text-xs font-medium text-[var(--foreground)]">{i.inventory.minimumLabel} ({draft.unit})</span>
                 <input
                   value={draft.minimum}
                   onChange={(e) => setDraft((d) => ({ ...d, minimum: e.target.value }))}

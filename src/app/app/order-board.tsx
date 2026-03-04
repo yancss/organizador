@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from 'react'
 
+import DataTable from './ui/data-table'
+
 import { useDraftStorage } from './use-draft-storage'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import FullCalendar from '@fullcalendar/react'
@@ -297,61 +299,63 @@ export default function OrderBoard({ view }: { view: 'upcoming' | 'history' }) {
         </div>
       ) : view === 'upcoming' ? (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <section className="surface rounded-xl border border-theme">
-            <div className="divide-y">
-              {sorted.length === 0 ? (
-                <div className="p-6 text-sm text-neutral-700">{i.orders.empty}</div>
-              ) : (
-                <ul>
-                  {sorted.map((o) => (
-                    <li key={o.id} className="p-4 hover:bg-[var(--muted)]">
-                      <button type="button" onClick={() => openEdit(o)} className="w-full text-left">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <div className="flex flex-wrap items-center gap-x-2">
-                              <div className="font-medium text-neutral-900">{o.name}</div>
-                              {o.delivered ? (
-                                <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-800">
-                                  {i.orders.delivered}
-                                </span>
-                              ) : null}
-                            </div>
-
-                            <div className="mt-1 text-sm text-neutral-700">
-                              {o.client?.name ? (
-                                <span>
-                                  {i.orders.client}: {o.client.name}
-                                </span>
-                              ) : (
-                                <span className="text-neutral-500">{i.orders.noClient}</span>
-                              )}
-                              {o.value != null ? <span className="ml-2">• {i.orders.value}: {formatMoneyDisplay(o.value, moneyLocale, currency)}</span> : null}
-                            </div>
-
-                            {o.observations ? (
-                              <div className="mt-1 line-clamp-2 text-sm text-neutral-700">{o.observations}</div>
-                            ) : null}
-
-                            <div className="mt-2 text-xs text-neutral-700">
-                              {o.deliveryAt ? `${i.orders.deliveryAt}: ${new Date(o.deliveryAt).toLocaleDateString()}` : i.orders.noDeliveryAt}
-                            </div>
-
-                            {o.items?.length ? (
-                              <div className="mt-2 text-xs text-neutral-700">
-                                {o.items
-                                  .map((it) => `${it.product.name} (${it.quantity} ${it.product.unit})`)
-                                  .join(' • ')}
-                              </div>
-                            ) : null}
-                          </div>
-                          <div className="text-xs text-neutral-600">{i.orders.editHint}</div>
-                        </div>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
+          <section>
+            <DataTable
+              rows={sorted}
+              empty={i.orders.empty}
+              labels={i.table}
+              initialSort={{ key: 'deliveryAt', dir: 'asc' }}
+              onRowClick={openEdit}
+              columns={[
+                {
+                  key: 'name',
+                  header: language === 'pt' ? 'Pedido' : language === 'es' ? 'Pedido' : 'Order',
+                  sortValue: (r) => r.name,
+                  searchValue: (r) => r.name,
+                  render: (r) => (
+                    <div className="font-medium text-[var(--foreground)]">
+                      {r.name}
+                      {r.delivered ? (
+                        <span className="ml-2 rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-800">
+                          {i.orders.delivered}
+                        </span>
+                      ) : null}
+                    </div>
+                  ),
+                },
+                {
+                  key: 'client',
+                  header: i.orders.client,
+                  sortValue: (r) => r.client?.name ?? '',
+                  searchValue: (r) => r.client?.name ?? '',
+                  render: (r) => (
+                    <div className="text-[var(--muted-foreground)]">{r.client?.name ?? i.orders.noClient}</div>
+                  ),
+                },
+                {
+                  key: 'value',
+                  header: i.orders.value,
+                  sortValue: (r) => (r.value == null ? -1 : Number(r.value)),
+                  searchValue: (r) => (r.value == null ? '' : String(r.value)),
+                  render: (r) => (
+                    <div className="text-[var(--muted-foreground)]">
+                      {r.value == null ? '—' : formatMoneyDisplay(r.value, moneyLocale, currency)}
+                    </div>
+                  ),
+                },
+                {
+                  key: 'deliveryAt',
+                  header: i.orders.deliveryAt,
+                  sortValue: (r) => (r.deliveryAt ? new Date(r.deliveryAt) : new Date(0)),
+                  searchValue: (r) => (r.deliveryAt ? new Date(r.deliveryAt).toLocaleDateString() : ''),
+                  render: (r) => (
+                    <div className="text-[var(--muted-foreground)]">
+                      {r.deliveryAt ? new Date(r.deliveryAt).toLocaleDateString() : i.orders.noDeliveryAt}
+                    </div>
+                  ),
+                },
+              ]}
+            />
           </section>
 
           <section className="surface rounded-xl border border-theme p-2 sm:p-3">
@@ -376,50 +380,60 @@ export default function OrderBoard({ view }: { view: 'upcoming' | 'history' }) {
           </section>
         </div>
       ) : (
-        <section className="surface rounded-xl border border-theme">
-          <div className="divide-y">
-            {sorted.length === 0 ? (
-              <div className="p-6 text-sm text-neutral-700">{i.orders.empty}</div>
-            ) : (
-              <ul>
-                {sorted.map((o) => (
-                  <li key={o.id} className="p-4 hover:bg-[var(--muted)]">
-                    <button type="button" onClick={() => openEdit(o)} className="w-full text-left">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-x-2">
-                            <div className="font-medium text-neutral-900">{o.name}</div>
-                            {o.delivered ? (
-                              <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-800">
-                                {i.orders.delivered}
-                              </span>
-                            ) : null}
-                          </div>
-
-                          <div className="mt-1 text-sm text-neutral-700">
-                            {o.client?.name ? (
-                              <span>
-                                {i.orders.client}: {o.client.name}
-                              </span>
-                            ) : (
-                              <span className="text-neutral-500">{i.orders.noClient}</span>
-                            )}
-                            {o.value != null ? <span className="ml-2">• {i.orders.value}: {formatMoneyDisplay(o.value, moneyLocale, currency)}</span> : null}
-                          </div>
-
-                          <div className="mt-2 text-xs text-neutral-700">
-                            {o.deliveryAt ? `${i.orders.deliveryAt}: ${new Date(o.deliveryAt).toLocaleDateString()}` : i.orders.noDeliveryAt}
-                          </div>
-                        </div>
-                        <div className="text-xs text-neutral-600">{i.orders.editHint}</div>
-                      </div>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </section>
+        <DataTable
+          rows={sorted}
+          empty={i.orders.empty}
+          labels={i.table}
+          initialSort={{ key: 'deliveryAt', dir: 'desc' }}
+          onRowClick={openEdit}
+          columns={[
+            {
+              key: 'name',
+              header: language === 'pt' ? 'Pedido' : language === 'es' ? 'Pedido' : 'Order',
+              sortValue: (r) => r.name,
+              searchValue: (r) => r.name,
+              render: (r) => (
+                <div className="font-medium text-[var(--foreground)]">
+                  {r.name}
+                  {r.delivered ? (
+                    <span className="ml-2 rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-800">
+                      {i.orders.delivered}
+                    </span>
+                  ) : null}
+                </div>
+              ),
+            },
+            {
+              key: 'client',
+              header: i.orders.client,
+              sortValue: (r) => r.client?.name ?? '',
+              searchValue: (r) => r.client?.name ?? '',
+              render: (r) => (
+                <div className="text-[var(--muted-foreground)]">{r.client?.name ?? i.orders.noClient}</div>
+              ),
+            },
+            {
+              key: 'value',
+              header: i.orders.value,
+              sortValue: (r) => (r.value == null ? -1 : Number(r.value)),
+              render: (r) => (
+                <div className="text-[var(--muted-foreground)]">
+                  {r.value == null ? '—' : formatMoneyDisplay(r.value, moneyLocale, currency)}
+                </div>
+              ),
+            },
+            {
+              key: 'deliveryAt',
+              header: i.orders.deliveryAt,
+              sortValue: (r) => (r.deliveryAt ? new Date(r.deliveryAt) : new Date(0)),
+              render: (r) => (
+                <div className="text-[var(--muted-foreground)]">
+                  {r.deliveryAt ? new Date(r.deliveryAt).toLocaleDateString() : i.orders.noDeliveryAt}
+                </div>
+              ),
+            },
+          ]}
+        />
       )}
 
       {isOpen ? (
@@ -429,11 +443,11 @@ export default function OrderBoard({ view }: { view: 'upcoming' | 'history' }) {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-lg font-semibold">{draft.id ? i.modal.editTitleOrder : i.modal.newTitleOrder}</h2>
-                <p className="text-sm text-neutral-700">{i.modal.subtitleOrder}</p>
+                <p className="text-sm text-[var(--text-muted)]">{i.modal.subtitleOrder}</p>
               </div>
               <button
                 aria-label="Fechar"
-                className="grid size-9 place-items-center rounded-md text-lg text-neutral-800 hover:bg-neutral-100"
+                className="grid size-9 place-items-center rounded-md text-lg text-[var(--foreground)] hover:bg-[var(--muted)]"
                 onClick={() => setIsOpen(false)}
                 type="button"
               >
@@ -443,7 +457,7 @@ export default function OrderBoard({ view }: { view: 'upcoming' | 'history' }) {
 
             <div className="mt-4 grid gap-3">
               <label className="grid gap-1">
-                <span className="text-xs font-medium text-neutral-700">{i.modal.orderNameLabel}</span>
+                <span className="text-xs font-medium text-[var(--foreground)]">{i.modal.orderNameLabel}</span>
                 <input
                   value={draft.name}
                   onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
@@ -453,7 +467,7 @@ export default function OrderBoard({ view }: { view: 'upcoming' | 'history' }) {
               </label>
 
               <label className="grid gap-1">
-                <span className="text-xs font-medium text-neutral-700">{i.modal.clientLabel}</span>
+                <span className="text-xs font-medium text-[var(--foreground)]">{i.modal.clientLabel}</span>
                 <select
                   value={draft.clientId}
                   onChange={(e) => setDraft((d) => ({ ...d, clientId: e.target.value }))}
@@ -470,7 +484,7 @@ export default function OrderBoard({ view }: { view: 'upcoming' | 'history' }) {
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <label className="grid gap-1">
-                  <span className="text-xs font-medium text-neutral-700">{i.modal.orderedAtLabel}</span>
+                  <span className="text-xs font-medium text-[var(--foreground)]">{i.modal.orderedAtLabel}</span>
                   <input
                     type="datetime-local"
                     value={draft.orderedAt}
@@ -479,7 +493,7 @@ export default function OrderBoard({ view }: { view: 'upcoming' | 'history' }) {
                   />
                 </label>
                 <label className="grid gap-1">
-                  <span className="text-xs font-medium text-neutral-700">{i.modal.deliveryAtLabel}</span>
+                  <span className="text-xs font-medium text-[var(--foreground)]">{i.modal.deliveryAtLabel}</span>
                   <input
                     type="datetime-local"
                     value={draft.deliveryAt}
@@ -491,7 +505,7 @@ export default function OrderBoard({ view }: { view: 'upcoming' | 'history' }) {
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <label className="grid gap-1">
-                  <span className="text-xs font-medium text-neutral-700">{i.modal.valueLabel}</span>
+                  <span className="text-xs font-medium text-[var(--foreground)]">{i.modal.valueLabel}</span>
                   <input
                     value={draft.value}
                     onChange={(e) => setDraft((d) => ({ ...d, value: formatMoneyFromInput(e.target.value, moneyLocale) }))}
@@ -501,7 +515,7 @@ export default function OrderBoard({ view }: { view: 'upcoming' | 'history' }) {
                   />
                 </label>
 
-                <label className="mt-6 flex items-center gap-2 text-sm text-neutral-800">
+                <label className="mt-6 flex items-center gap-2 text-sm text-[var(--foreground)]">
                   <input
                     type="checkbox"
                     checked={draft.delivered}
@@ -512,7 +526,7 @@ export default function OrderBoard({ view }: { view: 'upcoming' | 'history' }) {
               </div>
 
               <label className="grid gap-1">
-                <span className="text-xs font-medium text-neutral-700">{i.modal.observationsLabel}</span>
+                <span className="text-xs font-medium text-[var(--foreground)]">{i.modal.observationsLabel}</span>
                 <textarea
                   value={draft.observations}
                   onChange={(e) => setDraft((d) => ({ ...d, observations: e.target.value }))}

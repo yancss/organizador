@@ -160,6 +160,34 @@ export type I18n = {
     day: string
     list: string
   }
+  table: {
+    showing: string // placeholders: {start} {end} {total}
+    page: string // placeholders: {page} {pages}
+    previous: string
+    next: string
+    searchPlaceholder: string
+    clear: string
+    noResults: string
+  }
+  profile: {
+    title: string
+    subtitle: string
+    loading: string
+    error: string
+    noUser: string
+
+    name: string
+    email: string
+    birthDate: string
+
+    save: string
+    saving: string
+    saved: string
+
+    resetPassword: string
+    sendingReset: string
+    resetSent: string
+  }
   settings: {
     title: string
     subtitle: string
@@ -323,6 +351,34 @@ const dict: Record<AppLanguage, I18n> = {
       deleteConfirmOrder: 'Eliminar este pedido?',
     },
     calendar: { today: 'Hoje', month: 'Mês', week: 'Semana', day: 'Dia', list: 'Lista' },
+    table: {
+      showing: 'Mostrando {start}–{end} de {total}',
+      page: 'Página {page} / {pages}',
+      previous: 'Anterior',
+      next: 'Próxima',
+      searchPlaceholder: 'Buscar…',
+      clear: 'Limpar',
+      noResults: 'Nenhum registro encontrado para a busca.',
+    },
+    profile: {
+      title: 'Perfil',
+      subtitle: 'Informações da sua conta.',
+      loading: 'Carregando…',
+      error: 'Erro ao carregar',
+      noUser: 'Nenhum usuário encontrado.',
+
+      name: 'Nome',
+      email: 'Email',
+      birthDate: 'Data de nascimento',
+
+      save: 'Salvar',
+      saving: 'Salvando…',
+      saved: 'Salvo.',
+
+      resetPassword: 'Resetar senha',
+      sendingReset: 'Enviando…',
+      resetSent: 'Se o email existir, o link será enviado.',
+    },
     settings: {
       title: 'Configurações',
       subtitle: 'Idioma, tema e moeda da aplicação.',
@@ -484,6 +540,34 @@ const dict: Record<AppLanguage, I18n> = {
       deleteConfirmOrder: 'Delete this order?',
     },
     calendar: { today: 'Today', month: 'Month', week: 'Week', day: 'Day', list: 'List' },
+    table: {
+      showing: 'Showing {start}–{end} of {total}',
+      page: 'Page {page} / {pages}',
+      previous: 'Previous',
+      next: 'Next',
+      searchPlaceholder: 'Search…',
+      clear: 'Clear',
+      noResults: 'No records found for your search.',
+    },
+    profile: {
+      title: 'Profile',
+      subtitle: 'Your account information.',
+      loading: 'Loading…',
+      error: 'Failed to load',
+      noUser: 'No user found.',
+
+      name: 'Name',
+      email: 'Email',
+      birthDate: 'Birth date',
+
+      save: 'Save',
+      saving: 'Saving…',
+      saved: 'Saved.',
+
+      resetPassword: 'Reset password',
+      sendingReset: 'Sending…',
+      resetSent: 'If the email exists, the link will be sent.',
+    },
     settings: {
       title: 'Settings',
       subtitle: 'Application language, theme and currency.',
@@ -645,6 +729,34 @@ const dict: Record<AppLanguage, I18n> = {
       deleteConfirmOrder: '¿Eliminar este pedido?',
     },
     calendar: { today: 'Hoy', month: 'Mes', week: 'Semana', day: 'Día', list: 'Lista' },
+    table: {
+      showing: 'Mostrando {start}–{end} de {total}',
+      page: 'Página {page} / {pages}',
+      previous: 'Anterior',
+      next: 'Siguiente',
+      searchPlaceholder: 'Buscar…',
+      clear: 'Limpiar',
+      noResults: 'No se encontraron registros para la búsqueda.',
+    },
+    profile: {
+      title: 'Perfil',
+      subtitle: 'Información de tu cuenta.',
+      loading: 'Cargando…',
+      error: 'Error al cargar',
+      noUser: 'No se encontró usuario.',
+
+      name: 'Nombre',
+      email: 'Correo',
+      birthDate: 'Fecha de nacimiento',
+
+      save: 'Guardar',
+      saving: 'Guardando…',
+      saved: 'Guardado.',
+
+      resetPassword: 'Restablecer contraseña',
+      sendingReset: 'Enviando…',
+      resetSent: 'Si el correo existe, el enlace será enviado.',
+    },
     settings: {
       title: 'Configuración',
       subtitle: 'Idioma, tema y moneda de la aplicación.',
