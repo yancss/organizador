@@ -20,7 +20,7 @@ export default function AppHeader() {
   }, [open])
 
   return (
-    <header className="sticky top-0 z-10 border-b border-theme surface/80 backdrop-blur">
+    <header className="sticky top-0 z-10 border-b border-theme surface">
       <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-4 sm:px-6">
         <div className="flex min-w-0 items-center gap-3">
           <button
@@ -55,7 +55,7 @@ export default function AppHeader() {
             onClick={() => setOpen(false)}
           />
 
-          <aside className="surface/95 fixed left-0 top-0 z-50 h-dvh w-[18rem] border-r border-theme p-4 backdrop-blur">
+          <aside className="surface fixed left-0 top-0 z-50 h-dvh w-[18rem] border-r border-theme p-4">
             <div className="flex items-center justify-between gap-3">
               <Link href="/" className="inline-flex items-center gap-3" onClick={() => setOpen(false)}>
                 <div className="grid h-10 w-10 place-items-center rounded-2xl bg-[var(--primary)] text-[var(--primary-foreground)]">

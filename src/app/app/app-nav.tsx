@@ -26,16 +26,16 @@ function NavItem({
       href={href}
       onClick={onNavigate}
       className={
-        'flex items-center gap-3 rounded-xl px-3 py-2 text-sm transition-colors ' +
+        'flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors ' +
         (active
           ? 'bg-[var(--muted)] text-[var(--foreground)]'
-          : 'text-[var(--muted-foreground)] hover:bg-[var(--muted)] hover:text-[var(--foreground)]')
+          : 'text-[var(--foreground)] opacity-80 hover:bg-[var(--muted)] hover:opacity-100')
       }
     >
-      <span className={active ? 'text-[var(--foreground)]' : 'text-[var(--muted-foreground)]'}>
+      <span className={active ? 'text-[var(--foreground)]' : 'text-[var(--foreground)] opacity-80'}>
         <Icon className="size-5" />
       </span>
-      <span className="font-medium">{label}</span>
+      <span>{label}</span>
     </Link>
   )
 }

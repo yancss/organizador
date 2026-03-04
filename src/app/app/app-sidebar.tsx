@@ -6,7 +6,7 @@ import AppNav from './app-nav'
 
 export default function AppSidebar() {
   return (
-    <aside className="surface/80 hidden w-64 shrink-0 border-r border-theme backdrop-blur lg:block">
+    <aside className="surface hidden w-64 shrink-0 border-r border-theme lg:block">
       <div className="flex h-dvh flex-col px-3 py-4">
         <div className="px-2 pb-3">
           <Link href="/" className="inline-flex items-center gap-3">
