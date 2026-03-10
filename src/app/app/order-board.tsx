@@ -1,12 +1,15 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
+import { ChevronLeft, ChevronRight, Maximize2, Minimize2, X } from 'lucide-react'
 
 import DataTable from './ui/data-table'
+import SearchSelect from './ui/search-select'
 
 import { useDraftStorage } from './use-draft-storage'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import FullCalendar from '@fullcalendar/react'
+import type { DatesSetArg } from '@fullcalendar/core'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import interactionPlugin from '@fullcalendar/interaction'
 import ptBrLocale from '@fullcalendar/core/locales/pt-br'
@@ -71,6 +74,12 @@ function calendarLocale(language: AppLanguage) {
   return enGbLocale
 }
 
+function formatMonthYear(d: Date, language: AppLanguage) {
+  const locale = language === 'pt' ? 'pt-BR' : language === 'es' ? 'es-ES' : 'en-GB'
+  // Example: "março de 2026" / "March 2026"
+  return new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric' }).format(d)
+}
+
 function fromLocalInputValue(v: string): string | null {
   if (!v.trim()) return null
   const d = new Date(v)
@@ -110,6 +119,13 @@ export default function OrderBoard({ view }: { view: 'upcoming' | 'history' }) {
   const moneyLocale = localeFromLanguage(language)
 
   const [isOpen, setIsOpen] = useState(false)
+  const [calendarFullscreen, setCalendarFullscreen] = useState(false)
+
+  const calRef = useRef<FullCalendar | null>(null)
+  const calModalRef = useRef<FullCalendar | null>(null)
+  const [calTitle, setCalTitle] = useState('')
+  const [calModalTitle, setCalModalTitle] = useState('')
+
   const draftStore = useDraftStorage<Draft>('draft:orders', emptyDraft)
   const draft = draftStore.value
   const setDraft = draftStore.setValue
@@ -359,16 +375,56 @@ export default function OrderBoard({ view }: { view: 'upcoming' | 'history' }) {
           </section>
 
           <section className="surface rounded-xl border border-theme p-2 sm:p-3">
+            <div className="mb-2 flex items-center justify-between gap-2 px-1">
+              <button
+                type="button"
+                className="rounded-md border border-theme bg-[var(--surface)] px-2 py-1.5 text-xs text-[var(--foreground)] hover:bg-[var(--muted)]"
+                onClick={() => calRef.current?.getApi().today()}
+              >
+                {i.calendar.today}
+              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  className="grid size-8 place-items-center rounded-md border border-theme bg-[var(--surface)] text-[var(--foreground)] hover:bg-[var(--muted)]"
+                  aria-label="Mês anterior"
+                  onClick={() => calRef.current?.getApi().prev()}
+                >
+                  <ChevronLeft className="size-4" />
+                </button>
+
+                <div className="w-44 sm:w-56 text-center text-sm font-semibold capitalize text-[var(--foreground)]">
+                  {calTitle}
+                </div>
+
+                <button
+                  type="button"
+                  className="grid size-8 place-items-center rounded-md border border-theme bg-[var(--surface)] text-[var(--foreground)] hover:bg-[var(--muted)]"
+                  aria-label="Próximo mês"
+                  onClick={() => calRef.current?.getApi().next()}
+                >
+                  <ChevronRight className="size-4" />
+                </button>
+              </div>
+
+              <button
+                type="button"
+                className="grid size-9 place-items-center rounded-md border border-theme bg-[var(--surface)] text-[var(--foreground)] hover:bg-[var(--muted)]"
+                aria-label="Ampliar calendário"
+                title="Ampliar calendário"
+                onClick={() => setCalendarFullscreen(true)}
+              >
+                <Maximize2 className="size-4" />
+              </button>
+            </div>
+
             <FullCalendar
+              ref={calRef}
               plugins={[dayGridPlugin, interactionPlugin]}
               locale={calendarLocale(language)}
-              buttonText={{
-                today: i.calendar.today,
-                month: i.calendar.month,
-                week: i.calendar.week,
-                day: i.calendar.day,
-                list: i.calendar.list,
-              }}
+              headerToolbar={false}
+              datesSet={(arg: DatesSetArg) => setCalTitle(formatMonthYear(arg.view.currentStart, language))}
               initialView="dayGridMonth"
               height={650}
               events={calendarEvents}
@@ -436,6 +492,80 @@ export default function OrderBoard({ view }: { view: 'upcoming' | 'history' }) {
         />
       )}
 
+      {calendarFullscreen && view === 'upcoming' ? (
+        <div className="fixed inset-0 z-50">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/50"
+            aria-label="Fechar calendário"
+            onClick={() => setCalendarFullscreen(false)}
+          />
+
+          <div className="surface absolute left-3 right-3 top-3 mx-auto flex h-[92vh] max-w-6xl flex-col overflow-hidden rounded-2xl border border-theme shadow-xl sm:left-6 sm:right-6 sm:top-6">
+            <div className="flex items-center justify-between gap-3 border-b border-theme px-4 py-3">
+              <button
+                type="button"
+                className="rounded-md border border-theme bg-[var(--surface)] px-2 py-1.5 text-xs text-[var(--foreground)] hover:bg-[var(--muted)]"
+                onClick={() => calModalRef.current?.getApi().today()}
+              >
+                {i.calendar.today}
+              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  className="grid size-8 place-items-center rounded-md border border-theme bg-[var(--surface)] text-[var(--foreground)] hover:bg-[var(--muted)]"
+                  aria-label="Mês anterior"
+                  onClick={() => calModalRef.current?.getApi().prev()}
+                >
+                  <ChevronLeft className="size-4" />
+                </button>
+
+                <div className="w-44 sm:w-56 text-center text-sm font-semibold capitalize text-[var(--foreground)]">
+                  {calModalTitle}
+                </div>
+
+                <button
+                  type="button"
+                  className="grid size-8 place-items-center rounded-md border border-theme bg-[var(--surface)] text-[var(--foreground)] hover:bg-[var(--muted)]"
+                  aria-label="Próximo mês"
+                  onClick={() => calModalRef.current?.getApi().next()}
+                >
+                  <ChevronRight className="size-4" />
+                </button>
+              </div>
+
+              <button
+                type="button"
+                className="grid size-9 place-items-center rounded-md border border-theme bg-[var(--surface)] text-[var(--foreground)] hover:bg-[var(--muted)]"
+                onClick={() => setCalendarFullscreen(false)}
+                aria-label="Fechar"
+                title="Fechar"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+
+            <div className="min-h-0 flex-1 p-3 sm:p-4">
+              <FullCalendar
+                ref={calModalRef}
+                plugins={[dayGridPlugin, interactionPlugin]}
+                locale={calendarLocale(language)}
+                headerToolbar={false}
+                datesSet={(arg: DatesSetArg) => setCalModalTitle(formatMonthYear(arg.view.currentStart, language))}
+                initialView="dayGridMonth"
+                height="100%"
+                events={calendarEvents}
+                eventClick={(info) => {
+                  const found = (ordersQ.data?.orders ?? []).find((o) => o.id === info.event.id)
+                  if (found) openEdit(found)
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {isOpen ? (
         <div className="fixed inset-0 z-50">
           <div className="absolute inset-0 bg-black/40" onClick={() => setIsOpen(false)} />
@@ -468,18 +598,31 @@ export default function OrderBoard({ view }: { view: 'upcoming' | 'history' }) {
 
               <label className="grid gap-1">
                 <span className="text-xs font-medium text-[var(--foreground)]">{i.modal.clientLabel}</span>
-                <select
-                  value={draft.clientId}
-                  onChange={(e) => setDraft((d) => ({ ...d, clientId: e.target.value }))}
-                  className="w-full rounded-lg border border-theme bg-transparent px-3 py-2"
-                >
-                  <option value="">{i.modal.clientNone}</option>
-                  {(clientsQ.data?.clients ?? []).map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
+
+                <SearchSelect
+                  value={
+                    draft.clientId
+                      ? (() => {
+                          const found = (clientsQ.data?.clients ?? []).find((c) => c.id === draft.clientId)
+                          return found ? { id: found.id, label: found.name } : { id: draft.clientId, label: '—' }
+                        })()
+                      : null
+                  }
+                  onChange={(next) => setDraft((d) => ({ ...d, clientId: next?.id ?? '' }))}
+                  minChars={2}
+                  labels={{
+                    placeholder: i.modal.clientNone,
+                    hint: language === 'pt' ? 'Digite pelo menos 2 letras…' : language === 'es' ? 'Escribe 2+ letras…' : 'Type at least 2 letters…',
+                    loading: language === 'pt' ? 'Buscando…' : language === 'es' ? 'Buscando…' : 'Searching…',
+                    empty: language === 'pt' ? 'Nenhum cliente encontrado.' : language === 'es' ? 'No se encontraron clientes.' : 'No clients found.',
+                  }}
+                  fetcher={async (q) => {
+                    const res = await fetch(`/api/clients?q=${encodeURIComponent(q)}`)
+                    if (!res.ok) throw new Error(await res.text())
+                    const data = (await res.json()) as { clients: Array<{ id: string; name: string }> }
+                    return (data.clients ?? []).map((c) => ({ id: c.id, label: c.name }))
+                  }}
+                />
               </label>
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

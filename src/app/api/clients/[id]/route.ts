@@ -39,9 +39,40 @@ async function userWorkspaceId(userId: string) {
   return existing?.workspaceId ?? null
 }
 
+function normalizeE164(input: string) {
+  const trimmed = input.trim()
+  const hasPlus = trimmed.startsWith('+')
+  const digits = trimmed.replace(/\D/g, '')
+  return (hasPlus ? '+' : '+') + digits
+}
+
+const E164Like = z
+  .string()
+  .max(50)
+  .transform((v) => normalizeE164(v))
+  .refine((v) => /^\+[1-9]\d{6,14}$/.test(v), 'INVALID_PHONE_E164')
+
 const UpdateClientSchema = z.object({
   name: z.string().min(1).max(140).optional(),
-  phone: z.string().max(50).optional().nullable(),
+
+  phone: E164Like.optional().nullable(),
+  phoneCountry: z.string().length(2).optional().nullable(),
+
+  birthDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
+
+  idType: z.string().max(32).optional().nullable(),
+  idNumber: z.string().max(64).optional().nullable(),
+  idCountry: z.string().length(2).optional().nullable(),
+
+  addressCountry: z.string().length(2).optional().nullable(),
+  addressPostalCode: z.string().max(16).optional().nullable(),
+  addressState: z.string().max(80).optional().nullable(),
+  addressCity: z.string().max(120).optional().nullable(),
+  addressDistrict: z.string().max(120).optional().nullable(),
+  addressStreet: z.string().max(180).optional().nullable(),
+  addressNumber: z.string().max(32).optional().nullable(),
+  addressComplement: z.string().max(180).optional().nullable(),
+
   address: z.string().max(500).optional().nullable(),
   observations: z.string().max(5000).optional().nullable(),
 })
@@ -65,7 +96,31 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     where: { id, workspaceId: wsId },
     data: {
       ...(parsed.data.name !== undefined ? { name: parsed.data.name } : {}),
+
       ...(parsed.data.phone !== undefined ? { phone: parsed.data.phone ?? null } : {}),
+      ...(parsed.data.phoneCountry !== undefined ? { phoneCountry: parsed.data.phoneCountry ?? null } : {}),
+
+      ...(parsed.data.birthDate !== undefined
+        ? { birthDate: parsed.data.birthDate ? new Date(parsed.data.birthDate) : null }
+        : {}),
+
+      ...(parsed.data.idType !== undefined ? { idType: parsed.data.idType ?? null } : {}),
+      ...(parsed.data.idNumber !== undefined ? { idNumber: parsed.data.idNumber ?? null } : {}),
+      ...(parsed.data.idCountry !== undefined ? { idCountry: parsed.data.idCountry ?? null } : {}),
+
+      ...(parsed.data.addressCountry !== undefined ? { addressCountry: parsed.data.addressCountry ?? null } : {}),
+      ...(parsed.data.addressPostalCode !== undefined
+        ? { addressPostalCode: parsed.data.addressPostalCode ?? null }
+        : {}),
+      ...(parsed.data.addressState !== undefined ? { addressState: parsed.data.addressState ?? null } : {}),
+      ...(parsed.data.addressCity !== undefined ? { addressCity: parsed.data.addressCity ?? null } : {}),
+      ...(parsed.data.addressDistrict !== undefined ? { addressDistrict: parsed.data.addressDistrict ?? null } : {}),
+      ...(parsed.data.addressStreet !== undefined ? { addressStreet: parsed.data.addressStreet ?? null } : {}),
+      ...(parsed.data.addressNumber !== undefined ? { addressNumber: parsed.data.addressNumber ?? null } : {}),
+      ...(parsed.data.addressComplement !== undefined
+        ? { addressComplement: parsed.data.addressComplement ?? null }
+        : {}),
+
       ...(parsed.data.address !== undefined ? { address: parsed.data.address ?? null } : {}),
       ...(parsed.data.observations !== undefined ? { observations: parsed.data.observations ?? null } : {}),
     },
@@ -75,7 +130,26 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
 
   const client = await prisma.client.findFirst({
     where: { id, workspaceId: wsId },
-    select: { id: true, name: true, phone: true, address: true, observations: true },
+    select: {
+      id: true,
+      name: true,
+      phone: true,
+      phoneCountry: true,
+      birthDate: true,
+      idType: true,
+      idNumber: true,
+      idCountry: true,
+      addressCountry: true,
+      addressPostalCode: true,
+      addressState: true,
+      addressCity: true,
+      addressDistrict: true,
+      addressStreet: true,
+      addressNumber: true,
+      addressComplement: true,
+      address: true,
+      observations: true,
+    },
   })
 
   return Response.json({ client })

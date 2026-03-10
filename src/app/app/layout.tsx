@@ -7,11 +7,16 @@ import Providers from './providers'
 export default function AppLayout({ children }: { children: ReactNode }) {
   return (
     <Providers>
-      <div className="min-h-dvh lg:flex">
-        <AppSidebar />
-        <div className="min-w-0 flex-1">
-          <AppHeader />
-          <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6">{children}</main>
+      <div className="min-h-dvh">
+        {/* Full-width top bar */}
+        <AppHeader />
+
+        {/* Content area below header */}
+        <div className="flex min-h-0">
+          <AppSidebar />
+          <main className="min-w-0 flex-1 px-4 py-6 sm:px-6">
+            <div className="mx-auto max-w-5xl">{children}</div>
+          </main>
         </div>
       </div>
     </Providers>

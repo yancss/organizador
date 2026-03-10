@@ -5,8 +5,6 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
 async function requireUser() {
-  const session = await getServerSession(authOptions)
-  const userId = (session?.user as { id?: string } | undefined)?.id
   // TEMP: bypass auth for local testing
   if (process.env.DISABLE_AUTH === '1') {
     // pick first user in DB (or create a default)
@@ -22,13 +20,24 @@ async function requireUser() {
         select: { id: true },
       })
     }
-    return { ok: true, userId: u.id }
+    return { ok: true as const, userId: u.id }
   }
 
-  if (!session || !userId) {
+  try {
+    const session = await getServerSession(authOptions)
+    const userId = (session?.user as { id?: string } | undefined)?.id
+
+    if (!session || !userId) {
+      return { ok: false as const, status: 401, error: 'UNAUTHORIZED' }
+    }
+
+    return { ok: true as const, userId }
+  } catch (err) {
+    // When running on LAN (IP access) or with a misconfigured NEXTAUTH_URL/secret,
+    // getServerSession can throw. Return a clean 401 instead of crashing the route.
+    console.error('[auth] getServerSession failed', err)
     return { ok: false as const, status: 401, error: 'UNAUTHORIZED' }
   }
-  return { ok: true as const, userId }
 }
 
 async function ensureWorkspaceId(userId: string) {
@@ -56,14 +65,24 @@ export async function GET(req: Request) {
 
   const url = new URL(req.url)
   const kind = url.searchParams.get('kind') // RAW | FINISHED | null
+  const q = (url.searchParams.get('q') ?? '').trim()
 
   const products = await prisma.product.findMany({
     where: {
       workspaceId: wsId,
       active: true,
       ...(kind ? { kind: kind as any } : {}),
+      ...(q.length >= 2
+        ? {
+            name: {
+              contains: q,
+              mode: 'insensitive',
+            },
+          }
+        : {}),
     },
     orderBy: [{ name: 'asc' }],
+    take: q.length >= 2 ? 25 : 500,
     select: { id: true, name: true, brand: true, kind: true, unit: true },
   })
 

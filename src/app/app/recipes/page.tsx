@@ -8,6 +8,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { t } from '../i18n'
 import { useSettings } from '../settings-context'
 import DataTable from '../ui/data-table'
+import SearchSelect from '../ui/search-select'
 
 type Product = { id: string; name: string; unit: string; kind: 'RAW' | 'FINISHED' }
 
@@ -63,6 +64,7 @@ export default function RecipesPage() {
   const [addRawProductId, setAddRawProductId] = useState('')
   const [addQty, setAddQty] = useState('')
 
+  // We keep these queries for display purposes in lists, but selection in the modal is search-based.
   const finalProductsQ = useQuery({
     queryKey: ['products', 'FINISHED'],
     queryFn: () => api<{ products: Product[] }>('/api/products?kind=FINISHED'),
@@ -145,8 +147,7 @@ export default function RecipesPage() {
   const recipes = recipesQ.data?.recipes ?? []
 
   function openCreate() {
-    const first = finalProductsQ.data?.products?.[0]?.id ?? ''
-    setDraft({ productId: first, yieldQty: '', observations: '' })
+    setDraft({ productId: '', yieldQty: '', observations: '' })
     setSelectedRecipeId(null)
     setIsOpen(true)
   }
@@ -308,17 +309,32 @@ export default function RecipesPage() {
             <div className="mt-4 grid gap-3">
               <label className="grid gap-1">
                 <span className="text-xs font-medium text-[var(--foreground)]">{i.recipes.finalProduct}</span>
-                <select
-                  value={draft.productId}
-                  onChange={(e) => setDraft((d) => ({ ...d, productId: e.target.value }))}
-                  className="w-full rounded-lg border border-theme bg-transparent px-3 py-2"
-                >
-                  {(finalProductsQ.data?.products ?? []).map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} ({p.unit})
-                    </option>
-                  ))}
-                </select>
+
+                <SearchSelect
+                  value={
+                    draft.productId
+                      ? (() => {
+                          const found = (finalProductsQ.data?.products ?? []).find((p) => p.id === draft.productId)
+                          return found ? { id: found.id, label: `${found.name} (${found.unit})` } : { id: draft.productId, label: '—' }
+                        })()
+                      : null
+                  }
+                  onChange={(next) => setDraft((d) => ({ ...d, productId: next?.id ?? '' }))}
+                  minChars={2}
+                  labels={{
+                    placeholder: language === 'pt' ? 'Selecione…' : language === 'es' ? 'Seleccione…' : 'Select…',
+                    hint: language === 'pt' ? 'Digite pelo menos 2 letras…' : language === 'es' ? 'Escribe 2+ letras…' : 'Type at least 2 letters…',
+                    loading: language === 'pt' ? 'Buscando…' : language === 'es' ? 'Buscando…' : 'Searching…',
+                    empty: language === 'pt' ? 'Nenhum produto encontrado.' : language === 'es' ? 'No se encontraron productos.' : 'No products found.',
+                    clear: language === 'pt' ? 'Limpar seleção' : language === 'es' ? 'Limpiar selección' : 'Clear selection',
+                  }}
+                  fetcher={async (q) => {
+                    const res = await fetch(`/api/products?kind=FINISHED&q=${encodeURIComponent(q)}`)
+                    if (!res.ok) throw new Error(await res.text())
+                    const data = (await res.json()) as { products: Array<{ id: string; name: string; unit: string }> }
+                    return (data.products ?? []).map((p) => ({ id: p.id, label: `${p.name} (${p.unit})` }))
+                  }}
+                />
               </label>
 
               <label className="grid gap-1">
@@ -346,17 +362,32 @@ export default function RecipesPage() {
                   <div className="text-sm font-medium">{i.recipes.itemsTitle}</div>
 
                   <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_140px_120px] sm:items-center">
-                    <select
-                      value={addRawProductId}
-                      onChange={(e) => setAddRawProductId(e.target.value)}
-                      className="w-full rounded-lg border border-theme bg-transparent px-3 py-2 text-sm"
-                    >
-                      {(rawProductsQ.data?.products ?? []).map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name} ({p.unit})
-                        </option>
-                      ))}
-                    </select>
+                    <SearchSelect
+                      value={
+                        addRawProductId
+                          ? (() => {
+                              const found = (rawProductsQ.data?.products ?? []).find((p) => p.id === addRawProductId)
+                              return found ? { id: found.id, label: `${found.name} (${found.unit})` } : { id: addRawProductId, label: '—' }
+                            })()
+                          : null
+                      }
+                      onChange={(next) => setAddRawProductId(next?.id ?? '')}
+                      minChars={2}
+                      labels={{
+                        placeholder: language === 'pt' ? 'Selecione…' : language === 'es' ? 'Seleccione…' : 'Select…',
+                        hint: language === 'pt' ? 'Digite pelo menos 2 letras…' : language === 'es' ? 'Escribe 2+ letras…' : 'Type at least 2 letters…',
+                        loading: language === 'pt' ? 'Buscando…' : language === 'es' ? 'Buscando…' : 'Searching…',
+                        empty: language === 'pt' ? 'Nenhum produto encontrado.' : language === 'es' ? 'No se encontraron productos.' : 'No products found.',
+                        clear: language === 'pt' ? 'Limpar seleção' : language === 'es' ? 'Limpiar selección' : 'Clear selection',
+                      }}
+                      fetcher={async (q) => {
+                        const res = await fetch(`/api/products?kind=RAW&q=${encodeURIComponent(q)}`)
+                        if (!res.ok) throw new Error(await res.text())
+                        const data = (await res.json()) as { products: Array<{ id: string; name: string; unit: string }> }
+                        return (data.products ?? []).map((p) => ({ id: p.id, label: `${p.name} (${p.unit})` }))
+                      }}
+                    />
+
                     <input
                       value={addQty}
                       onChange={(e) => setAddQty(e.target.value)}

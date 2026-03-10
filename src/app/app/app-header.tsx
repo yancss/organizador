@@ -1,8 +1,25 @@
 'use client'
 
 import Link from 'next/link'
+import { Bebas_Neue, Montserrat_Alternates, Rajdhani } from 'next/font/google'
 import { Menu, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
+
+// Quick font switch for the brand name (test options)
+const BRAND_FONT: 'bebas' | 'montserrat' | 'rajdhani' = 'montserrat'
+
+// next/font requires each loader call to be assigned to a top-level const
+const bebasFont = Bebas_Neue({ subsets: ['latin'], weight: ['400'] })
+const montserratFont = Montserrat_Alternates({ subsets: ['latin'], weight: ['700'] })
+const rajdhaniFont = Rajdhani({ subsets: ['latin'], weight: ['700'] })
+
+const brandFonts = {
+  bebas: bebasFont,
+  montserrat: montserratFont,
+  rajdhani: rajdhaniFont,
+} as const
+
+const brandFont = brandFonts[BRAND_FONT]
 
 import AppNav from './app-nav'
 import AvatarMenu from './ui/avatar-menu'
@@ -21,7 +38,7 @@ export default function AppHeader() {
 
   return (
     <header className="sticky top-0 z-10 border-b border-theme surface">
-      <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-4 sm:px-6">
+      <div className="flex w-full items-center gap-3 px-4 py-4 sm:px-6">
         <div className="flex min-w-0 items-center gap-3">
           <button
             type="button"
@@ -34,14 +51,22 @@ export default function AppHeader() {
           </button>
 
           <Link
-            href="/"
-            className="truncate font-brand text-lg font-semibold tracking-tight text-[var(--foreground)]"
+            href="/app"
+            className={
+              brandFont.className +
+              ' select-none text-xl sm:text-2xl font-bold tracking-[0.06em] leading-[0.92] ' +
+              'drop-shadow-[0_10px_30px_rgba(0,0,0,0.25)]'
+            }
+            aria-label="Guardian"
+            title="Guardian"
           >
-            Guardian
+            <span className="inline-block text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-cyan-300 to-violet-400 drop-shadow-[0_12px_35px_rgba(34,211,238,0.18)] scale-y-[1.08] origin-center">
+              Guardian
+            </span>
           </Link>
         </div>
 
-        <nav className="flex items-center gap-2">
+        <nav className="ml-auto flex items-center gap-2">
           <AvatarMenu />
         </nav>
       </div>
@@ -57,16 +82,12 @@ export default function AppHeader() {
 
           <aside className="surface fixed left-0 top-0 z-50 h-dvh w-[18rem] border-r border-theme p-4">
             <div className="flex items-center justify-between gap-3">
-              <Link href="/" className="inline-flex items-center gap-3" onClick={() => setOpen(false)}>
-                <div className="grid h-10 w-10 place-items-center rounded-2xl bg-[var(--primary)] text-[var(--primary-foreground)]">
-                  <span className="font-brand text-base font-semibold">G</span>
-                </div>
-                <div>
-                  <div className="font-brand text-base font-semibold tracking-tight text-[var(--foreground)]">
-                    Guardian
-                  </div>
-                  <div className="text-xs text-[var(--muted-foreground)]">Organizador</div>
-                </div>
+              <Link
+                href="/"
+                className="font-brand text-base font-semibold tracking-tight text-[var(--foreground)]"
+                onClick={() => setOpen(false)}
+              >
+                Guardian
               </Link>
 
               <button

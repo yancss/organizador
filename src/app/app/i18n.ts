@@ -68,7 +68,35 @@ export type I18n = {
     modalSubtitle: string
     nameLabel: string
     phoneLabel: string
-    addressLabel: string
+    phoneHelp: string
+
+    birthDateLabel: string
+
+    identificationTitle: string
+    idTypeLabel: string
+    idNumberLabel: string
+    idCountryLabel: string
+
+    idTypeOptional: string
+    idTypeTaxId: string
+    idTypeNationalId: string
+    idTypePassport: string
+    idTypeDriverLicense: string
+    idTypeResidencePermit: string
+    idTypeCompanyId: string
+    idTypeOther: string
+
+    addressTitle: string
+    addressCountryLabel: string
+    addressPostalCodeLabel: string
+    addressStateLabel: string
+    addressCityLabel: string
+    addressDistrictLabel: string
+    addressStreetLabel: string
+    addressNumberLabel: string
+    addressComplementLabel: string
+    addressLegacyLabel: string
+
     observationsLabel: string
 
     delete: string
@@ -263,10 +291,38 @@ const dict: Record<AppLanguage, I18n> = {
 
       newTitle: 'Novo cliente',
       editTitle: 'Editar cliente',
-      modalSubtitle: 'Nome, telefone e observações.',
+      modalSubtitle: 'Nome, telefone, identificação e endereço.',
       nameLabel: 'Nome',
       phoneLabel: 'Telefone',
-      addressLabel: 'Endereço',
+      phoneHelp: 'Salvando em formato internacional (ex.: +351…, +55…)',
+
+      birthDateLabel: 'Data de nascimento',
+
+      identificationTitle: 'Identificação',
+      idTypeLabel: 'Tipo',
+      idNumberLabel: 'Número',
+      idCountryLabel: 'País (ISO-2)',
+
+      idTypeOptional: '(opcional)',
+      idTypeTaxId: 'Tax ID / Número fiscal',
+      idTypeNationalId: 'Documento nacional (ID)',
+      idTypePassport: 'Passaporte',
+      idTypeDriverLicense: 'Carteira de motorista',
+      idTypeResidencePermit: 'Autorização/Cartão de residência',
+      idTypeCompanyId: 'Registro de empresa',
+      idTypeOther: 'Outro',
+
+      addressTitle: 'Endereço',
+      addressCountryLabel: 'País (ISO-2)',
+      addressPostalCodeLabel: 'CEP / Código postal',
+      addressStateLabel: 'Estado/Região',
+      addressCityLabel: 'Cidade',
+      addressDistrictLabel: 'Bairro',
+      addressStreetLabel: 'Rua',
+      addressNumberLabel: 'Número',
+      addressComplementLabel: 'Complemento',
+      addressLegacyLabel: 'Endereço (texto livre – legado)',
+
       observationsLabel: 'Observações',
 
       delete: 'Excluir',
@@ -452,10 +508,38 @@ const dict: Record<AppLanguage, I18n> = {
 
       newTitle: 'New client',
       editTitle: 'Edit client',
-      modalSubtitle: 'Name, phone and notes.',
+      modalSubtitle: 'Name, phone, identification and address.',
       nameLabel: 'Name',
       phoneLabel: 'Phone',
-      addressLabel: 'Address',
+      phoneHelp: 'Saved in international format (e.g. +351…, +55…)',
+
+      birthDateLabel: 'Birth date',
+
+      identificationTitle: 'Identification',
+      idTypeLabel: 'Type',
+      idNumberLabel: 'Number',
+      idCountryLabel: 'Country (ISO-2)',
+
+      idTypeOptional: '(optional)',
+      idTypeTaxId: 'Tax ID / Taxpayer number',
+      idTypeNationalId: 'National ID',
+      idTypePassport: 'Passport',
+      idTypeDriverLicense: 'Driver\'s license',
+      idTypeResidencePermit: 'Residence permit',
+      idTypeCompanyId: 'Company registration',
+      idTypeOther: 'Other',
+
+      addressTitle: 'Address',
+      addressCountryLabel: 'Country (ISO-2)',
+      addressPostalCodeLabel: 'Postal code',
+      addressStateLabel: 'State/Region',
+      addressCityLabel: 'City',
+      addressDistrictLabel: 'District',
+      addressStreetLabel: 'Street',
+      addressNumberLabel: 'Number',
+      addressComplementLabel: 'Complement',
+      addressLegacyLabel: 'Address (free text – legacy)',
+
       observationsLabel: 'Observations',
 
       delete: 'Delete',
@@ -641,10 +725,38 @@ const dict: Record<AppLanguage, I18n> = {
 
       newTitle: 'Nuevo cliente',
       editTitle: 'Editar cliente',
-      modalSubtitle: 'Nombre, teléfono y observaciones.',
+      modalSubtitle: 'Nombre, teléfono, identificación y dirección.',
       nameLabel: 'Nombre',
       phoneLabel: 'Teléfono',
-      addressLabel: 'Dirección',
+      phoneHelp: 'Guardado en formato internacional (p. ej. +351…, +55…)',
+
+      birthDateLabel: 'Fecha de nacimiento',
+
+      identificationTitle: 'Identificación',
+      idTypeLabel: 'Tipo',
+      idNumberLabel: 'Número',
+      idCountryLabel: 'País (ISO-2)',
+
+      idTypeOptional: '(opcional)',
+      idTypeTaxId: 'Tax ID / Número fiscal',
+      idTypeNationalId: 'Documento nacional (ID)',
+      idTypePassport: 'Pasaporte',
+      idTypeDriverLicense: 'Permiso de conducir',
+      idTypeResidencePermit: 'Permiso de residencia',
+      idTypeCompanyId: 'Registro de empresa',
+      idTypeOther: 'Otro',
+
+      addressTitle: 'Dirección',
+      addressCountryLabel: 'País (ISO-2)',
+      addressPostalCodeLabel: 'Código postal',
+      addressStateLabel: 'Estado/Región',
+      addressCityLabel: 'Ciudad',
+      addressDistrictLabel: 'Barrio/Distrito',
+      addressStreetLabel: 'Calle',
+      addressNumberLabel: 'Número',
+      addressComplementLabel: 'Complemento',
+      addressLegacyLabel: 'Dirección (texto libre – legado)',
+
       observationsLabel: 'Observaciones',
 
       delete: 'Eliminar',

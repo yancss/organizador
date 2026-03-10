@@ -3,27 +3,24 @@ import { z } from 'zod'
 
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { upsertReceivableForOrder } from '@/lib/finance-defaults'
 
 async function requireUser() {
-  const session = await getServerSession(authOptions)
-  const userId = (session?.user as { id?: string } | undefined)?.id
-  // TEMP: bypass auth for local testing
+  // In local/dev mode, allow bypassing NextAuth entirely.
+  // Important: do this BEFORE calling getServerSession to avoid NextAuth misconfig causing 500s.
   if (process.env.DISABLE_AUTH === '1') {
-    // pick first user in DB (or create a default)
     let u = await prisma.user.findFirst({ select: { id: true } })
     if (!u) {
       u = await prisma.user.create({
-        data: {
-          email: 'dev@guardian.local',
-          name: 'Dev',
-          active: true,
-          role: 'owner',
-        },
+        data: { email: 'dev@guardian.local', name: 'Dev', active: true, role: 'owner' },
         select: { id: true },
       })
     }
-    return { ok: true, userId: u.id }
+    return { ok: true as const, userId: u.id }
   }
+
+  const session = await getServerSession(authOptions)
+  const userId = (session?.user as { id?: string } | undefined)?.id
 
   if (!session || !userId) {
     return { ok: false as const, status: 401, error: 'UNAUTHORIZED' }
@@ -195,6 +192,15 @@ export async function POST(req: Request) {
       updatedAt: true,
     },
   })
+
+  // Business rule (MVP): when order is created as delivered, create accounts receivable (IN/PLANNED).
+  if (order.delivered) {
+    const v = Number(order.value ?? 0)
+    if (v > 0) {
+      const competence = order.deliveryAt ?? new Date()
+      await upsertReceivableForOrder({ workspaceId: ws.id, orderId: order.id, competenceDate: competence, value: v })
+    }
+  }
 
   return Response.json({ order }, { status: 201 })
 }

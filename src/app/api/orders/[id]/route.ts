@@ -3,27 +3,24 @@ import { z } from 'zod'
 
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { deletePlannedReceivableForOrder, upsertReceivableForOrder } from '@/lib/finance-defaults'
 
 async function requireUser() {
-  const session = await getServerSession(authOptions)
-  const userId = (session?.user as { id?: string } | undefined)?.id
-  // TEMP: bypass auth for local testing
+  // In local/dev mode, allow bypassing NextAuth entirely.
+  // Important: do this BEFORE calling getServerSession to avoid NextAuth misconfig causing 500s.
   if (process.env.DISABLE_AUTH === '1') {
-    // pick first user in DB (or create a default)
     let u = await prisma.user.findFirst({ select: { id: true } })
     if (!u) {
       u = await prisma.user.create({
-        data: {
-          email: 'dev@guardian.local',
-          name: 'Dev',
-          active: true,
-          role: 'owner',
-        },
+        data: { email: 'dev@guardian.local', name: 'Dev', active: true, role: 'owner' },
         select: { id: true },
       })
     }
-    return { ok: true, userId: u.id }
+    return { ok: true as const, userId: u.id }
   }
+
+  const session = await getServerSession(authOptions)
+  const userId = (session?.user as { id?: string } | undefined)?.id
 
   if (!session || !userId) {
     return { ok: false as const, status: 401, error: 'UNAUTHORIZED' }
@@ -70,6 +67,13 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     return Response.json({ error: 'INVALID_BODY', details: parsed.error.flatten() }, { status: 400 })
   }
 
+  // Fetch previous order state (needed to decide whether to create/update receivable)
+  const prev = await prisma.order.findFirst({
+    where: { id, workspaceId: wsId, ownerId: auth.userId },
+    select: { id: true, delivered: true, value: true, deliveryAt: true, updatedAt: true },
+  })
+  if (!prev) return Response.json({ error: 'NOT_FOUND' }, { status: 404 })
+
   const data: any = {}
   if (parsed.data.name !== undefined) data.name = parsed.data.name
   if (parsed.data.observations !== undefined) data.observations = parsed.data.observations ?? null
@@ -85,6 +89,25 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   })
 
   if (updated.count === 0) return Response.json({ error: 'NOT_FOUND' }, { status: 404 })
+
+  // Business rule (MVP): when an order is marked as delivered, create/update an accounts receivable entry (IN/PLANNED).
+  // If un-delivered, remove only PLANNED receivable (keep PAID history intact).
+  if (parsed.data.delivered !== undefined || parsed.data.value !== undefined || parsed.data.deliveryAt !== undefined) {
+    const next = await prisma.order.findFirst({
+      where: { id, workspaceId: wsId, ownerId: auth.userId },
+      select: { id: true, delivered: true, value: true, deliveryAt: true, updatedAt: true },
+    })
+
+    if (next?.delivered) {
+      const v = Number(next.value ?? 0)
+      if (v > 0) {
+        const competence = next.deliveryAt ?? new Date()
+        await upsertReceivableForOrder({ workspaceId: wsId, orderId: id, competenceDate: competence, value: v })
+      }
+    } else {
+      await deletePlannedReceivableForOrder(wsId, id)
+    }
+  }
 
   // Itens: estratégia simples (MVP) = substituir tudo.
   if (parsed.data.items) {
@@ -154,6 +177,9 @@ export async function DELETE(_req: Request, ctx: { params: Promise<{ id: string 
   if (!wsId) return Response.json({ error: 'NO_WORKSPACE' }, { status: 400 })
 
   const { id } = await ctx.params
+
+  // Delete planned receivable before removing the order.
+  await deletePlannedReceivableForOrder(wsId, id)
 
   const deleted = await prisma.order.deleteMany({
     where: { id, workspaceId: wsId, ownerId: auth.userId },

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Maximize2, Minimize2 } from 'lucide-react'
 import FullCalendar from '@fullcalendar/react'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import timeGridPlugin from '@fullcalendar/timegrid'
@@ -75,6 +76,7 @@ export default function EventBoard() {
   const i = t(language)
 
   const [view, setView] = useState<ViewMode>('list')
+  const [calendarFullscreen, setCalendarFullscreen] = useState(false)
   const [isOpen, setIsOpen] = useState(false)
   const [draft, setDraft] = useState<Draft>(emptyDraft())
 
@@ -215,6 +217,19 @@ export default function EventBoard() {
             </button>
           </div>
 
+          {view === 'calendar' ? (
+            <button
+              className="inline-flex items-center gap-2 rounded-lg border border-theme bg-[var(--surface)] px-3 py-2 text-sm text-[var(--foreground)] hover:bg-[var(--muted)]"
+              onClick={() => setCalendarFullscreen((v) => !v)}
+              type="button"
+              aria-label={calendarFullscreen ? 'Reduzir calendário' : 'Ampliar calendário'}
+              title={calendarFullscreen ? 'Reduzir calendário' : 'Ampliar calendário'}
+            >
+              {calendarFullscreen ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
+              <span className="hidden sm:inline">{calendarFullscreen ? 'Reduzir' : 'Ampliar'}</span>
+            </button>
+          ) : null}
+
           <button
             className="rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-medium text-[var(--primary-foreground)] hover:opacity-90"
             onClick={openCreate}
@@ -314,6 +329,52 @@ export default function EventBoard() {
           />
         </section>
       )}
+
+      {calendarFullscreen && view === 'calendar' ? (
+        <div className="fixed inset-0 z-50">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/50"
+            aria-label="Fechar calendário"
+            onClick={() => setCalendarFullscreen(false)}
+          />
+
+          <div className="surface absolute left-3 right-3 top-3 mx-auto flex h-[92vh] max-w-6xl flex-col overflow-hidden rounded-2xl border border-theme shadow-xl sm:left-6 sm:right-6 sm:top-6">
+            <div className="flex items-center justify-between gap-3 border-b border-theme px-4 py-3">
+              <div className="text-sm font-medium text-[var(--foreground)]">{i.board.viewCalendar}</div>
+              <button
+                type="button"
+                className="inline-flex items-center gap-2 rounded-lg border border-theme bg-[var(--surface)] px-3 py-2 text-sm text-[var(--foreground)] hover:bg-[var(--muted)]"
+                onClick={() => setCalendarFullscreen(false)}
+              >
+                <Minimize2 className="size-4" />
+                <span>Fechar</span>
+              </button>
+            </div>
+
+            <div className="min-h-0 flex-1 p-3 sm:p-4">
+              <FullCalendar
+                plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+                locale={calendarLocale(language)}
+                buttonText={{
+                  today: i.calendar.today,
+                  month: i.calendar.month,
+                  week: i.calendar.week,
+                  day: i.calendar.day,
+                  list: i.calendar.list,
+                }}
+                initialView="dayGridMonth"
+                height="100%"
+                events={calendarEvents}
+                eventClick={(info) => {
+                  const found = (eventsQ.data?.events ?? []).find((e) => e.id === info.event.id)
+                  if (found) openEdit(found)
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {isOpen ? (
         <div className="fixed inset-0 z-50">

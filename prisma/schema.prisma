@@ -15,53 +15,58 @@ model User {
   image         String?
 
   // Credentials auth (optional)
-  passwordHash  String?   @db.VarChar(255)
+  passwordHash String? @db.VarChar(255)
 
   // Profile
-  birthDate     DateTime?
+  birthDate DateTime?
 
   // Basic access control
-  role          String    @default("user")
-  active        Boolean   @default(true)
+  role   String  @default("user")
+  active Boolean @default(true)
 
-  accounts      Account[]
-  sessions      Session[]
+  accounts Account[]
+  sessions Session[]
 
-  memberships   WorkspaceMember[]
-  orders        Order[] @relation("OrderOwner")
+  memberships WorkspaceMember[]
+  orders      Order[]           @relation("OrderOwner")
 
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Workspace {
-  id          String            @id @default(cuid())
-  name        String
-  members     WorkspaceMember[]
+  id      String            @id @default(cuid())
+  name    String
+  members WorkspaceMember[]
 
-  orders      Order[]
-  clients     Client[]
-  products    Product[]
-  inventories Inventory[]
-  purchases   Purchase[]
+  orders       Order[]
+  clients      Client[]
+  products     Product[]
+  inventories  Inventory[]
+  purchases    Purchase[]
   consumptions Consumption[]
-  recipes     Recipe[]
-  financialEntries FinancialEntry[]
+  recipes      Recipe[]
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  // Finance (MVP)
+  financialEntries    FinancialEntry[]
+  financialAccounts   FinancialAccount[]
+  financialCategories FinancialCategory[]
+  costCenters         CostCenter[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model WorkspaceMember {
-  id           String    @id @default(cuid())
-  workspaceId  String
-  userId       String
-  role         String    @default("owner")
+  id          String @id @default(cuid())
+  workspaceId String
+  userId      String
+  role        String @default("owner")
 
-  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  createdAt    DateTime  @default(now())
+  createdAt DateTime @default(now())
 
   @@unique([workspaceId, userId])
   @@index([userId])
@@ -69,78 +74,103 @@ model WorkspaceMember {
 }
 
 model Order {
-  id            String   @id @default(cuid())
-  workspaceId   String
-  ownerId       String
+  id          String @id @default(cuid())
+  workspaceId String
+  ownerId     String
 
   // Renomeado de Event.title
-  name          String   @map("title")
+  name String @map("title")
 
   // Renomeado de Event.notes
-  observations  String?  @map("notes")
+  observations String? @map("notes")
 
-  clientId      String?
-  orderedAt     DateTime?
-  deliveryAt    DateTime?
-  delivered     Boolean  @default(false)
-  value         Decimal? @db.Decimal(12, 2)
+  clientId   String?
+  orderedAt  DateTime?
+  deliveryAt DateTime?
+  delivered  Boolean   @default(false)
+  value      Decimal?  @db.Decimal(12, 2)
 
   // Manual ordering within a view/list (optional)
-  orderIndex    String?  @db.VarChar(64)
+  orderIndex String? @db.VarChar(64)
 
-  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  owner         User      @relation("OrderOwner", fields: [ownerId], references: [id], onDelete: Cascade)
-  client        Client?   @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  owner     User      @relation("OrderOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  client    Client?   @relation(fields: [clientId], references: [id], onDelete: SetNull)
 
-  items         OrderItem[]
-  consumptions  Consumption[]
+  items            OrderItem[]
+  consumptions     Consumption[]
   financialEntries FinancialEntry[]
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  @@map("Event")
   @@index([workspaceId])
   @@index([ownerId])
   @@index([deliveryAt])
   @@index([orderedAt])
   @@index([clientId])
+  @@map("Event")
 }
 
 model OrderItem {
-  id        String  @id @default(cuid())
+  id        String @id @default(cuid())
   orderId   String
   productId String
 
-  quantity  Decimal @db.Decimal(14, 3)
+  quantity Decimal @db.Decimal(14, 3)
 
-  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Restrict)
 
   createdAt DateTime @default(now())
 
+  @@unique([orderId, productId])
   @@index([orderId])
   @@index([productId])
-  @@unique([orderId, productId])
 }
 
 model Client {
-  id          String   @id @default(cuid())
+  id          String @id @default(cuid())
   workspaceId String
 
-  name        String
-  phone       String?
-  address     String?
+  name String
+
+  // Contact
+  // NOTE: We are standardizing on E.164 in `phone` (e.g. +351912345678)
+  phone        String?
+  phoneCountry String? @db.VarChar(2) // ISO-2 (PT, BR, ...)
+
+  // Personal
+  birthDate DateTime? @db.Date
+
+  // Identification (MVP: single primary document)
+  idType    String? @db.VarChar(32) // e.g. TAX_ID | NATIONAL_ID | PASSPORT | DRIVER_LICENSE | RESIDENCE_PERMIT | COMPANY_ID | OTHER
+  idNumber  String? @db.VarChar(64)
+  idCountry String? @db.VarChar(2) // ISO-2
+
+  // Address (structured)
+  addressCountry    String? @db.VarChar(2) // ISO-2
+  addressPostalCode String? @db.VarChar(16)
+  addressState      String? @db.VarChar(80)
+  addressCity       String? @db.VarChar(120)
+  addressDistrict   String? @db.VarChar(120)
+  addressStreet     String? @db.VarChar(180)
+  addressNumber     String? @db.VarChar(32)
+  addressComplement String? @db.VarChar(180)
+
+  // Legacy free-form address (kept for backward compatibility)
+  address      String?
   observations String?
 
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  orders      Order[]
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  orders    Order[]
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  @@index([workspaceId])
   @@unique([workspaceId, name])
+  @@index([workspaceId])
+  @@index([phone])
 }
 
 enum ProductKind {
@@ -149,66 +179,66 @@ enum ProductKind {
 }
 
 model Product {
-  id          String   @id @default(cuid())
+  id          String @id @default(cuid())
   workspaceId String
 
-  name        String
-  brand       String?
-  kind        ProductKind @default(RAW)
-  unit        String   // unidade padrão (ex.: gr, kg, ml, un)
-  active      Boolean  @default(true)
+  name   String
+  brand  String?
+  kind   ProductKind @default(RAW)
+  unit   String // unidade padrão (ex.: gr, kg, ml, un)
+  active Boolean     @default(true)
 
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
-  inventory   Inventory?
-  orderItems  OrderItem[]
-  purchases   Purchase[]
-  consumptions Consumption[]
-  recipeItems RecipeItem[]
-  recipesAsFinal Recipe[] @relation("RecipeProductFinal")
+  inventory      Inventory?
+  orderItems     OrderItem[]
+  purchases      Purchase[]
+  consumptions   Consumption[]
+  recipeItems    RecipeItem[]
+  recipesAsFinal Recipe[]      @relation("RecipeProductFinal")
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  @@index([workspaceId])
   @@unique([workspaceId, name])
+  @@index([workspaceId])
 }
 
 model Inventory {
-  id           String   @id @default(cuid())
-  workspaceId  String
-  productId    String   @unique
+  id          String @id @default(cuid())
+  workspaceId String
+  productId   String @unique
 
-  quantity     Decimal  @db.Decimal(14, 3)
-  minimum      Decimal? @db.Decimal(14, 3)
+  quantity Decimal  @db.Decimal(14, 3)
+  minimum  Decimal? @db.Decimal(14, 3)
 
-  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  product      Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
 
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([workspaceId])
 }
 
 model Purchase {
-  id          String   @id @default(cuid())
+  id          String @id @default(cuid())
   workspaceId String
 
-  productId   String
-  date        DateTime @default(now())
-  quantity    Decimal  @db.Decimal(14, 3)
-  cost        Decimal? @db.Decimal(12, 2)
-  supplier    String?
+  productId    String
+  date         DateTime @default(now())
+  quantity     Decimal  @db.Decimal(14, 3)
+  cost         Decimal? @db.Decimal(12, 2)
+  supplier     String?
   observations String?
 
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  product     Product   @relation(fields: [productId], references: [id], onDelete: Restrict)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Restrict)
 
   financialEntries FinancialEntry[]
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([workspaceId])
   @@index([productId])
@@ -216,26 +246,26 @@ model Purchase {
 }
 
 model Consumption {
-  id          String   @id @default(cuid())
+  id          String @id @default(cuid())
   workspaceId String
 
-  date        DateTime @default(now())
-  productId   String
-  quantity    Decimal  @db.Decimal(14, 3)
+  date      DateTime @default(now())
+  productId String
+  quantity  Decimal  @db.Decimal(14, 3)
 
-  orderId     String?
-  recipeId    String?
+  orderId      String?
+  recipeId     String?
   observations String?
 
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  product     Product   @relation(fields: [productId], references: [id], onDelete: Restrict)
-  order       Order?    @relation(fields: [orderId], references: [id], onDelete: SetNull)
-  recipe      Recipe?   @relation(fields: [recipeId], references: [id], onDelete: SetNull)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Restrict)
+  order     Order?    @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  recipe    Recipe?   @relation(fields: [recipeId], references: [id], onDelete: SetNull)
 
   financialEntries FinancialEntry[]
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([workspaceId])
   @@index([productId])
@@ -245,68 +275,155 @@ model Consumption {
 }
 
 model Recipe {
-  id          String   @id @default(cuid())
+  id          String @id @default(cuid())
   workspaceId String
 
-  productId   String   // produto final
-  yieldQty    Decimal? @db.Decimal(14, 3)
+  productId    String // produto final
+  yieldQty     Decimal? @db.Decimal(14, 3)
   observations String?
 
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  product     Product   @relation("RecipeProductFinal", fields: [productId], references: [id], onDelete: Restrict)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  product   Product   @relation("RecipeProductFinal", fields: [productId], references: [id], onDelete: Restrict)
 
-  items       RecipeItem[]
+  items        RecipeItem[]
   consumptions Consumption[]
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([workspaceId])
   @@index([productId])
 }
 
 model RecipeItem {
-  id        String  @id @default(cuid())
+  id        String @id @default(cuid())
   recipeId  String
-  productId String  // insumo
+  productId String // insumo
 
-  quantity  Decimal @db.Decimal(14, 3)
+  quantity Decimal @db.Decimal(14, 3)
 
-  recipe    Recipe  @relation(fields: [recipeId], references: [id], onDelete: Cascade)
-  product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+  recipe  Recipe  @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Restrict)
 
   createdAt DateTime @default(now())
 
+  @@unique([recipeId, productId])
   @@index([recipeId])
   @@index([productId])
-  @@unique([recipeId, productId])
+}
+
+enum FinancialEntryType {
+  IN
+  OUT
+}
+
+enum FinancialEntryStatus {
+  PLANNED
+  PAID
+}
+
+model FinancialAccount {
+  id          String @id @default(cuid())
+  workspaceId String
+
+  name   String
+  kind   String  @default("CASH") // CASH | BANK | CARD | OTHER
+  active Boolean @default(true)
+
+  openingBalance Decimal? @db.Decimal(12, 2)
+
+  workspace Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  entries   FinancialEntry[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId])
+}
+
+model FinancialCategory {
+  id          String @id @default(cuid())
+  workspaceId String
+
+  name   String
+  type   FinancialEntryType
+  active Boolean            @default(true)
+
+  parentId String?
+  parent   FinancialCategory?  @relation("FinancialCategoryParent", fields: [parentId], references: [id], onDelete: SetNull)
+  children FinancialCategory[] @relation("FinancialCategoryParent")
+
+  workspace Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  entries   FinancialEntry[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([workspaceId, name, type])
+  @@index([workspaceId])
+  @@index([type])
+}
+
+model CostCenter {
+  id          String @id @default(cuid())
+  workspaceId String
+
+  name   String
+  active Boolean @default(true)
+
+  workspace Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  entries   FinancialEntry[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId])
 }
 
 model FinancialEntry {
-  id          String   @id @default(cuid())
+  id          String @id @default(cuid())
   workspaceId String
 
-  date        DateTime @default(now())
-  type        String   // Entrada | Saida
-  category    String
-  value       Decimal  @db.Decimal(12, 2)
+  // Competência (quando ocorreu) vs pagamento (quando efetivou)
+  competenceDate DateTime  @default(now())
+  paidAt         DateTime?
+
+  type   FinancialEntryType
+  status FinancialEntryStatus @default(PAID)
+
+  accountId    String
+  categoryId   String?
+  costCenterId String?
+
+  value        Decimal @db.Decimal(12, 2)
   observations String?
 
-  orderId     String?
-  purchaseId  String?
+  orderId       String?
+  purchaseId    String?
   consumptionId String?
 
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  order       Order?    @relation(fields: [orderId], references: [id], onDelete: SetNull)
-  purchase    Purchase? @relation(fields: [purchaseId], references: [id], onDelete: SetNull)
+  workspace  Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  account    FinancialAccount   @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  category   FinancialCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  costCenter CostCenter?        @relation(fields: [costCenterId], references: [id], onDelete: SetNull)
+
+  order       Order?       @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  purchase    Purchase?    @relation(fields: [purchaseId], references: [id], onDelete: SetNull)
   consumption Consumption? @relation(fields: [consumptionId], references: [id], onDelete: SetNull)
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([workspaceId])
-  @@index([date])
+  @@index([competenceDate])
+  @@index([paidAt])
   @@index([type])
+  @@index([status])
+  @@index([accountId])
+  @@index([categoryId])
+  @@index([costCenterId])
   @@index([orderId])
   @@index([purchaseId])
   @@index([consumptionId])
@@ -345,12 +462,12 @@ model Session {
 }
 
 model PasswordResetToken {
-  id          String   @id @default(cuid())
-  email       String
-  tokenHash   String   @unique
-  expiresAt   DateTime
-  usedAt      DateTime?
-  createdAt   DateTime @default(now())
+  id        String    @id @default(cuid())
+  email     String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
 
   @@index([email])
   @@index([expiresAt])

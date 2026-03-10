@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Boxes, BookOpen, CalendarDays, History, Package, Users } from 'lucide-react'
+import { Boxes, BookOpen, CalendarDays, History, Package, Users, Wallet, Landmark } from 'lucide-react'
 
 import { useSettings } from './settings-context'
 import { t } from './i18n'
@@ -75,6 +75,35 @@ export default function AppNav({ onNavigate }: { onNavigate?: () => void }) {
         href="/app/recipes"
         label={language === 'pt' ? 'Receitas' : language === 'es' ? 'Recetas' : 'Recipes'}
         icon={BookOpen}
+        onNavigate={onNavigate}
+      />
+      <NavItem
+        href="/app/finance"
+        label={language === 'pt' ? 'Financeiro' : language === 'es' ? 'Finanzas' : 'Finance'}
+        icon={Wallet}
+        onNavigate={onNavigate}
+      />
+
+      {/* Finance subsections */}
+      <div className="ml-9 grid gap-1">
+        <NavItem
+          href="/app/finance/accounts"
+          label={language === 'pt' ? 'Contas' : language === 'es' ? 'Cuentas' : 'Accounts'}
+          icon={Landmark}
+          onNavigate={onNavigate}
+        />
+        <NavItem
+          href="/app/finance/categories"
+          label={language === 'pt' ? 'Categorias' : language === 'es' ? 'Categorías' : 'Categories'}
+          icon={Landmark}
+          onNavigate={onNavigate}
+        />
+      </div>
+
+      <NavItem
+        href="/app/costs"
+        label={language === 'pt' ? 'Custos' : language === 'es' ? 'Costos' : 'Costs'}
+        icon={Landmark}
         onNavigate={onNavigate}
       />
     </nav>

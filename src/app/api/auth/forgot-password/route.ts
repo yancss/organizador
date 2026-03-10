@@ -56,9 +56,13 @@ export async function POST(req: Request) {
       `,
     })
   } catch (err) {
-    // Não derrubar o fluxo para o usuário (pode ser SMTP mal configurado).
-    // Logar para debug.
+    // Não derrubar o fluxo para o usuário (pode ser SMTP/Resend mal configurado).
     console.error('[forgot-password] sendEmail failed', err)
+
+    // Dev fallback: print the reset link so you can test the full flow even if email is blocked.
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[forgot-password] dev resetUrl', resetUrl)
+    }
   }
 
   return Response.json({ ok: true }, { status: 200 })
