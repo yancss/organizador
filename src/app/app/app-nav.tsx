@@ -40,6 +40,25 @@ function NavItem({
   )
 }
 
+function Section({
+  title,
+  children,
+  defaultOpen = false,
+}: {
+  title: string
+  children: React.ReactNode
+  defaultOpen?: boolean
+}) {
+  return (
+    <details className="rounded-xl" open={defaultOpen}>
+      <summary className="cursor-pointer select-none rounded-xl px-3 py-2 text-sm font-medium text-[var(--foreground)] opacity-80 hover:bg-[var(--muted)] hover:opacity-100">
+        {title}
+      </summary>
+      <div className="ml-4 mt-1 grid gap-1">{children}</div>
+    </details>
+  )
+}
+
 export default function AppNav({ onNavigate }: { onNavigate?: () => void }) {
   const { language } = useSettings()
   const i = t(language)
@@ -47,6 +66,40 @@ export default function AppNav({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <nav className="mt-2 grid gap-1">
       <NavItem href="/app" label={i.nav.agenda} icon={CalendarDays} onNavigate={onNavigate} />
+
+      <Section title={language === 'pt' ? 'Vendas' : language === 'es' ? 'Ventas' : 'Sales'} defaultOpen>
+        <NavItem
+          href="/app"
+          label={language === 'pt' ? 'Pedidos de venda' : language === 'es' ? 'Pedidos de venta' : 'Sales orders'}
+          icon={CalendarDays}
+          onNavigate={onNavigate}
+        />
+        <NavItem
+          href="/app/deliveries"
+          label={language === 'pt' ? 'Entregas' : language === 'es' ? 'Entregas' : 'Deliveries'}
+          icon={Package}
+          onNavigate={onNavigate}
+        />
+        <NavItem
+          href="/app/receivables"
+          label={language === 'pt' ? 'Recebíveis' : language === 'es' ? 'Cuentas por cobrar' : 'Receivables'}
+          icon={Wallet}
+          onNavigate={onNavigate}
+        />
+        <NavItem
+          href="/app/payments"
+          label={language === 'pt' ? 'Pagamentos' : language === 'es' ? 'Pagos' : 'Payments'}
+          icon={Wallet}
+          onNavigate={onNavigate}
+        />
+        <NavItem
+          href="/app/refunds"
+          label={language === 'pt' ? 'Devoluções' : language === 'es' ? 'Reembolsos' : 'Refunds'}
+          icon={Wallet}
+          onNavigate={onNavigate}
+        />
+      </Section>
+
       <NavItem
         href="/app/history"
         label={language === 'pt' ? 'Histórico' : language === 'es' ? 'Historial' : 'History'}
@@ -77,15 +130,14 @@ export default function AppNav({ onNavigate }: { onNavigate?: () => void }) {
         icon={BookOpen}
         onNavigate={onNavigate}
       />
-      <NavItem
-        href="/app/finance"
-        label={language === 'pt' ? 'Financeiro' : language === 'es' ? 'Finanzas' : 'Finance'}
-        icon={Wallet}
-        onNavigate={onNavigate}
-      />
 
-      {/* Finance subsections */}
-      <div className="ml-9 grid gap-1">
+      <Section title={language === 'pt' ? 'Financeiro' : language === 'es' ? 'Finanzas' : 'Finance'}>
+        <NavItem
+          href="/app/finance"
+          label={language === 'pt' ? 'Visão geral' : language === 'es' ? 'Resumen' : 'Overview'}
+          icon={Wallet}
+          onNavigate={onNavigate}
+        />
         <NavItem
           href="/app/finance/accounts"
           label={language === 'pt' ? 'Contas' : language === 'es' ? 'Cuentas' : 'Accounts'}
@@ -98,7 +150,7 @@ export default function AppNav({ onNavigate }: { onNavigate?: () => void }) {
           icon={Landmark}
           onNavigate={onNavigate}
         />
-      </div>
+      </Section>
 
       <NavItem
         href="/app/costs"
