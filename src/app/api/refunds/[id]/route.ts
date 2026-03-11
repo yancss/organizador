@@ -94,12 +94,49 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     },
   })
 
-  // Side-effect: when refund is DONE, mark linked payment as REFUNDED (best-effort)
-  if (prev.status !== 'DONE' && refund.status === 'DONE' && prev.paymentId) {
-    await prisma.payment.updateMany({
-      where: { id: prev.paymentId, workspaceId: wsId },
-      data: { status: 'REFUNDED' },
-    })
+  // Side-effect (AUTO): when refund is DONE, mark linked payment as REFUNDED
+  // and reverse any applications this payment had on receivables.
+  if (prev.status !== 'DONE' && refund.status === 'DONE') {
+    const paymentId = prev.paymentId
+    if (paymentId) {
+      await prisma.$transaction(async (tx) => {
+        await tx.payment.updateMany({
+          where: { id: paymentId, workspaceId: wsId },
+          data: { status: 'REFUNDED' },
+        })
+
+        const apps = await tx.paymentApplication.findMany({
+          where: { workspaceId: wsId, paymentId },
+          select: { id: true, receivableId: true },
+        })
+
+        const affectedReceivableIds = [...new Set(apps.map((a) => a.receivableId))]
+
+        // Remove applications (MVP).
+        // NOTE: This loses application history; next iteration could create a negative entry instead.
+        await tx.paymentApplication.deleteMany({
+          where: { workspaceId: wsId, paymentId },
+        })
+
+        // Recompute receivable statuses.
+        for (const receivableId of affectedReceivableIds) {
+          const r = await tx.receivable.findFirst({
+            where: { id: receivableId, workspaceId: wsId },
+            select: { id: true, value: true, status: true, applications: { select: { value: true } } },
+          })
+          if (!r) continue
+
+          const applied = r.applications.reduce((acc, a) => acc + Number(a.value ?? 0), 0)
+          const shouldBePaid = applied >= Number(r.value)
+
+          await tx.receivable.update({
+            where: { id: r.id, workspaceId: wsId },
+            data: { status: shouldBePaid ? 'PAID' : 'OPEN' },
+            select: { id: true },
+          })
+        }
+      })
+    }
   }
 
   // If refund is FAILED, keep payment as-is (operator can decide next action).
