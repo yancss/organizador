@@ -56,16 +56,16 @@ export async function ensureFinanceDefaults(workspaceId: string) {
   }
 }
 
-export async function upsertReceivableForOrder(args: {
+export async function upsertReceivableForSalesOrder(args: {
   workspaceId: string
-  orderId: string
+  salesOrderId: string
   competenceDate: Date
   value: number
 }) {
   const defs = await ensureFinanceDefaults(args.workspaceId)
 
   const existing = await prisma.financialEntry.findFirst({
-    where: { workspaceId: args.workspaceId, orderId: args.orderId, type: 'IN' },
+    where: { workspaceId: args.workspaceId, salesOrderId: args.salesOrderId, type: 'IN' },
     select: { id: true, status: true },
     orderBy: [{ createdAt: 'desc' }],
   })
@@ -98,15 +98,15 @@ export async function upsertReceivableForOrder(args: {
       accountId: defs.accountId,
       categoryId: defs.categorySalesId,
       costCenterId: defs.costCenterSalesId,
-      orderId: args.orderId,
+      salesOrderId: args.salesOrderId,
     },
     select: { id: true },
   })
 }
 
-export async function deletePlannedReceivableForOrder(workspaceId: string, orderId: string) {
+export async function deletePlannedReceivableForSalesOrder(workspaceId: string, salesOrderId: string) {
   const existing = await prisma.financialEntry.findFirst({
-    where: { workspaceId, orderId, type: 'IN', status: 'PLANNED' },
+    where: { workspaceId, salesOrderId, type: 'IN', status: 'PLANNED' },
     select: { id: true },
     orderBy: [{ createdAt: 'desc' }],
   })

@@ -105,7 +105,7 @@ export async function GET(req: Request) {
       account: { select: { id: true, name: true } },
       category: { select: { id: true, name: true, type: true } },
       costCenter: { select: { id: true, name: true } },
-      orderId: true,
+      salesOrderId: true,
       purchaseId: true,
       consumptionId: true,
       createdAt: true,
@@ -128,7 +128,7 @@ const CreateSchema = z.object({
   observations: z.string().max(5000).optional().nullable(),
 
   // optional linkage
-  orderId: z.string().optional().nullable(),
+  salesOrderId: z.string().optional().nullable(),
   purchaseId: z.string().optional().nullable(),
   consumptionId: z.string().optional().nullable(),
 })
@@ -190,7 +190,7 @@ export async function POST(req: Request) {
       costCenterId: parsed.data.costCenterId ?? null,
       value: parsed.data.value,
       observations: parsed.data.observations ?? null,
-      orderId: parsed.data.orderId ?? null,
+      salesOrderId: parsed.data.salesOrderId ?? null,
       purchaseId: parsed.data.purchaseId ?? null,
       consumptionId: parsed.data.consumptionId ?? null,
     },
@@ -205,7 +205,7 @@ export async function POST(req: Request) {
       account: { select: { id: true, name: true } },
       category: { select: { id: true, name: true, type: true } },
       costCenter: { select: { id: true, name: true } },
-      orderId: true,
+      salesOrderId: true,
       purchaseId: true,
       consumptionId: true,
       createdAt: true,

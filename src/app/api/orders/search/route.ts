@@ -50,7 +50,7 @@ export async function GET(req: Request) {
 
   if (q.length < 2) return Response.json({ orders: [] })
 
-  const orders = await prisma.order.findMany({
+  const orders = await prisma.salesOrder.findMany({
     where: {
       workspaceId: wsId,
       OR: [

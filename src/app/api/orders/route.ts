@@ -3,7 +3,7 @@ import { z } from 'zod'
 
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { upsertReceivableForOrder } from '@/lib/finance-defaults'
+// Finance hooks (recebíveis/pagamentos) serão adicionados no próximo passo.
 
 async function requireUser() {
   // In local/dev mode, allow bypassing NextAuth entirely.
@@ -75,7 +75,7 @@ export async function GET(req: Request) {
             OR: [{ deliveryAt: null }, { deliveryAt: { gte: today } }],
           }
 
-  const orders = await prisma.order.findMany({
+  const orders = await prisma.salesOrder.findMany({
     where,
     orderBy: [{ deliveryAt: 'asc' }, { createdAt: 'desc' }],
     select: {
@@ -84,7 +84,7 @@ export async function GET(req: Request) {
       observations: true,
       orderedAt: true,
       deliveryAt: true,
-      delivered: true,
+      status: true,
       value: true,
       client: { select: { id: true, name: true } },
       items: {
@@ -114,7 +114,7 @@ const CreateOrderSchema = z.object({
   clientId: z.string().optional().nullable(),
   orderedAt: z.string().datetime().optional().nullable(),
   deliveryAt: z.string().datetime().optional().nullable(),
-  delivered: z.boolean().optional(),
+  // delivered: moved to Deliveries module
   value: z.coerce.number().optional().nullable(),
   items: z.array(OrderItemSchema).optional(),
 })
@@ -150,7 +150,7 @@ export async function POST(req: Request) {
     }
   }
 
-  const order = await prisma.order.create({
+  const order = await prisma.salesOrder.create({
     data: {
       workspaceId: ws.id,
       ownerId: auth.userId,
@@ -159,7 +159,7 @@ export async function POST(req: Request) {
       clientId: parsed.data.clientId ?? null,
       orderedAt: parsed.data.orderedAt ? new Date(parsed.data.orderedAt) : null,
       deliveryAt: parsed.data.deliveryAt ? new Date(parsed.data.deliveryAt) : null,
-      delivered: parsed.data.delivered ?? false,
+      status: 'DRAFT',
       value: parsed.data.value ?? null,
       orderIndex: String(Date.now()),
       items: parsed.data.items?.length
@@ -177,7 +177,7 @@ export async function POST(req: Request) {
       observations: true,
       orderedAt: true,
       deliveryAt: true,
-      delivered: true,
+      status: true,
       value: true,
       client: { select: { id: true, name: true } },
       items: {
@@ -193,14 +193,7 @@ export async function POST(req: Request) {
     },
   })
 
-  // Business rule (MVP): when order is created as delivered, create accounts receivable (IN/PLANNED).
-  if (order.delivered) {
-    const v = Number(order.value ?? 0)
-    if (v > 0) {
-      const competence = order.deliveryAt ?? new Date()
-      await upsertReceivableForOrder({ workspaceId: ws.id, orderId: order.id, competenceDate: competence, value: v })
-    }
-  }
+  // NOTE: Recebível real por expedição + pagamentos antecipados serão implementados no módulo novo.
 
   return Response.json({ order }, { status: 201 })
 }

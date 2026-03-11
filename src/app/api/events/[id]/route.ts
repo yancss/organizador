@@ -76,7 +76,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   if (parsed.data.endAt !== undefined) data.endAt = parsed.data.endAt ? new Date(parsed.data.endAt) : null
   if (parsed.data.allDay !== undefined) data.allDay = parsed.data.allDay
 
-  const updated = await prisma.order.updateMany({
+  const updated = await prisma.salesOrder.updateMany({
     where: { id, workspaceId: wsId, ownerId: auth.userId },
     data: {
       ...(data.title !== undefined ? { name: data.title } : {}),
@@ -88,7 +88,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
 
   if (updated.count === 0) return Response.json({ error: 'NOT_FOUND' }, { status: 404 })
 
-  const order = await prisma.order.findFirst({
+  const order = await prisma.salesOrder.findFirst({
     where: { id, workspaceId: wsId, ownerId: auth.userId },
     select: {
       id: true,
@@ -126,7 +126,7 @@ export async function DELETE(_req: Request, ctx: { params: Promise<{ id: string 
 
   const { id } = await ctx.params
 
-  const deleted = await prisma.order.deleteMany({
+  const deleted = await prisma.salesOrder.deleteMany({
     where: { id, workspaceId: wsId, ownerId: auth.userId },
   })
 

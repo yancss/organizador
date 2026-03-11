@@ -54,8 +54,8 @@ export async function GET() {
 
   const ws = await ensureWorkspace(auth.userId)
 
-  // Compat: /api/events virou um alias para pedidos.
-  const orders = await prisma.order.findMany({
+  // Compat: /api/events virou um alias para pedidos de venda (SalesOrder).
+  const orders = await prisma.salesOrder.findMany({
     where: { workspaceId: ws.id, ownerId: auth.userId },
     orderBy: [{ deliveryAt: 'asc' }, { createdAt: 'desc' }],
     select: {
@@ -103,7 +103,7 @@ export async function POST(req: Request) {
     return Response.json({ error: 'INVALID_BODY', details: parsed.error.flatten() }, { status: 400 })
   }
 
-  const order = await prisma.order.create({
+  const order = await prisma.salesOrder.create({
     data: {
       workspaceId: ws.id,
       ownerId: auth.userId,

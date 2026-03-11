@@ -3,7 +3,7 @@ import { z } from 'zod'
 
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { deletePlannedReceivableForOrder, upsertReceivableForOrder } from '@/lib/finance-defaults'
+// Finance hooks (recebíveis/pagamentos) serão adicionados no próximo passo.
 
 async function requireUser() {
   // In local/dev mode, allow bypassing NextAuth entirely.
@@ -47,7 +47,7 @@ const UpdateOrderSchema = z.object({
   clientId: z.string().optional().nullable(),
   orderedAt: z.string().datetime().optional().nullable(),
   deliveryAt: z.string().datetime().optional().nullable(),
-  delivered: z.boolean().optional(),
+  status: z.enum(['DRAFT', 'CONFIRMED', 'CANCELLED']).optional(),
   value: z.coerce.number().optional().nullable(),
   items: z.array(OrderItemSchema).optional(),
 })
@@ -68,9 +68,9 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   }
 
   // Fetch previous order state (needed to decide whether to create/update receivable)
-  const prev = await prisma.order.findFirst({
+  const prev = await prisma.salesOrder.findFirst({
     where: { id, workspaceId: wsId, ownerId: auth.userId },
-    select: { id: true, delivered: true, value: true, deliveryAt: true, updatedAt: true },
+    select: { id: true, status: true, value: true, deliveryAt: true, updatedAt: true },
   })
   if (!prev) return Response.json({ error: 'NOT_FOUND' }, { status: 404 })
 
@@ -80,34 +80,17 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   if (parsed.data.clientId !== undefined) data.clientId = parsed.data.clientId ?? null
   if (parsed.data.orderedAt !== undefined) data.orderedAt = parsed.data.orderedAt ? new Date(parsed.data.orderedAt) : null
   if (parsed.data.deliveryAt !== undefined) data.deliveryAt = parsed.data.deliveryAt ? new Date(parsed.data.deliveryAt) : null
-  if (parsed.data.delivered !== undefined) data.delivered = parsed.data.delivered
+  if (parsed.data.status !== undefined) data.status = parsed.data.status
   if (parsed.data.value !== undefined) data.value = parsed.data.value ?? null
 
-  const updated = await prisma.order.updateMany({
+  const updated = await prisma.salesOrder.updateMany({
     where: { id, workspaceId: wsId, ownerId: auth.userId },
     data,
   })
 
   if (updated.count === 0) return Response.json({ error: 'NOT_FOUND' }, { status: 404 })
 
-  // Business rule (MVP): when an order is marked as delivered, create/update an accounts receivable entry (IN/PLANNED).
-  // If un-delivered, remove only PLANNED receivable (keep PAID history intact).
-  if (parsed.data.delivered !== undefined || parsed.data.value !== undefined || parsed.data.deliveryAt !== undefined) {
-    const next = await prisma.order.findFirst({
-      where: { id, workspaceId: wsId, ownerId: auth.userId },
-      select: { id: true, delivered: true, value: true, deliveryAt: true, updatedAt: true },
-    })
-
-    if (next?.delivered) {
-      const v = Number(next.value ?? 0)
-      if (v > 0) {
-        const competence = next.deliveryAt ?? new Date()
-        await upsertReceivableForOrder({ workspaceId: wsId, orderId: id, competenceDate: competence, value: v })
-      }
-    } else {
-      await deletePlannedReceivableForOrder(wsId, id)
-    }
-  }
+  // NOTE: Recebível real por expedição + pagamentos antecipados serão implementados no módulo novo.
 
   // Itens: estratégia simples (MVP) = substituir tudo.
   if (parsed.data.items) {
@@ -130,11 +113,11 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       }
     }
 
-    await prisma.orderItem.deleteMany({ where: { orderId: id } })
+    await prisma.salesOrderItem.deleteMany({ where: { salesOrderId: id } })
     if (parsed.data.items.length) {
-      await prisma.orderItem.createMany({
+      await prisma.salesOrderItem.createMany({
         data: parsed.data.items.map((it) => ({
-          orderId: id,
+          salesOrderId: id,
           productId: it.productId,
           quantity: it.quantity,
         })),
@@ -142,7 +125,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     }
   }
 
-  const order = await prisma.order.findFirst({
+  const order = await prisma.salesOrder.findFirst({
     where: { id, workspaceId: wsId, ownerId: auth.userId },
     select: {
       id: true,
@@ -150,7 +133,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       observations: true,
       orderedAt: true,
       deliveryAt: true,
-      delivered: true,
+      status: true,
       value: true,
       client: { select: { id: true, name: true } },
       items: {
@@ -178,10 +161,7 @@ export async function DELETE(_req: Request, ctx: { params: Promise<{ id: string 
 
   const { id } = await ctx.params
 
-  // Delete planned receivable before removing the order.
-  await deletePlannedReceivableForOrder(wsId, id)
-
-  const deleted = await prisma.order.deleteMany({
+  const deleted = await prisma.salesOrder.deleteMany({
     where: { id, workspaceId: wsId, ownerId: auth.userId },
   })
 
