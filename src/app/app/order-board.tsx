@@ -35,7 +35,7 @@ type Order = {
   observations: string | null
   orderedAt: string | null
   deliveryAt: string | null
-  delivered: boolean
+  status: 'DRAFT' | 'CONFIRMED' | 'CANCELLED'
   value: string | number | null
   client: Client | null
   items: Array<{ id: string; quantity: string | number; product: Product }>
@@ -93,7 +93,7 @@ type Draft = {
   clientId: string
   orderedAt: string
   deliveryAt: string
-  delivered: boolean
+  status: 'DRAFT' | 'CONFIRMED' | 'CANCELLED'
   value: string
   observations: string
   items: OrderItem[]
@@ -105,7 +105,7 @@ function emptyDraft(): Draft {
     clientId: '',
     orderedAt: '',
     deliveryAt: '',
-    delivered: false,
+    status: 'DRAFT',
     value: '',
     observations: '',
     items: [],
@@ -198,7 +198,7 @@ export default function OrderBoard({ view }: { view: 'upcoming' | 'history' }) {
       clientId: o.client?.id ?? '',
       orderedAt: toLocalInputValue(o.orderedAt),
       deliveryAt: toLocalInputValue(o.deliveryAt),
-      delivered: o.delivered,
+      status: o.status,
       value: o.value == null ? '' : formatMoneyFromNumber(Number(o.value), moneyLocale),
       observations: o.observations ?? '',
       items: o.items.map((it) => ({ productId: it.product.id, quantity: String(it.quantity) })),
@@ -243,7 +243,7 @@ export default function OrderBoard({ view }: { view: 'upcoming' | 'history' }) {
       clientId: draft.clientId || null,
       orderedAt: fromLocalInputValue(draft.orderedAt),
       deliveryAt: fromLocalInputValue(draft.deliveryAt),
-      delivered: draft.delivered,
+      status: draft.status,
       value: parseMoneyToNumber(draft.value, moneyLocale),
       items: Array.from(consolidated.entries()).map(([productId, quantity]) => ({ productId, quantity })),
     }
@@ -271,14 +271,15 @@ export default function OrderBoard({ view }: { view: 'upcoming' | 'history' }) {
     return (ordersQ.data?.orders ?? [])
       .filter((o) => !!o.deliveryAt)
       .map((o) => {
-        const delivered = !!o.delivered
+        const confirmed = o.status === 'CONFIRMED'
+        const cancelled = o.status === 'CANCELLED'
         return {
           id: o.id,
           title: o.client?.name ? `${o.name} — ${o.client.name}` : o.name,
           start: toLocalDateOnly(o.deliveryAt as string),
           allDay: true,
-          backgroundColor: delivered ? '#16a34a' : '#2563eb',
-          borderColor: delivered ? '#15803d' : '#1d4ed8',
+          backgroundColor: cancelled ? '#6b7280' : confirmed ? '#16a34a' : '#2563eb',
+          borderColor: cancelled ? '#4b5563' : confirmed ? '#15803d' : '#1d4ed8',
           textColor: '#ffffff',
         }
       })
@@ -331,11 +332,17 @@ export default function OrderBoard({ view }: { view: 'upcoming' | 'history' }) {
                   render: (r) => (
                     <div className="font-medium text-[var(--foreground)]">
                       {r.name}
-                      {r.delivered ? (
+                      {r.status === 'CONFIRMED' ? (
                         <span className="ml-2 rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-800">
-                          {i.orders.delivered}
+                          CONFIRMED
                         </span>
-                      ) : null}
+                      ) : r.status === 'CANCELLED' ? (
+                        <span className="ml-2 rounded-full bg-neutral-200 px-2 py-0.5 text-xs text-neutral-800">
+                          CANCELLED
+                        </span>
+                      ) : (
+                        <span className="ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-800">DRAFT</span>
+                      )}
                     </div>
                   ),
                 },
@@ -451,11 +458,13 @@ export default function OrderBoard({ view }: { view: 'upcoming' | 'history' }) {
               render: (r) => (
                 <div className="font-medium text-[var(--foreground)]">
                   {r.name}
-                  {r.delivered ? (
-                    <span className="ml-2 rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-800">
-                      {i.orders.delivered}
-                    </span>
-                  ) : null}
+                  {r.status === 'CONFIRMED' ? (
+                    <span className="ml-2 rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-800">CONFIRMED</span>
+                  ) : r.status === 'CANCELLED' ? (
+                    <span className="ml-2 rounded-full bg-neutral-200 px-2 py-0.5 text-xs text-neutral-800">CANCELLED</span>
+                  ) : (
+                    <span className="ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-800">DRAFT</span>
+                  )}
                 </div>
               ),
             },
@@ -658,13 +667,17 @@ export default function OrderBoard({ view }: { view: 'upcoming' | 'history' }) {
                   />
                 </label>
 
-                <label className="mt-6 flex items-center gap-2 text-sm text-[var(--foreground)]">
-                  <input
-                    type="checkbox"
-                    checked={draft.delivered}
-                    onChange={(e) => setDraft((d) => ({ ...d, delivered: e.target.checked }))}
-                  />
-                  {i.modal.deliveredLabel}
+                <label className="grid gap-1">
+                  <span className="text-xs font-medium text-[var(--foreground)]">{i.modal.statusLabel}</span>
+                  <select
+                    value={draft.status}
+                    onChange={(e) => setDraft((d) => ({ ...d, status: e.target.value as Draft['status'] }))}
+                    className="w-full rounded-lg border border-theme bg-transparent px-3 py-2"
+                  >
+                    <option value="DRAFT">DRAFT</option>
+                    <option value="CONFIRMED">CONFIRMED</option>
+                    <option value="CANCELLED">CANCELLED</option>
+                  </select>
                 </label>
               </div>
 

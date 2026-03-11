@@ -6,6 +6,20 @@ export type I18n = {
     settings: string
     signOut: string
     appName: string
+
+    home: string
+    sales: string
+    salesOrders: string
+    deliveries: string
+    payments: string
+
+    finance: string
+    financeOverview: string
+    receivables: string
+    payables: string
+    refunds: string
+    accounts: string
+    categories: string
   }
   board: {
     title: string
@@ -18,6 +32,15 @@ export type I18n = {
     noDateEmpty: string
     editHint: string
   }
+  home: {
+    title: string
+    subtitle: string
+    receivablesOpen: string
+    payablesPlanned: string
+    salesOrdersOpen: string
+    deliveriesOpen: string
+    refundsPending: string
+  }
   orders: {
     title: string
     subtitle: string
@@ -26,7 +49,7 @@ export type I18n = {
     new: string
     empty: string
     editHint: string
-    delivered: string
+    status: string
     client: string
     noClient: string
     value: string
@@ -171,7 +194,7 @@ export type I18n = {
     clientNone: string
     orderedAtLabel: string
     deliveryAtLabel: string
-    deliveredLabel: string
+    statusLabel: string
     valueLabel: string
     observationsLabel: string
     itemsTitle: string
@@ -232,7 +255,26 @@ export type I18n = {
 
 const dict: Record<AppLanguage, I18n> = {
   pt: {
-    nav: { appName: 'Guardian', agenda: 'Pedidos', settings: 'Configurações', signOut: 'Sair' },
+    nav: {
+      appName: 'Guardian',
+      agenda: 'Pedidos',
+      settings: 'Configurações',
+      signOut: 'Sair',
+
+      home: 'Home',
+      sales: 'Vendas',
+      salesOrders: 'Pedidos de venda',
+      deliveries: 'Entregas',
+      payments: 'Pagamentos',
+
+      finance: 'Financeiro',
+      financeOverview: 'Visão geral',
+      receivables: 'Recebíveis',
+      payables: 'Pagáveis',
+      refunds: 'Devoluções',
+      accounts: 'Contas',
+      categories: 'Categorias',
+    },
     board: {
       title: 'Agenda',
       subtitle: 'Eventos e notas em lista e no calendário.',
@@ -244,6 +286,15 @@ const dict: Record<AppLanguage, I18n> = {
       noDateEmpty: 'Nenhuma nota sem data.',
       editHint: 'Editar',
     },
+    home: {
+      title: 'Home',
+      subtitle: 'Resumo do dia e indicadores rápidos.',
+      receivablesOpen: 'A receber (aberto)',
+      payablesPlanned: 'A pagar (planejado)',
+      salesOrdersOpen: 'Pedidos (abertos)',
+      deliveriesOpen: 'Entregas (em andamento)',
+      refundsPending: 'Devoluções (pendentes)',
+    },
     orders: {
       title: 'Pedidos',
       subtitle: 'Pedidos a partir de hoje.',
@@ -252,7 +303,7 @@ const dict: Record<AppLanguage, I18n> = {
       new: 'Novo pedido',
       empty: 'Sem pedidos nesta lista.',
       editHint: 'Editar',
-      delivered: 'Entregue',
+      status: 'Status',
       client: 'Cliente',
       noClient: 'Sem cliente',
       value: 'Valor',
@@ -396,7 +447,7 @@ const dict: Record<AppLanguage, I18n> = {
       clientNone: '— (sem cliente) —',
       orderedAtLabel: 'Data do pedido',
       deliveryAtLabel: 'Data de entrega',
-      deliveredLabel: 'Entregue?',
+      statusLabel: 'Status',
       valueLabel: 'Valor',
       observationsLabel: 'Observações',
       itemsTitle: 'Itens do pedido',
@@ -449,7 +500,26 @@ const dict: Record<AppLanguage, I18n> = {
     },
   },
   en: {
-    nav: { appName: 'Guardian', agenda: 'Orders', settings: 'Settings', signOut: 'Sign out' },
+    nav: {
+      appName: 'Guardian',
+      agenda: 'Orders',
+      settings: 'Settings',
+      signOut: 'Sign out',
+
+      home: 'Home',
+      sales: 'Sales',
+      salesOrders: 'Sales orders',
+      deliveries: 'Deliveries',
+      payments: 'Payments',
+
+      finance: 'Finance',
+      financeOverview: 'Overview',
+      receivables: 'Receivables',
+      payables: 'Payables',
+      refunds: 'Refunds',
+      accounts: 'Accounts',
+      categories: 'Categories',
+    },
     board: {
       title: 'Agenda',
       subtitle: 'Events and notes in a list and on the calendar.',
@@ -461,6 +531,15 @@ const dict: Record<AppLanguage, I18n> = {
       noDateEmpty: 'No undated notes.',
       editHint: 'Edit',
     },
+    home: {
+      title: 'Home',
+      subtitle: 'Today summary and quick indicators.',
+      receivablesOpen: 'Receivables (open)',
+      payablesPlanned: 'Payables (planned)',
+      salesOrdersOpen: 'Sales orders (open)',
+      deliveriesOpen: 'Deliveries (in progress)',
+      refundsPending: 'Refunds (pending)',
+    },
     orders: {
       title: 'Orders',
       subtitle: 'Orders from today onward.',
@@ -469,7 +548,7 @@ const dict: Record<AppLanguage, I18n> = {
       new: 'New order',
       empty: 'No orders in this list.',
       editHint: 'Edit',
-      delivered: 'Delivered',
+      status: 'Status',
       client: 'Client',
       noClient: 'No client',
       value: 'Value',
@@ -613,7 +692,7 @@ const dict: Record<AppLanguage, I18n> = {
       clientNone: '— (no client) —',
       orderedAtLabel: 'Order date',
       deliveryAtLabel: 'Delivery date',
-      deliveredLabel: 'Delivered?',
+      statusLabel: 'Status',
       valueLabel: 'Value',
       observationsLabel: 'Observations',
       itemsTitle: 'Order items',
@@ -666,7 +745,26 @@ const dict: Record<AppLanguage, I18n> = {
     },
   },
   es: {
-    nav: { appName: 'Guardian', agenda: 'Pedidos', settings: 'Configuración', signOut: 'Salir' },
+    nav: {
+      appName: 'Guardian',
+      agenda: 'Pedidos',
+      settings: 'Configuración',
+      signOut: 'Salir',
+
+      home: 'Inicio',
+      sales: 'Ventas',
+      salesOrders: 'Pedidos de venta',
+      deliveries: 'Entregas',
+      payments: 'Pagos',
+
+      finance: 'Finanzas',
+      financeOverview: 'Resumen',
+      receivables: 'Cuentas por cobrar',
+      payables: 'Cuentas por pagar',
+      refunds: 'Reembolsos',
+      accounts: 'Cuentas',
+      categories: 'Categorías',
+    },
     board: {
       title: 'Agenda',
       subtitle: 'Eventos y notas en lista y en el calendario.',
@@ -678,6 +776,15 @@ const dict: Record<AppLanguage, I18n> = {
       noDateEmpty: 'No hay notas sin fecha.',
       editHint: 'Editar',
     },
+    home: {
+      title: 'Inicio',
+      subtitle: 'Resumen del día e indicadores rápidos.',
+      receivablesOpen: 'Cuentas por cobrar (abiertas)',
+      payablesPlanned: 'Cuentas por pagar (planificadas)',
+      salesOrdersOpen: 'Pedidos de venta (abiertos)',
+      deliveriesOpen: 'Entregas (en curso)',
+      refundsPending: 'Reembolsos (pendientes)',
+    },
     orders: {
       title: 'Pedidos',
       subtitle: 'Pedidos desde hoy en adelante.',
@@ -686,7 +793,7 @@ const dict: Record<AppLanguage, I18n> = {
       new: 'Nuevo pedido',
       empty: 'No hay pedidos en esta lista.',
       editHint: 'Editar',
-      delivered: 'Entregado',
+      status: 'Estado',
       client: 'Cliente',
       noClient: 'Sin cliente',
       value: 'Valor',
@@ -830,7 +937,7 @@ const dict: Record<AppLanguage, I18n> = {
       clientNone: '— (sin cliente) —',
       orderedAtLabel: 'Fecha del pedido',
       deliveryAtLabel: 'Fecha de entrega',
-      deliveredLabel: '¿Entregado?',
+      statusLabel: 'Estado',
       valueLabel: 'Valor',
       observationsLabel: 'Observaciones',
       itemsTitle: 'Ítems del pedido',

@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Boxes, BookOpen, CalendarDays, History, Package, Users, Wallet, Landmark } from 'lucide-react'
+import { Boxes, BookOpen, CalendarDays, History, Home as HomeIcon, Package, Users, Wallet, Landmark } from 'lucide-react'
 
 import { useSettings } from './settings-context'
 import { t } from './i18n'
@@ -65,27 +65,12 @@ export default function AppNav({ onNavigate }: { onNavigate?: () => void }) {
 
   return (
     <nav className="mt-2 grid gap-1">
-      <NavItem href="/app" label={language === 'pt' ? 'Home' : language === 'es' ? 'Inicio' : 'Home'} icon={CalendarDays} onNavigate={onNavigate} />
+      <NavItem href="/app" label={i.nav.home} icon={HomeIcon} onNavigate={onNavigate} />
 
-      <Section title={language === 'pt' ? 'Vendas' : language === 'es' ? 'Ventas' : 'Sales'} defaultOpen>
-        <NavItem
-          href="/app/sales/orders"
-          label={language === 'pt' ? 'Pedidos de venda' : language === 'es' ? 'Pedidos de venta' : 'Sales orders'}
-          icon={CalendarDays}
-          onNavigate={onNavigate}
-        />
-        <NavItem
-          href="/app/deliveries"
-          label={language === 'pt' ? 'Entregas' : language === 'es' ? 'Entregas' : 'Deliveries'}
-          icon={Package}
-          onNavigate={onNavigate}
-        />
-        <NavItem
-          href="/app/payments"
-          label={language === 'pt' ? 'Pagamentos' : language === 'es' ? 'Pagos' : 'Payments'}
-          icon={Wallet}
-          onNavigate={onNavigate}
-        />
+      <Section title={i.nav.sales} defaultOpen>
+        <NavItem href="/app/sales/orders" label={i.nav.salesOrders} icon={CalendarDays} onNavigate={onNavigate} />
+        <NavItem href="/app/deliveries" label={i.nav.deliveries} icon={Package} onNavigate={onNavigate} />
+        <NavItem href="/app/payments" label={i.nav.payments} icon={Wallet} onNavigate={onNavigate} />
       </Section>
 
       <NavItem
@@ -119,43 +104,13 @@ export default function AppNav({ onNavigate }: { onNavigate?: () => void }) {
         onNavigate={onNavigate}
       />
 
-      <Section title={language === 'pt' ? 'Financeiro' : language === 'es' ? 'Finanzas' : 'Finance'}>
-        <NavItem
-          href="/app/finance"
-          label={language === 'pt' ? 'Visão geral' : language === 'es' ? 'Resumen' : 'Overview'}
-          icon={Wallet}
-          onNavigate={onNavigate}
-        />
-        <NavItem
-          href="/app/finance/receivables"
-          label={language === 'pt' ? 'Recebíveis' : language === 'es' ? 'Cuentas por cobrar' : 'Receivables'}
-          icon={Wallet}
-          onNavigate={onNavigate}
-        />
-        <NavItem
-          href="/app/finance/payables"
-          label={language === 'pt' ? 'Pagáveis' : language === 'es' ? 'Cuentas por pagar' : 'Payables'}
-          icon={Wallet}
-          onNavigate={onNavigate}
-        />
-        <NavItem
-          href="/app/finance/refunds"
-          label={language === 'pt' ? 'Devoluções' : language === 'es' ? 'Reembolsos' : 'Refunds'}
-          icon={Wallet}
-          onNavigate={onNavigate}
-        />
-        <NavItem
-          href="/app/finance/accounts"
-          label={language === 'pt' ? 'Contas' : language === 'es' ? 'Cuentas' : 'Accounts'}
-          icon={Landmark}
-          onNavigate={onNavigate}
-        />
-        <NavItem
-          href="/app/finance/categories"
-          label={language === 'pt' ? 'Categorias' : language === 'es' ? 'Categorías' : 'Categories'}
-          icon={Landmark}
-          onNavigate={onNavigate}
-        />
+      <Section title={i.nav.finance}>
+        <NavItem href="/app/finance" label={i.nav.financeOverview} icon={Wallet} onNavigate={onNavigate} />
+        <NavItem href="/app/finance/receivables" label={i.nav.receivables} icon={Wallet} onNavigate={onNavigate} />
+        <NavItem href="/app/finance/payables" label={i.nav.payables} icon={Wallet} onNavigate={onNavigate} />
+        <NavItem href="/app/finance/refunds" label={i.nav.refunds} icon={Wallet} onNavigate={onNavigate} />
+        <NavItem href="/app/finance/accounts" label={i.nav.accounts} icon={Landmark} onNavigate={onNavigate} />
+        <NavItem href="/app/finance/categories" label={i.nav.categories} icon={Landmark} onNavigate={onNavigate} />
       </Section>
 
       <NavItem
