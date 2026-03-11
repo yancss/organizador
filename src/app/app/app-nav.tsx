@@ -65,11 +65,11 @@ export default function AppNav({ onNavigate }: { onNavigate?: () => void }) {
 
   return (
     <nav className="mt-2 grid gap-1">
-      <NavItem href="/app" label={i.nav.agenda} icon={CalendarDays} onNavigate={onNavigate} />
+      <NavItem href="/app" label={language === 'pt' ? 'Home' : language === 'es' ? 'Inicio' : 'Home'} icon={CalendarDays} onNavigate={onNavigate} />
 
       <Section title={language === 'pt' ? 'Vendas' : language === 'es' ? 'Ventas' : 'Sales'} defaultOpen>
         <NavItem
-          href="/app"
+          href="/app/sales/orders"
           label={language === 'pt' ? 'Pedidos de venda' : language === 'es' ? 'Pedidos de venta' : 'Sales orders'}
           icon={CalendarDays}
           onNavigate={onNavigate}
@@ -81,20 +81,8 @@ export default function AppNav({ onNavigate }: { onNavigate?: () => void }) {
           onNavigate={onNavigate}
         />
         <NavItem
-          href="/app/receivables"
-          label={language === 'pt' ? 'Recebíveis' : language === 'es' ? 'Cuentas por cobrar' : 'Receivables'}
-          icon={Wallet}
-          onNavigate={onNavigate}
-        />
-        <NavItem
           href="/app/payments"
           label={language === 'pt' ? 'Pagamentos' : language === 'es' ? 'Pagos' : 'Payments'}
-          icon={Wallet}
-          onNavigate={onNavigate}
-        />
-        <NavItem
-          href="/app/refunds"
-          label={language === 'pt' ? 'Devoluções' : language === 'es' ? 'Reembolsos' : 'Refunds'}
           icon={Wallet}
           onNavigate={onNavigate}
         />
@@ -135,6 +123,24 @@ export default function AppNav({ onNavigate }: { onNavigate?: () => void }) {
         <NavItem
           href="/app/finance"
           label={language === 'pt' ? 'Visão geral' : language === 'es' ? 'Resumen' : 'Overview'}
+          icon={Wallet}
+          onNavigate={onNavigate}
+        />
+        <NavItem
+          href="/app/finance/receivables"
+          label={language === 'pt' ? 'Recebíveis' : language === 'es' ? 'Cuentas por cobrar' : 'Receivables'}
+          icon={Wallet}
+          onNavigate={onNavigate}
+        />
+        <NavItem
+          href="/app/finance/payables"
+          label={language === 'pt' ? 'Pagáveis' : language === 'es' ? 'Cuentas por pagar' : 'Payables'}
+          icon={Wallet}
+          onNavigate={onNavigate}
+        />
+        <NavItem
+          href="/app/finance/refunds"
+          label={language === 'pt' ? 'Devoluções' : language === 'es' ? 'Reembolsos' : 'Refunds'}
           icon={Wallet}
           onNavigate={onNavigate}
         />

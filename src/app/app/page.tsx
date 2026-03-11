@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { authOptions } from '@/lib/auth'
 import { missingEnvKeys } from '@/lib/env'
 
-import OrderBoard from './order-board'
+import HomePage from './home/page'
 
 export default async function AppPage() {
   const missing = missingEnvKeys()
@@ -33,7 +33,7 @@ export default async function AppPage() {
 
   // TEMP: bypass auth for local testing
   if (process.env.DISABLE_AUTH === '1') {
-    return <OrderBoard view="upcoming" />
+    return <HomePage />
   }
 
   if (!session) {
@@ -51,5 +51,5 @@ export default async function AppPage() {
     )
   }
 
-  return <OrderBoard view="upcoming" />
+  return <HomePage />
 }
