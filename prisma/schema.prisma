@@ -165,8 +165,9 @@ model PurchaseOrder {
   id          String @id @default(cuid())
   workspaceId String
 
-  // MVP: fornecedor em texto; depois podemos normalizar em tabela Supplier
-  supplier String?
+  // Fornecedor: preferencialmente via stakeholder (Client). Mantemos `supplier` como fallback textual.
+  supplierId String?
+  supplier   String?
 
   orderedAt DateTime? // data do pedido
 
@@ -177,7 +178,8 @@ model PurchaseOrder {
   // Valor estimado do pedido de compra
   estimatedCost Decimal? @db.Decimal(12, 2)
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace      Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  supplierEntity Client?   @relation("PurchaseOrderSupplier", fields: [supplierId], references: [id], onDelete: SetNull)
 
   items PurchaseOrderItem[]
 
@@ -187,6 +189,7 @@ model PurchaseOrder {
   @@index([workspaceId])
   @@index([orderedAt])
   @@index([status])
+  @@index([supplierId])
 }
 
 model PurchaseOrderItem {
@@ -206,11 +209,19 @@ model PurchaseOrderItem {
   @@index([productId])
 }
 
+enum StakeholderRole {
+  CUSTOMER
+  SUPPLIER
+}
+
 model Client {
   id          String @id @default(cuid())
   workspaceId String
 
   name String
+
+  // Roles: allows using a single table for customers and suppliers (and both)
+  roles StakeholderRole[] @default([CUSTOMER])
 
   // Contact
   // NOTE: We are standardizing on E.164 in `phone` (e.g. +351912345678)
@@ -239,8 +250,10 @@ model Client {
   address      String?
   observations String?
 
-  workspace   Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  salesOrders SalesOrder[]
+  workspace                Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  salesOrders              SalesOrder[]
+  purchaseOrdersAsSupplier PurchaseOrder[] @relation("PurchaseOrderSupplier")
+
   payments    Payment[]
   receivables Receivable[]
   deliveries  Delivery[]

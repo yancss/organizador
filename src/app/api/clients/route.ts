@@ -74,6 +74,7 @@ export async function GET(req: Request) {
     select: {
       id: true,
       name: true,
+      roles: true,
       phone: true,
       phoneCountry: true,
       birthDate: true,
@@ -112,6 +113,8 @@ const E164Like = z
 
 const CreateClientSchema = z.object({
   name: z.string().min(1).max(140),
+
+  roles: z.array(z.enum(['CUSTOMER', 'SUPPLIER'])).optional().nullable(),
 
   // Contact
   phone: E164Like.optional().nullable(),
@@ -157,6 +160,7 @@ export async function POST(req: Request) {
     data: {
       workspaceId: wsId,
       name: parsed.data.name,
+      roles: parsed.data.roles?.length ? parsed.data.roles : ['CUSTOMER'],
 
       phone: parsed.data.phone ?? null,
       phoneCountry: parsed.data.phoneCountry ?? null,
@@ -182,6 +186,7 @@ export async function POST(req: Request) {
     select: {
       id: true,
       name: true,
+      roles: true,
       phone: true,
       phoneCountry: true,
       birthDate: true,
