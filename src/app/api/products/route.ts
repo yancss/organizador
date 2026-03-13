@@ -3,6 +3,7 @@ import { z } from 'zod'
 
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { enterWithUser } from '@/lib/request-context'
 
 async function requireUser() {
   // TEMP: bypass auth for local testing
@@ -20,6 +21,7 @@ async function requireUser() {
         select: { id: true },
       })
     }
+    enterWithUser(u.id)
     return { ok: true as const, userId: u.id }
   }
 
@@ -31,6 +33,7 @@ async function requireUser() {
       return { ok: false as const, status: 401, error: 'UNAUTHORIZED' }
     }
 
+    enterWithUser(userId)
     return { ok: true as const, userId }
   } catch (err) {
     // When running on LAN (IP access) or with a misconfigured NEXTAUTH_URL/secret,

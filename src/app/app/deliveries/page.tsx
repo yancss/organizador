@@ -94,7 +94,7 @@ export default function DeliveriesPage() {
         columns={columns}
         empty={q.isLoading ? 'Carregando…' : q.error ? 'Erro ao carregar.' : 'Sem entregas.'}
         initialSort={{ key: 'shippedAt', dir: 'desc' }}
-        pageSize={20}
+        pageSize={15}
       />
     </div>
   )

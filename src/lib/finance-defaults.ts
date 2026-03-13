@@ -164,3 +164,65 @@ export async function upsertPayableForPurchase(args: {
     select: { id: true },
   })
 }
+
+export async function upsertPayableForPurchaseOrder(args: {
+  workspaceId: string
+  purchaseOrderId: string
+  competenceDate: Date
+  value: number
+}) {
+  const defs = await ensureFinanceDefaults(args.workspaceId)
+
+  const existing = await prisma.financialEntry.findFirst({
+    where: { workspaceId: args.workspaceId, purchaseOrderId: args.purchaseOrderId, type: 'OUT' },
+    select: { id: true, status: true },
+    orderBy: [{ createdAt: 'desc' }],
+  })
+
+  // For POs, we always create/keep a PLANNED payable (commitment). Do not auto-mark PAID.
+  const status = 'PLANNED' as const
+
+  if (existing) {
+    // If it was already PAID manually, keep it PAID.
+    const nextStatus = existing.status === 'PAID' ? 'PAID' : status
+    return prisma.financialEntry.update({
+      where: { id: existing.id, workspaceId: args.workspaceId },
+      data: {
+        competenceDate: args.competenceDate,
+        value: args.value,
+        status: nextStatus,
+        paidAt: nextStatus === 'PAID' ? args.competenceDate : null,
+        accountId: defs.accountId,
+        categoryId: defs.categoryPurchasesId,
+        costCenterId: defs.costCenterProductionId,
+      },
+      select: { id: true },
+    })
+  }
+
+  return prisma.financialEntry.create({
+    data: {
+      workspaceId: args.workspaceId,
+      type: 'OUT',
+      status,
+      competenceDate: args.competenceDate,
+      paidAt: null,
+      value: args.value,
+      accountId: defs.accountId,
+      categoryId: defs.categoryPurchasesId,
+      costCenterId: defs.costCenterProductionId,
+      purchaseOrderId: args.purchaseOrderId,
+    },
+    select: { id: true },
+  })
+}
+
+export async function deletePlannedPayableForPurchaseOrder(workspaceId: string, purchaseOrderId: string) {
+  const existing = await prisma.financialEntry.findFirst({
+    where: { workspaceId, purchaseOrderId, type: 'OUT', status: 'PLANNED' },
+    select: { id: true },
+    orderBy: [{ createdAt: 'desc' }],
+  })
+  if (!existing) return
+  await prisma.financialEntry.delete({ where: { id: existing.id, workspaceId } })
+}

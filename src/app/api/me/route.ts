@@ -3,6 +3,7 @@ import { z } from 'zod'
 
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { enterWithUser } from '@/lib/request-context'
 
 async function requireUser() {
   const session = await getServerSession(authOptions)
@@ -17,10 +18,12 @@ async function requireUser() {
         select: { id: true },
       })
     }
+    enterWithUser(u.id)
     return { ok: true as const, userId: u.id }
   }
 
   if (!session || !userId) return { ok: false as const, status: 401 }
+  enterWithUser(userId)
   return { ok: true as const, userId }
 }
 

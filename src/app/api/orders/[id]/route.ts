@@ -3,6 +3,7 @@ import { z } from 'zod'
 
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { enterWithUser } from '@/lib/request-context'
 // Finance hooks (recebíveis/pagamentos) serão adicionados no próximo passo.
 
 async function requireUser() {
@@ -16,6 +17,7 @@ async function requireUser() {
         select: { id: true },
       })
     }
+    enterWithUser(u.id)
     return { ok: true as const, userId: u.id }
   }
 
@@ -25,6 +27,7 @@ async function requireUser() {
   if (!session || !userId) {
     return { ok: false as const, status: 401, error: 'UNAUTHORIZED' }
   }
+  enterWithUser(userId)
   return { ok: true as const, userId }
 }
 
@@ -47,8 +50,9 @@ const UpdateOrderSchema = z.object({
   clientId: z.string().optional().nullable(),
   orderedAt: z.string().datetime().optional().nullable(),
   deliveryAt: z.string().datetime().optional().nullable(),
-  status: z.enum(['DRAFT', 'CONFIRMED', 'CANCELLED']).optional(),
+  status: z.enum(['DRAFT', 'CONFIRMED', 'IN_PRODUCTION', 'READY', 'SHIPPED', 'DONE', 'CANCELLED']).optional(),
   value: z.coerce.number().optional().nullable(),
+  orderIndex: z.string().max(64).optional().nullable(),
   items: z.array(OrderItemSchema).optional(),
 })
 
@@ -82,6 +86,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   if (parsed.data.deliveryAt !== undefined) data.deliveryAt = parsed.data.deliveryAt ? new Date(parsed.data.deliveryAt) : null
   if (parsed.data.status !== undefined) data.status = parsed.data.status
   if (parsed.data.value !== undefined) data.value = parsed.data.value ?? null
+  if (parsed.data.orderIndex !== undefined) data.orderIndex = parsed.data.orderIndex ?? null
 
   const updated = await prisma.salesOrder.updateMany({
     where: { id, workspaceId: wsId, ownerId: auth.userId },

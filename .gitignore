@@ -33,6 +33,9 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
+# safety: never commit local env overrides
+!.env.example
+
 # vercel
 .vercel
 

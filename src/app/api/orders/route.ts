@@ -3,6 +3,7 @@ import { z } from 'zod'
 
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { enterWithUser } from '@/lib/request-context'
 // Finance hooks (recebíveis/pagamentos) serão adicionados no próximo passo.
 
 async function requireUser() {
@@ -16,6 +17,7 @@ async function requireUser() {
         select: { id: true },
       })
     }
+    enterWithUser(u.id)
     return { ok: true as const, userId: u.id }
   }
 
@@ -25,6 +27,7 @@ async function requireUser() {
   if (!session || !userId) {
     return { ok: false as const, status: 401, error: 'UNAUTHORIZED' }
   }
+  enterWithUser(userId)
   return { ok: true as const, userId }
 }
 
@@ -85,6 +88,7 @@ export async function GET(req: Request) {
       orderedAt: true,
       deliveryAt: true,
       status: true,
+      orderIndex: true,
       value: true,
       client: { select: { id: true, name: true } },
       items: {
@@ -178,6 +182,7 @@ export async function POST(req: Request) {
       orderedAt: true,
       deliveryAt: true,
       status: true,
+      orderIndex: true,
       value: true,
       client: { select: { id: true, name: true } },
       items: {

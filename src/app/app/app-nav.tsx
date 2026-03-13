@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Boxes, BookOpen, CalendarDays, History, Home as HomeIcon, Package, Users, Wallet, Landmark } from 'lucide-react'
+import { Boxes, BookOpen, CalendarDays, Home as HomeIcon, Package, Users, Wallet, Landmark, ShoppingCart } from 'lucide-react'
 
 import { useSettings } from './settings-context'
 import { t } from './i18n'
@@ -70,15 +70,16 @@ export default function AppNav({ onNavigate }: { onNavigate?: () => void }) {
       <Section title={i.nav.sales} defaultOpen>
         <NavItem href="/app/sales/orders" label={i.nav.salesOrders} icon={CalendarDays} onNavigate={onNavigate} />
         <NavItem href="/app/deliveries" label={i.nav.deliveries} icon={Package} onNavigate={onNavigate} />
-        <NavItem href="/app/payments" label={i.nav.payments} icon={Wallet} onNavigate={onNavigate} />
       </Section>
 
-      <NavItem
-        href="/app/history"
-        label={language === 'pt' ? 'Histórico' : language === 'es' ? 'Historial' : 'History'}
-        icon={History}
-        onNavigate={onNavigate}
-      />
+      <Section title={language === 'pt' ? 'Compras' : language === 'es' ? 'Compras' : 'Purchases'}>
+        <NavItem
+          href="/app/purchases/orders"
+          label={language === 'pt' ? 'Pedidos de compra' : language === 'es' ? 'Pedidos de compra' : 'Purchase orders'}
+          icon={ShoppingCart}
+          onNavigate={onNavigate}
+        />
+      </Section>
       <NavItem
         href="/app/products"
         label={language === 'pt' ? 'Produtos' : language === 'es' ? 'Productos' : 'Products'}
@@ -91,12 +92,7 @@ export default function AppNav({ onNavigate }: { onNavigate?: () => void }) {
         icon={Boxes}
         onNavigate={onNavigate}
       />
-      <NavItem
-        href="/app/clients"
-        label={language === 'pt' ? 'Clientes' : language === 'es' ? 'Clientes' : 'Clients'}
-        icon={Users}
-        onNavigate={onNavigate}
-      />
+      <NavItem href="/app/clients" label={i.clients.title} icon={Users} onNavigate={onNavigate} />
       <NavItem
         href="/app/recipes"
         label={language === 'pt' ? 'Receitas' : language === 'es' ? 'Recetas' : 'Recipes'}

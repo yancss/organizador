@@ -87,16 +87,37 @@ export default function FinancePage() {
 
   const [view, setView] = useState<'all' | 'receivable' | 'payable'>('all')
 
+  // Filters
+  const [from, setFrom] = useState('')
+  const [to, setTo] = useState('')
+  const [accountId, setAccountId] = useState('')
+  const [categoryId, setCategoryId] = useState('')
+
+  const categoriesAllQ = useQuery({
+    queryKey: ['finance', 'categories', 'all'],
+    queryFn: () => api<{ categories: Category[] }>('/api/finance/categories'),
+  })
+
   const entriesQ = useQuery({
-    queryKey: ['finance', 'entries', view],
+    queryKey: ['finance', 'entries', view, from, to, accountId, categoryId],
     queryFn: () => {
-      const qs =
-        view === 'receivable'
-          ? '?status=PLANNED&type=IN'
-          : view === 'payable'
-            ? '?status=PLANNED&type=OUT'
-            : ''
-      return api<{ entries: Entry[] }>(`/api/finance/entries${qs}`)
+      const params = new URLSearchParams()
+
+      if (view === 'receivable') {
+        params.set('status', 'PLANNED')
+        params.set('type', 'IN')
+      } else if (view === 'payable') {
+        params.set('status', 'PLANNED')
+        params.set('type', 'OUT')
+      }
+
+      if (from) params.set('from', new Date(from + 'T00:00:00').toISOString())
+      if (to) params.set('to', new Date(to + 'T23:59:59').toISOString())
+      if (accountId) params.set('accountId', accountId)
+      if (categoryId) params.set('categoryId', categoryId)
+
+      const qs = params.toString()
+      return api<{ entries: Entry[] }>(`/api/finance/entries${qs ? `?${qs}` : ''}`)
     },
   })
 
@@ -189,6 +210,7 @@ export default function FinancePage() {
 
   const accounts = accountsQ.data?.accounts ?? []
   const categories = categoriesQ.data?.categories ?? []
+  const categoriesAll = categoriesAllQ.data?.categories ?? []
   const costCenters = costCentersQ.data?.costCenters ?? []
   const entries = entriesQ.data?.entries ?? []
 
@@ -339,6 +361,75 @@ export default function FinancePage() {
                 }
               >
                 {language === 'pt' ? 'A pagar' : language === 'es' ? 'Por pagar' : 'Payable'}
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-3 grid gap-2 sm:grid-cols-5">
+            <label className="grid gap-1">
+              <span className="text-[10px] text-[var(--muted-foreground)]">{language === 'pt' ? 'De' : language === 'es' ? 'De' : 'From'}</span>
+              <input
+                type="date"
+                value={from}
+                onChange={(e) => setFrom(e.target.value)}
+                className="w-full rounded-lg border border-theme bg-[var(--surface)] px-3 py-2 text-xs"
+              />
+            </label>
+
+            <label className="grid gap-1">
+              <span className="text-[10px] text-[var(--muted-foreground)]">{language === 'pt' ? 'Até' : language === 'es' ? 'Hasta' : 'To'}</span>
+              <input
+                type="date"
+                value={to}
+                onChange={(e) => setTo(e.target.value)}
+                className="w-full rounded-lg border border-theme bg-[var(--surface)] px-3 py-2 text-xs"
+              />
+            </label>
+
+            <label className="grid gap-1">
+              <span className="text-[10px] text-[var(--muted-foreground)]">{language === 'pt' ? 'Conta' : language === 'es' ? 'Cuenta' : 'Account'}</span>
+              <select
+                value={accountId}
+                onChange={(e) => setAccountId(e.target.value)}
+                className="w-full rounded-lg border border-theme bg-[var(--surface)] px-3 py-2 text-xs"
+              >
+                <option value="">Todas</option>
+                {accounts.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="grid gap-1">
+              <span className="text-[10px] text-[var(--muted-foreground)]">{language === 'pt' ? 'Categoria' : language === 'es' ? 'Categoría' : 'Category'}</span>
+              <select
+                value={categoryId}
+                onChange={(e) => setCategoryId(e.target.value)}
+                className="w-full rounded-lg border border-theme bg-[var(--surface)] px-3 py-2 text-xs"
+              >
+                <option value="">Todas</option>
+                {categoriesAll.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <div className="grid items-end justify-items-end">
+              <button
+                type="button"
+                className="w-fit rounded-lg border border-theme bg-neutral-50 px-3 py-2 text-xs text-neutral-700 hover:bg-neutral-100"
+                onClick={() => {
+                  setFrom('')
+                  setTo('')
+                  setAccountId('')
+                  setCategoryId('')
+                }}
+              >
+                {language === 'pt' ? 'Limpar filtros' : language === 'es' ? 'Limpiar filtros' : 'Clear filters'}
               </button>
             </div>
           </div>

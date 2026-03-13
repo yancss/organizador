@@ -36,9 +36,12 @@ export type I18n = {
     title: string
     subtitle: string
     receivablesOpen: string
+    receivablesOverdue: string
     payablesPlanned: string
+    paymentsToday: string
     salesOrdersOpen: string
     deliveriesOpen: string
+    deliveriesShippedToday: string
     refundsPending: string
   }
   orders: {
@@ -85,6 +88,10 @@ export type I18n = {
     editHint: string
     phone: string
     noPhone: string
+
+    rolesLabel: string
+    roleCustomer: string
+    roleSupplier: string
 
     newTitle: string
     editTitle: string
@@ -290,9 +297,12 @@ const dict: Record<AppLanguage, I18n> = {
       title: 'Home',
       subtitle: 'Resumo do dia e indicadores rápidos.',
       receivablesOpen: 'A receber (aberto)',
+      receivablesOverdue: 'A receber (vencido)',
       payablesPlanned: 'A pagar (planejado)',
+      paymentsToday: 'Pagamentos (hoje)',
       salesOrdersOpen: 'Pedidos (abertos)',
       deliveriesOpen: 'Entregas (em andamento)',
+      deliveriesShippedToday: 'Entregas (enviadas hoje)',
       refundsPending: 'Devoluções (pendentes)',
     },
     orders: {
@@ -332,17 +342,21 @@ const dict: Record<AppLanguage, I18n> = {
       deleteConfirm: 'Desativar este produto?',
     },
     clients: {
-      title: 'Clientes',
-      subtitle: 'Cadastre clientes para vincular aos pedidos.',
-      new: 'Novo cliente',
+      title: 'Parceiros',
+      subtitle: 'Cadastre clientes e fornecedores para vincular aos pedidos.',
+      new: 'Novo parceiro',
       empty: 'Nenhum cliente cadastrado.',
       editHint: 'Editar',
       phone: 'Telefone',
       noPhone: 'Sem telefone',
 
-      newTitle: 'Novo cliente',
-      editTitle: 'Editar cliente',
-      modalSubtitle: 'Nome, telefone, identificação e endereço.',
+      rolesLabel: 'Tipo',
+      roleCustomer: 'Cliente',
+      roleSupplier: 'Fornecedor',
+
+      newTitle: 'Novo parceiro',
+      editTitle: 'Editar parceiro',
+      modalSubtitle: 'Nome, tipo, telefone, identificação e endereço.',
       nameLabel: 'Nome',
       phoneLabel: 'Telefone',
       phoneHelp: 'Salvando em formato internacional (ex.: +351…, +55…)',
@@ -535,9 +549,12 @@ const dict: Record<AppLanguage, I18n> = {
       title: 'Home',
       subtitle: 'Today summary and quick indicators.',
       receivablesOpen: 'Receivables (open)',
+      receivablesOverdue: 'Receivables (overdue)',
       payablesPlanned: 'Payables (planned)',
+      paymentsToday: 'Payments (today)',
       salesOrdersOpen: 'Sales orders (open)',
       deliveriesOpen: 'Deliveries (in progress)',
+      deliveriesShippedToday: 'Deliveries (shipped today)',
       refundsPending: 'Refunds (pending)',
     },
     orders: {
@@ -577,17 +594,21 @@ const dict: Record<AppLanguage, I18n> = {
       deleteConfirm: 'Deactivate this product?',
     },
     clients: {
-      title: 'Clients',
-      subtitle: 'Create clients to link them to orders.',
-      new: 'New client',
-      empty: 'No clients yet.',
+      title: 'Partners',
+      subtitle: 'Create customers and suppliers to link to orders.',
+      new: 'New partner',
+      empty: 'No partners yet.',
       editHint: 'Edit',
       phone: 'Phone',
       noPhone: 'No phone',
 
-      newTitle: 'New client',
-      editTitle: 'Edit client',
-      modalSubtitle: 'Name, phone, identification and address.',
+      rolesLabel: 'Type',
+      roleCustomer: 'Customer',
+      roleSupplier: 'Supplier',
+
+      newTitle: 'New partner',
+      editTitle: 'Edit partner',
+      modalSubtitle: 'Name, type, phone, identification and address.',
       nameLabel: 'Name',
       phoneLabel: 'Phone',
       phoneHelp: 'Saved in international format (e.g. +351…, +55…)',
@@ -780,9 +801,12 @@ const dict: Record<AppLanguage, I18n> = {
       title: 'Inicio',
       subtitle: 'Resumen del día e indicadores rápidos.',
       receivablesOpen: 'Cuentas por cobrar (abiertas)',
+      receivablesOverdue: 'Cuentas por cobrar (vencidas)',
       payablesPlanned: 'Cuentas por pagar (planificadas)',
+      paymentsToday: 'Pagos (hoy)',
       salesOrdersOpen: 'Pedidos de venta (abiertos)',
       deliveriesOpen: 'Entregas (en curso)',
+      deliveriesShippedToday: 'Entregas (enviadas hoy)',
       refundsPending: 'Reembolsos (pendientes)',
     },
     orders: {
@@ -822,13 +846,17 @@ const dict: Record<AppLanguage, I18n> = {
       deleteConfirm: '¿Desactivar este producto?',
     },
     clients: {
-      title: 'Clientes',
-      subtitle: 'Crea clientes para vincularlos a pedidos.',
-      new: 'Nuevo cliente',
-      empty: 'No hay clientes.',
+      title: 'Socios',
+      subtitle: 'Crea clientes y proveedores para vincularlos a pedidos.',
+      new: 'Nuevo socio',
+      empty: 'No hay socios.',
       editHint: 'Editar',
       phone: 'Teléfono',
       noPhone: 'Sin teléfono',
+
+      rolesLabel: 'Tipo',
+      roleCustomer: 'Cliente',
+      roleSupplier: 'Proveedor',
 
       newTitle: 'Nuevo cliente',
       editTitle: 'Editar cliente',

@@ -39,6 +39,9 @@ model Workspace {
   name    String
   members WorkspaceMember[]
 
+  createdById String?
+  updatedById String?
+
   salesOrders    SalesOrder[]
   purchaseOrders PurchaseOrder[]
   clients        Client[]
@@ -71,6 +74,9 @@ model WorkspaceMember {
   userId      String
   role        String @default("owner")
 
+  createdById String?
+  updatedById String?
+
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -88,6 +94,10 @@ model WorkspaceMember {
 enum SalesOrderStatus {
   DRAFT
   CONFIRMED
+  IN_PRODUCTION
+  READY
+  SHIPPED
+  DONE
   CANCELLED
 }
 
@@ -95,6 +105,9 @@ model SalesOrder {
   id          String @id @default(cuid())
   workspaceId String
   ownerId     String
+
+  createdById String?
+  updatedById String?
 
   name         String
   observations String?
@@ -139,6 +152,9 @@ model SalesOrderItem {
   salesOrderId String
   productId    String
 
+  createdById String?
+  updatedById String?
+
   quantity Decimal @db.Decimal(14, 3)
 
   salesOrder SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
@@ -165,6 +181,9 @@ model PurchaseOrder {
   id          String @id @default(cuid())
   workspaceId String
 
+  createdById String?
+  updatedById String?
+
   // Fornecedor: preferencialmente via stakeholder (Client). Mantemos `supplier` como fallback textual.
   supplierId String?
   supplier   String?
@@ -181,7 +200,8 @@ model PurchaseOrder {
   workspace      Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   supplierEntity Client?   @relation("PurchaseOrderSupplier", fields: [supplierId], references: [id], onDelete: SetNull)
 
-  items PurchaseOrderItem[]
+  items            PurchaseOrderItem[]
+  financialEntries FinancialEntry[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -196,6 +216,9 @@ model PurchaseOrderItem {
   id              String @id @default(cuid())
   purchaseOrderId String
   productId       String
+
+  createdById String?
+  updatedById String?
 
   quantity Decimal @db.Decimal(14, 3)
 
@@ -217,6 +240,9 @@ enum StakeholderRole {
 model Client {
   id          String @id @default(cuid())
   workspaceId String
+
+  createdById String?
+  updatedById String?
 
   name String
 
@@ -276,6 +302,9 @@ model Product {
   id          String @id @default(cuid())
   workspaceId String
 
+  createdById String?
+  updatedById String?
+
   name   String
   brand  String?
   kind   ProductKind @default(RAW)
@@ -305,6 +334,9 @@ model Inventory {
   workspaceId String
   productId   String @unique
 
+  createdById String?
+  updatedById String?
+
   quantity Decimal  @db.Decimal(14, 3)
   minimum  Decimal? @db.Decimal(14, 3)
 
@@ -320,6 +352,9 @@ model Inventory {
 model Purchase {
   id          String @id @default(cuid())
   workspaceId String
+
+  createdById String?
+  updatedById String?
 
   productId    String
   date         DateTime @default(now())
@@ -344,6 +379,9 @@ model Purchase {
 model Consumption {
   id          String @id @default(cuid())
   workspaceId String
+
+  createdById String?
+  updatedById String?
 
   date      DateTime @default(now())
   productId String
@@ -374,6 +412,9 @@ model Recipe {
   id          String @id @default(cuid())
   workspaceId String
 
+  createdById String?
+  updatedById String?
+
   productId    String // produto final
   yieldQty     Decimal? @db.Decimal(14, 3)
   observations String?
@@ -395,6 +436,9 @@ model RecipeItem {
   id        String @id @default(cuid())
   recipeId  String
   productId String // insumo
+
+  createdById String?
+  updatedById String?
 
   quantity Decimal @db.Decimal(14, 3)
 
@@ -422,6 +466,9 @@ model FinancialAccount {
   id          String @id @default(cuid())
   workspaceId String
 
+  createdById String?
+  updatedById String?
+
   name   String
   kind   String  @default("CASH") // CASH | BANK | CARD | OTHER
   active Boolean @default(true)
@@ -441,6 +488,9 @@ model FinancialAccount {
 model FinancialCategory {
   id          String @id @default(cuid())
   workspaceId String
+
+  createdById String?
+  updatedById String?
 
   name   String
   type   FinancialEntryType
@@ -465,6 +515,9 @@ model CostCenter {
   id          String @id @default(cuid())
   workspaceId String
 
+  createdById String?
+  updatedById String?
+
   name   String
   active Boolean @default(true)
 
@@ -482,6 +535,9 @@ model FinancialEntry {
   id          String @id @default(cuid())
   workspaceId String
 
+  createdById String?
+  updatedById String?
+
   // Competência (quando ocorreu) vs pagamento (quando efetivou)
   competenceDate DateTime  @default(now())
   paidAt         DateTime?
@@ -496,18 +552,20 @@ model FinancialEntry {
   value        Decimal @db.Decimal(12, 2)
   observations String?
 
-  salesOrderId  String?
-  purchaseId    String?
-  consumptionId String?
+  salesOrderId    String?
+  purchaseId      String?
+  purchaseOrderId String?
+  consumptionId   String?
 
   workspace  Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   account    FinancialAccount   @relation(fields: [accountId], references: [id], onDelete: Restrict)
   category   FinancialCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   costCenter CostCenter?        @relation(fields: [costCenterId], references: [id], onDelete: SetNull)
 
-  salesOrder  SalesOrder?  @relation(fields: [salesOrderId], references: [id], onDelete: SetNull)
-  purchase    Purchase?    @relation(fields: [purchaseId], references: [id], onDelete: SetNull)
-  consumption Consumption? @relation(fields: [consumptionId], references: [id], onDelete: SetNull)
+  salesOrder    SalesOrder?    @relation(fields: [salesOrderId], references: [id], onDelete: SetNull)
+  purchase      Purchase?      @relation(fields: [purchaseId], references: [id], onDelete: SetNull)
+  purchaseOrder PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
+  consumption   Consumption?   @relation(fields: [consumptionId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -522,6 +580,7 @@ model FinancialEntry {
   @@index([costCenterId])
   @@index([salesOrderId])
   @@index([purchaseId])
+  @@index([purchaseOrderId])
   @@index([consumptionId])
 }
 
@@ -594,6 +653,9 @@ model Delivery {
   id          String @id @default(cuid())
   workspaceId String
 
+  createdById String?
+  updatedById String?
+
   salesOrderId String
   clientId     String?
 
@@ -635,6 +697,9 @@ model DeliveryItem {
   deliveryId String
   productId  String
 
+  createdById String?
+  updatedById String?
+
   quantity Decimal @db.Decimal(14, 3)
 
   delivery Delivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
@@ -656,6 +721,9 @@ enum ReceivableStatus {
 model Receivable {
   id          String @id @default(cuid())
   workspaceId String
+
+  createdById String?
+  updatedById String?
 
   salesOrderId String
   deliveryId   String  @unique
@@ -705,6 +773,9 @@ model Payment {
   id          String @id @default(cuid())
   workspaceId String
 
+  createdById String?
+  updatedById String?
+
   salesOrderId String
   clientId     String?
 
@@ -740,6 +811,9 @@ model Payment {
 model PaymentApplication {
   id          String @id @default(cuid())
   workspaceId String
+
+  createdById String?
+  updatedById String?
 
   paymentId    String
   receivableId String
@@ -777,6 +851,9 @@ enum RefundMethod {
 model Refund {
   id          String @id @default(cuid())
   workspaceId String
+
+  createdById String?
+  updatedById String?
 
   salesOrderId String
   clientId     String?

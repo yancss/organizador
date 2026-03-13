@@ -3,6 +3,7 @@ import { z } from 'zod'
 
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { enterWithUser } from '@/lib/request-context'
 
 async function requireUser() {
   // In local/dev mode, allow bypassing NextAuth entirely.
@@ -15,6 +16,7 @@ async function requireUser() {
         select: { id: true },
       })
     }
+    enterWithUser(u.id)
     return { ok: true as const, userId: u.id }
   }
 
@@ -22,6 +24,7 @@ async function requireUser() {
   const userId = (session?.user as { id?: string } | undefined)?.id
 
   if (!session || !userId) return { ok: false as const, status: 401, error: 'UNAUTHORIZED' }
+  enterWithUser(userId)
   return { ok: true as const, userId }
 }
 
@@ -65,6 +68,8 @@ export async function GET(req: Request) {
   const to = url.searchParams.get('to')
   const status = url.searchParams.get('status') // PAID | PLANNED | all
   const type = url.searchParams.get('type') // IN | OUT | all
+  const accountId = url.searchParams.get('accountId')
+  const categoryId = url.searchParams.get('categoryId')
 
   let fromDate: Date | undefined
   let toDate: Date | undefined
@@ -83,6 +88,8 @@ export async function GET(req: Request) {
       workspaceId: ws.id,
       ...(status === 'PAID' || status === 'PLANNED' ? { status } : {}),
       ...(type === 'IN' || type === 'OUT' ? { type } : {}),
+      ...(accountId ? { accountId } : {}),
+      ...(categoryId ? { categoryId } : {}),
       ...(fromDate || toDate
         ? {
             competenceDate: {

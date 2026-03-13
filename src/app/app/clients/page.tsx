@@ -15,6 +15,8 @@ type Client = {
   id: string
   name: string
 
+  roles: Array<'CUSTOMER' | 'SUPPLIER'>
+
   phone: string | null
   phoneCountry?: string | null
 
@@ -53,6 +55,11 @@ type Draft = {
   id?: string
   name: string
 
+  roles: {
+    customer: boolean
+    supplier: boolean
+  }
+
   phone: string
   phoneCountry: string
 
@@ -80,6 +87,7 @@ type Draft = {
 function emptyDraft(): Draft {
   return {
     name: '',
+    roles: { customer: true, supplier: false },
     phone: '',
     phoneCountry: '',
     birthDate: '',
@@ -117,6 +125,7 @@ export default function ClientsPage() {
   const createM = useMutation({
     mutationFn: (payload: {
       name: string
+      roles: Array<'CUSTOMER' | 'SUPPLIER'>
 
       phone: string | null
       phoneCountry: string | null
@@ -181,6 +190,10 @@ export default function ClientsPage() {
     setDraft({
       id: c.id,
       name: c.name,
+      roles: {
+        customer: (c.roles ?? []).includes('CUSTOMER'),
+        supplier: (c.roles ?? []).includes('SUPPLIER'),
+      },
 
       phone: c.phone ?? '',
       phoneCountry: c.phoneCountry ?? '',
@@ -210,8 +223,14 @@ export default function ClientsPage() {
     const name = draft.name.trim()
     if (!name) return
 
+    const roles: Array<'CUSTOMER' | 'SUPPLIER'> = []
+    if (draft.roles.customer) roles.push('CUSTOMER')
+    if (draft.roles.supplier) roles.push('SUPPLIER')
+    if (!roles.length) roles.push('CUSTOMER')
+
     const payload = {
       name,
+      roles,
 
       phone: draft.phone.trim() ? draft.phone.trim() : null,
       phoneCountry: draft.phoneCountry.trim() ? draft.phoneCountry.trim() : null,
@@ -345,6 +364,28 @@ export default function ClientsPage() {
                   className="w-full rounded-lg border border-theme bg-transparent px-3 py-2"
                 />
               </label>
+
+              <div className="grid gap-2">
+                <div className="text-xs font-medium text-[var(--foreground)]">{language === 'pt' ? 'Tipo' : language === 'es' ? 'Tipo' : 'Type'}</div>
+                <div className="flex flex-wrap gap-4 text-sm text-[var(--foreground)]">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={draft.roles.customer}
+                      onChange={(e) => setDraft((d) => ({ ...d, roles: { ...d.roles, customer: e.target.checked } }))}
+                    />
+                    {language === 'pt' ? 'Cliente' : language === 'es' ? 'Cliente' : 'Customer'}
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={draft.roles.supplier}
+                      onChange={(e) => setDraft((d) => ({ ...d, roles: { ...d.roles, supplier: e.target.checked } }))}
+                    />
+                    {language === 'pt' ? 'Fornecedor' : language === 'es' ? 'Proveedor' : 'Supplier'}
+                  </label>
+                </div>
+              </div>
 
               <label className="grid gap-1">
                 <span className="text-xs font-medium text-[var(--foreground)]">{i.clients.phoneLabel}</span>

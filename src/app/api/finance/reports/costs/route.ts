@@ -2,6 +2,7 @@ import { getServerSession } from 'next-auth'
 
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { enterWithUser } from '@/lib/request-context'
 
 async function requireUser() {
   // In local/dev mode, allow bypassing NextAuth entirely.
@@ -14,6 +15,7 @@ async function requireUser() {
         select: { id: true },
       })
     }
+    enterWithUser(u.id)
     return { ok: true as const, userId: u.id }
   }
 
@@ -21,6 +23,7 @@ async function requireUser() {
   const userId = (session?.user as { id?: string } | undefined)?.id
 
   if (!session || !userId) return { ok: false as const, status: 401, error: 'UNAUTHORIZED' }
+  enterWithUser(userId)
   return { ok: true as const, userId }
 }
 

@@ -3,6 +3,8 @@ import { z } from 'zod'
 
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { enterWithUser } from '@/lib/request-context'
+import { adjustInventory } from '@/lib/inventory-movements'
 import { createReceivableForDeliveryOnShipped } from '@/lib/sales/receivables'
 
 async function requireUser() {
@@ -14,12 +16,14 @@ async function requireUser() {
         select: { id: true },
       })
     }
+    enterWithUser(u.id)
     return { ok: true as const, userId: u.id }
   }
 
   const session = await getServerSession(authOptions)
   const userId = (session?.user as { id?: string } | undefined)?.id
   if (!session || !userId) return { ok: false as const, status: 401, error: 'UNAUTHORIZED' }
+  enterWithUser(userId)
   return { ok: true as const, userId }
 }
 
@@ -60,7 +64,11 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
 
   const prev = await prisma.delivery.findFirst({
     where: { id, workspaceId: wsId },
-    select: { id: true, status: true },
+    select: {
+      id: true,
+      status: true,
+      items: { select: { productId: true, quantity: true, product: { select: { kind: true } } } },
+    },
   })
   if (!prev) return Response.json({ error: 'NOT_FOUND' }, { status: 404 })
 
@@ -81,6 +89,22 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     data,
     select: { id: true, status: true },
   })
+
+  const prevOut = prev.status === 'SHIPPED' || prev.status === 'DELIVERED'
+  const nextOut = updated.status === 'SHIPPED' || updated.status === 'DELIVERED'
+
+  // Stock movement for finished products
+  if (prevOut !== nextOut) {
+    await prisma.$transaction(async (tx) => {
+      for (const it of prev.items) {
+        // Deliveries should only move finished goods.
+        if (it.product.kind !== 'FINISHED') continue
+        const qty = Number(it.quantity)
+        const delta = nextOut ? -qty : qty
+        await adjustInventory(tx as any, { workspaceId: wsId, productId: it.productId, delta })
+      }
+    })
+  }
 
   // trigger: when becomes SHIPPED, create receivable and apply prepayments
   if (prev.status !== 'SHIPPED' && updated.status === 'SHIPPED') {

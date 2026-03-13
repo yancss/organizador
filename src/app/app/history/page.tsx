@@ -1,5 +1,5 @@
-import OrderBoard from '../order-board'
+import { redirect } from 'next/navigation'
 
 export default function HistoryPage() {
-  return <OrderBoard view="history" />
+  redirect('/app/sales/orders')
 }

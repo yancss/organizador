@@ -49,6 +49,7 @@ export default function DataTable<T>({
   initialSort,
   onRowClick,
   pageSize = 10,
+  showSearch = true,
   labels = {
     showing: 'Mostrando {start}–{end} de {total}',
     page: 'Página {page} / {pages}',
@@ -65,6 +66,7 @@ export default function DataTable<T>({
   initialSort?: { key: string; dir?: SortDir }
   onRowClick?: (row: T) => void
   pageSize?: number
+  showSearch?: boolean
   labels?: DataTableLabels
 }) {
   const [sortKey, setSortKey] = useState<string | null>(initialSort?.key ?? null)
@@ -161,7 +163,8 @@ export default function DataTable<T>({
   return (
     <div className="surface overflow-hidden rounded-xl border border-theme">
       {/* search */}
-      <div className="grid grid-cols-1 gap-2 border-b border-theme bg-[var(--surface-2)] px-4 py-3 sm:grid-cols-3 sm:items-center">
+      {showSearch ? (
+        <div className="grid grid-cols-1 gap-2 border-b border-theme bg-[var(--surface-2)] px-4 py-3 sm:grid-cols-3 sm:items-center">
         <div className="hidden sm:block" />
 
         <div className="mx-auto flex w-full max-w-md items-center gap-2">
@@ -184,6 +187,7 @@ export default function DataTable<T>({
 
         <div className="hidden sm:block" />
       </div>
+      ) : null}
 
       {sortedRows.length === 0 ? (
         <div className="p-6 text-sm text-[var(--muted-foreground)]">

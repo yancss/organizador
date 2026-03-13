@@ -1,7 +1,7 @@
 'use client'
 
-import { useMemo, useRef, useState } from 'react'
-import { ChevronLeft, ChevronRight, Maximize2, Minimize2, X } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { ChevronLeft, ChevronRight, Maximize2, Minimize2, Settings, X } from 'lucide-react'
 
 import DataTable from './ui/data-table'
 import SearchSelect from './ui/search-select'
@@ -35,7 +35,8 @@ type Order = {
   observations: string | null
   orderedAt: string | null
   deliveryAt: string | null
-  status: 'DRAFT' | 'CONFIRMED' | 'CANCELLED'
+  status: 'DRAFT' | 'CONFIRMED' | 'IN_PRODUCTION' | 'READY' | 'SHIPPED' | 'DONE' | 'CANCELLED'
+  orderIndex?: string | null
   value: string | number | null
   client: Client | null
   items: Array<{ id: string; quantity: string | number; product: Product }>
@@ -93,7 +94,7 @@ type Draft = {
   clientId: string
   orderedAt: string
   deliveryAt: string
-  status: 'DRAFT' | 'CONFIRMED' | 'CANCELLED'
+  status: 'DRAFT' | 'CONFIRMED' | 'IN_PRODUCTION' | 'READY' | 'SHIPPED' | 'DONE' | 'CANCELLED'
   value: string
   observations: string
   items: OrderItem[]
@@ -112,14 +113,101 @@ function emptyDraft(): Draft {
   }
 }
 
-export default function OrderBoard({ view }: { view: 'upcoming' | 'history' }) {
+const STATUS_ORDER: Order['status'][] = ['DRAFT', 'CONFIRMED', 'IN_PRODUCTION', 'READY', 'SHIPPED', 'DONE', 'CANCELLED']
+const COLUMNS_STORAGE_KEY = 'orders:kanban:visibleStatuses:v1'
+
+export default function OrderBoard() {
   const qc = useQueryClient()
   const { language, currency } = useSettings()
   const i = t(language)
   const moneyLocale = localeFromLanguage(language)
 
+  const statusOrder = STATUS_ORDER
+  const columnsStorageKey = COLUMNS_STORAGE_KEY
+
+  function statusLabel(s: Order['status']) {
+    if (language === 'pt') {
+      if (s === 'DRAFT') return 'Rascunho'
+      if (s === 'CONFIRMED') return 'Confirmado'
+      if (s === 'IN_PRODUCTION') return 'Em produção'
+      if (s === 'READY') return 'Pronto'
+      if (s === 'SHIPPED') return 'Enviado'
+      if (s === 'DONE') return 'Concluído'
+      return 'Cancelado'
+    }
+    if (language === 'es') {
+      if (s === 'DRAFT') return 'Borrador'
+      if (s === 'CONFIRMED') return 'Confirmado'
+      if (s === 'IN_PRODUCTION') return 'En producción'
+      if (s === 'READY') return 'Listo'
+      if (s === 'SHIPPED') return 'Enviado'
+      if (s === 'DONE') return 'Hecho'
+      return 'Cancelado'
+    }
+    // en
+    if (s === 'DRAFT') return 'Draft'
+    if (s === 'CONFIRMED') return 'Confirmed'
+    if (s === 'IN_PRODUCTION') return 'In production'
+    if (s === 'READY') return 'Ready'
+    if (s === 'SHIPPED') return 'Shipped'
+    if (s === 'DONE') return 'Done'
+    return 'Cancelled'
+  }
+
+  function statusBadgeClass(s: Order['status']) {
+    if (s === 'CONFIRMED') return 'bg-green-100 text-green-800'
+    if (s === 'IN_PRODUCTION') return 'bg-amber-100 text-amber-800'
+    if (s === 'READY') return 'bg-purple-100 text-purple-800'
+    if (s === 'SHIPPED') return 'bg-cyan-100 text-cyan-800'
+    if (s === 'DONE') return 'bg-emerald-100 text-emerald-800'
+    if (s === 'CANCELLED') return 'bg-neutral-200 text-neutral-800'
+    return 'bg-blue-100 text-blue-800'
+  }
+
+  function sortForKanban(a: Order, b: Order) {
+    // Higher orderIndex first (most recent/top). Fallback to deliveryAt then created id.
+    const ao = a.orderIndex ?? ''
+    const bo = b.orderIndex ?? ''
+    if (ao && bo && ao !== bo) return bo.localeCompare(ao)
+    if (ao && !bo) return -1
+    if (!ao && bo) return 1
+
+    const ad = a.deliveryAt ?? ''
+    const bd = b.deliveryAt ?? ''
+    if (ad !== bd) return ad.localeCompare(bd)
+    return a.id.localeCompare(b.id)
+  }
+
+  async function setOrderStatus(orderId: string, nextStatus: Order['status']) {
+    await updateM.mutateAsync({ id: orderId, payload: { status: nextStatus } })
+  }
+
+  async function bumpOrder(orderId: string, nextStatus: Order['status']) {
+    // Move card to top of the target column
+    // eslint-disable-next-line react-hooks/purity
+    await updateM.mutateAsync({ id: orderId, payload: { status: nextStatus, orderIndex: String(Date.now()) } })
+  }
+
+  function onDragStart(e: React.DragEvent, o: Order) {
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/orderId', o.id)
+    e.dataTransfer.setData('text/fromStatus', o.status)
+  }
+
+  async function onDropColumn(e: React.DragEvent, st: Order['status']) {
+    e.preventDefault()
+    const id = e.dataTransfer.getData('text/orderId')
+    if (!id) return
+    await bumpOrder(id, st)
+  }
+
   const [isOpen, setIsOpen] = useState(false)
   const [calendarFullscreen, setCalendarFullscreen] = useState(false)
+  const [mode, setMode] = useState<'list' | 'kanban'>('list')
+  const [columnsOpen, setColumnsOpen] = useState(false)
+  const [listQuery, setListQuery] = useState('')
+  const defaultVisibleStatuses = useMemo(() => STATUS_ORDER.filter((s) => s !== 'CANCELLED'), [])
+  const [visibleStatuses, setVisibleStatuses] = useState<Order['status'][]>(() => defaultVisibleStatuses)
 
   const calRef = useRef<FullCalendar | null>(null)
   const calModalRef = useRef<FullCalendar | null>(null)
@@ -141,9 +229,11 @@ export default function OrderBoard({ view }: { view: 'upcoming' | 'history' }) {
   })
 
   const ordersQ = useQuery({
-    queryKey: ['orders', view],
-    queryFn: () => api<{ orders: Order[] }>(`/api/orders?view=${view}`),
+    queryKey: ['orders'],
+    queryFn: () => api<{ orders: Order[] }>(`/api/orders?view=all`),
   })
+
+  const view = 'all' as const
 
   const createM = useMutation({
     mutationFn: (payload: any) =>
@@ -176,15 +266,48 @@ export default function OrderBoard({ view }: { view: 'upcoming' | 'history' }) {
 
   const orders = ordersQ.data?.orders ?? []
 
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(columnsStorageKey)
+      if (!raw) return
+      const parsed = JSON.parse(raw) as unknown
+      if (!Array.isArray(parsed)) return
+      const allowed = new Set(STATUS_ORDER)
+      const next = parsed.filter((s) => typeof s === 'string' && allowed.has(s as any)) as Order['status'][]
+      if (next.length) setVisibleStatuses(next)
+    } catch {
+      // ignore
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(columnsStorageKey, JSON.stringify(visibleStatuses))
+    } catch {
+      // ignore
+    }
+  }, [columnsStorageKey, visibleStatuses])
+
+  const listFiltered = useMemo(() => {
+    const q = listQuery.trim().toLowerCase()
+    if (!q) return orders
+    return orders.filter((o) => {
+      if (o.name.toLowerCase().includes(q)) return true
+      if (o.client?.name && o.client.name.toLowerCase().includes(q)) return true
+      return false
+    })
+  }, [orders, listQuery])
+
   const sorted = useMemo(() => {
-    const items = [...orders]
+    const items = [...listFiltered]
     items.sort((a, b) => {
       const ad = a.deliveryAt ?? '9999-12-31'
       const bd = b.deliveryAt ?? '9999-12-31'
       return ad.localeCompare(bd)
     })
     return items
-  }, [orders])
+  }, [listFiltered])
 
   function openCreate() {
     draftStore.clear()
@@ -268,45 +391,167 @@ export default function OrderBoard({ view }: { view: 'upcoming' | 'history' }) {
 
   const calendarEvents = useMemo(() => {
     if (view !== 'upcoming') return []
-    return (ordersQ.data?.orders ?? [])
+    return (listFiltered ?? [])
       .filter((o) => !!o.deliveryAt)
       .map((o) => {
-        const confirmed = o.status === 'CONFIRMED'
         const cancelled = o.status === 'CANCELLED'
+        const done = o.status === 'DONE'
+        const confirmed = o.status === 'CONFIRMED'
+        const inProd = o.status === 'IN_PRODUCTION'
+        const ready = o.status === 'READY'
+        const shipped = o.status === 'SHIPPED'
         return {
           id: o.id,
           title: o.client?.name ? `${o.name} — ${o.client.name}` : o.name,
           start: toLocalDateOnly(o.deliveryAt as string),
           allDay: true,
-          backgroundColor: cancelled ? '#6b7280' : confirmed ? '#16a34a' : '#2563eb',
-          borderColor: cancelled ? '#4b5563' : confirmed ? '#15803d' : '#1d4ed8',
+          backgroundColor: cancelled
+            ? '#6b7280'
+            : done
+              ? '#059669'
+              : shipped
+                ? '#0891b2'
+                : ready
+                  ? '#7c3aed'
+                  : inProd
+                    ? '#d97706'
+                    : confirmed
+                      ? '#16a34a'
+                      : '#2563eb',
+          borderColor: cancelled
+            ? '#4b5563'
+            : done
+              ? '#047857'
+              : shipped
+                ? '#0e7490'
+                : ready
+                  ? '#6d28d9'
+                  : inProd
+                    ? '#b45309'
+                    : confirmed
+                      ? '#15803d'
+                      : '#1d4ed8',
           textColor: '#ffffff',
         }
       })
-  }, [ordersQ.data, view])
+  }, [listFiltered, view])
 
   return (
     <div className="space-y-6">
       <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">
-            {view === 'history' ? i.orders.historyTitle : i.orders.title}
-          </h1>
-          <p className="text-sm text-neutral-600">
-            {view === 'history' ? i.orders.historySubtitle : i.orders.subtitle}
-          </p>
+          <h1 className="text-xl font-semibold tracking-tight">{i.orders.title}</h1>
+          <p className="text-sm text-neutral-600">{i.orders.subtitle}</p>
         </div>
 
-        {view === 'upcoming' ? (
-          <button
-            className="rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-medium text-[var(--primary-foreground)] hover:opacity-90"
-            onClick={openCreate}
-            type="button"
-          >
-            {i.orders.new}
-          </button>
-        ) : null}
+        <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              className={
+                'rounded-lg border border-theme px-3 py-2 text-sm font-medium ' +
+                (mode === 'kanban' ? 'bg-[var(--muted)] text-[var(--foreground)]' : 'bg-transparent text-[var(--foreground)]')
+              }
+              onClick={() => setMode('kanban')}
+            >
+              {language === 'pt' ? 'Quadro' : language === 'es' ? 'Tablero' : 'Board'}
+            </button>
+            <button
+              type="button"
+              className={
+                'rounded-lg border border-theme px-3 py-2 text-sm font-medium ' +
+                (mode === 'list' ? 'bg-[var(--muted)] text-[var(--foreground)]' : 'bg-transparent text-[var(--foreground)]')
+              }
+              onClick={() => setMode('list')}
+            >
+              {language === 'pt' ? 'Lista' : language === 'es' ? 'Lista' : 'List'}
+            </button>
+
+            <button
+              className="rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-medium text-[var(--primary-foreground)] hover:opacity-90"
+              onClick={openCreate}
+              type="button"
+            >
+              {i.orders.new}
+            </button>
+        </div>
       </header>
+
+      {columnsOpen ? (
+        <div className="fixed inset-0 z-50">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/40"
+            aria-label={language === 'pt' ? 'Fechar' : language === 'es' ? 'Cerrar' : 'Close'}
+            onClick={() => setColumnsOpen(false)}
+          />
+          <div className="surface absolute left-3 right-3 top-24 mx-auto w-full max-w-md rounded-2xl border border-theme p-4 shadow-xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-base font-semibold text-[var(--foreground)]">
+                  {language === 'pt' ? 'Colunas do quadro' : language === 'es' ? 'Columnas del tablero' : 'Board columns'}
+                </h2>
+                <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+                  {language === 'pt'
+                    ? 'Escolha quais estados aparecem no quadro. (Cancelado vem oculto por padrão)'
+                    : language === 'es'
+                      ? 'Elige qué estados aparecen en el tablero. (Cancelado viene oculto por defecto)'
+                      : 'Choose which statuses appear on the board. (Cancelled is hidden by default)'}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="grid size-9 place-items-center rounded-md text-lg text-[var(--foreground)] hover:bg-[var(--muted)]"
+                aria-label={language === 'pt' ? 'Fechar' : language === 'es' ? 'Cerrar' : 'Close'}
+                onClick={() => setColumnsOpen(false)}
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="mt-4 grid gap-2">
+              {statusOrder.map((st) => {
+                const checked = visibleStatuses.includes(st)
+                return (
+                  <label key={st} className="flex items-center justify-between gap-3 rounded-lg border border-theme px-3 py-2">
+                    <span className="text-sm text-[var(--foreground)]">{statusLabel(st)}</span>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={(e) => {
+                        const on = e.target.checked
+                        setVisibleStatuses((prev) => {
+                          const set = new Set(prev)
+                          if (on) set.add(st)
+                          else set.delete(st)
+                          const next = statusOrder.filter((s) => set.has(s))
+                          return next.length ? next : prev
+                        })
+                      }}
+                    />
+                  </label>
+                )
+              })}
+            </div>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button
+                type="button"
+                className="rounded-lg border border-theme px-3 py-2 text-sm font-medium hover:bg-[var(--muted)]"
+                onClick={() => setVisibleStatuses(defaultVisibleStatuses)}
+              >
+                {language === 'pt' ? 'Restaurar padrão' : language === 'es' ? 'Restaurar por defecto' : 'Reset default'}
+              </button>
+              <button
+                type="button"
+                className="rounded-lg bg-[var(--primary)] px-3 py-2 text-sm font-medium text-[var(--primary-foreground)] hover:opacity-90"
+                onClick={() => setColumnsOpen(false)}
+              >
+                {language === 'pt' ? 'Ok' : language === 'es' ? 'Ok' : 'Ok'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {ordersQ.isLoading ? (
         <p className="text-sm text-neutral-600">Carregando…</p>
@@ -314,13 +559,99 @@ export default function OrderBoard({ view }: { view: 'upcoming' | 'history' }) {
         <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           Erro ao carregar: {String(ordersQ.error)}
         </div>
-      ) : view === 'upcoming' ? (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <section>
+      ) : (
+        mode === 'kanban' ? (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <input
+                value={listQuery}
+                onChange={(e) => setListQuery(e.target.value)}
+                placeholder={language === 'pt' ? 'Buscar pedido ou cliente…' : language === 'es' ? 'Buscar pedido o cliente…' : 'Search order or client…'}
+                className="w-full rounded-lg border border-theme bg-[var(--surface)] px-3 py-2 text-sm text-[var(--foreground)]"
+              />
+              <button
+                type="button"
+                className="grid size-10 shrink-0 place-items-center rounded-lg border border-theme text-[var(--foreground)] hover:bg-[var(--muted)]"
+                onClick={() => setColumnsOpen(true)}
+                aria-label={language === 'pt' ? 'Colunas' : language === 'es' ? 'Columnas' : 'Columns'}
+                title={language === 'pt' ? 'Colunas' : language === 'es' ? 'Columnas' : 'Columns'}
+              >
+                <Settings className="size-4" />
+              </button>
+            </div>
+
+            <div className="hidden text-xs text-[var(--muted-foreground)] lg:block">
+              {language === 'pt'
+                ? 'Dica: arraste os pedidos entre colunas. As colunas encaixam na tela em modo desktop.'
+                : language === 'es'
+                  ? 'Consejo: arrastra los pedidos entre columnas. Las columnas encajan en pantalla en escritorio.'
+                  : 'Tip: drag orders between columns. Columns fit on screen on desktop.'}
+            </div>
+
+            <div className="overflow-x-auto pb-2">
+              <div className="grid w-max min-w-full grid-flow-col auto-cols-[minmax(240px,1fr)] gap-2">
+                {statusOrder.filter((st) => visibleStatuses.includes(st)).map((st) => {
+                const col = orders.filter((o) => o.status === st).sort(sortForKanban)
+                return (
+                  <div
+                    key={st}
+                    className="min-w-0 rounded-xl border border-theme bg-[var(--surface)]/40 p-2"
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => void onDropColumn(e, st)}
+                  >
+                    <div className="mb-2 flex items-center justify-between">
+                      <div className="truncate text-xs font-semibold text-[var(--foreground)]">{statusLabel(st)}</div>
+                      <div className="text-[10px] text-[var(--muted-foreground)]">{col.length}</div>
+                    </div>
+
+                    <div className="grid gap-2">
+                      {col.map((o) => {
+                        return (
+                          <button
+                            key={o.id}
+                            type="button"
+                            draggable
+                            onDragStart={(e) => onDragStart(e, o)}
+                            onClick={() => openEdit(o)}
+                            className="surface block w-full rounded-lg border border-theme p-2 text-left hover:bg-[var(--muted)]"
+                          >
+                            <div className="min-w-0">
+                              <div className="truncate text-sm font-medium text-[var(--foreground)]">{o.name}</div>
+                              <div className="mt-1 truncate text-xs text-[var(--muted-foreground)]">{o.client?.name ?? i.orders.noClient}</div>
+                            </div>
+                          </button>
+                        )
+                      })}
+
+                      {col.length === 0 ? (
+                        <div className="rounded-lg border border-dashed border-theme p-3 text-xs text-[var(--muted-foreground)]">
+                          {language === 'pt' ? 'Sem pedidos.' : language === 'es' ? 'Sin pedidos.' : 'No orders.'}
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                )
+                })}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <section className="space-y-2">
+            <div className="flex items-center gap-2">
+              <input
+                value={listQuery}
+                onChange={(e) => setListQuery(e.target.value)}
+                placeholder={language === 'pt' ? 'Buscar pedido ou cliente…' : language === 'es' ? 'Buscar pedido o cliente…' : 'Search order or client…'}
+                className="w-full rounded-lg border border-theme bg-[var(--surface)] px-3 py-2 text-sm text-[var(--foreground)]"
+              />
+            </div>
+
             <DataTable
               rows={sorted}
               empty={i.orders.empty}
               labels={i.table}
+              showSearch={false}
               initialSort={{ key: 'deliveryAt', dir: 'asc' }}
               onRowClick={openEdit}
               columns={[
@@ -332,17 +663,9 @@ export default function OrderBoard({ view }: { view: 'upcoming' | 'history' }) {
                   render: (r) => (
                     <div className="font-medium text-[var(--foreground)]">
                       {r.name}
-                      {r.status === 'CONFIRMED' ? (
-                        <span className="ml-2 rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-800">
-                          CONFIRMED
-                        </span>
-                      ) : r.status === 'CANCELLED' ? (
-                        <span className="ml-2 rounded-full bg-neutral-200 px-2 py-0.5 text-xs text-neutral-800">
-                          CANCELLED
-                        </span>
-                      ) : (
-                        <span className="ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-800">DRAFT</span>
-                      )}
+                      <span className={'ml-2 rounded-full px-2 py-0.5 text-xs ' + statusBadgeClass(r.status)}>
+                        {statusLabel(r.status)}
+                      </span>
                     </div>
                   ),
                 },
@@ -442,66 +765,9 @@ export default function OrderBoard({ view }: { view: 'upcoming' | 'history' }) {
             />
           </section>
         </div>
-      ) : (
-        <DataTable
-          rows={sorted}
-          empty={i.orders.empty}
-          labels={i.table}
-          initialSort={{ key: 'deliveryAt', dir: 'desc' }}
-          onRowClick={openEdit}
-          columns={[
-            {
-              key: 'name',
-              header: language === 'pt' ? 'Pedido' : language === 'es' ? 'Pedido' : 'Order',
-              sortValue: (r) => r.name,
-              searchValue: (r) => r.name,
-              render: (r) => (
-                <div className="font-medium text-[var(--foreground)]">
-                  {r.name}
-                  {r.status === 'CONFIRMED' ? (
-                    <span className="ml-2 rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-800">CONFIRMED</span>
-                  ) : r.status === 'CANCELLED' ? (
-                    <span className="ml-2 rounded-full bg-neutral-200 px-2 py-0.5 text-xs text-neutral-800">CANCELLED</span>
-                  ) : (
-                    <span className="ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-800">DRAFT</span>
-                  )}
-                </div>
-              ),
-            },
-            {
-              key: 'client',
-              header: i.orders.client,
-              sortValue: (r) => r.client?.name ?? '',
-              searchValue: (r) => r.client?.name ?? '',
-              render: (r) => (
-                <div className="text-[var(--muted-foreground)]">{r.client?.name ?? i.orders.noClient}</div>
-              ),
-            },
-            {
-              key: 'value',
-              header: i.orders.value,
-              sortValue: (r) => (r.value == null ? -1 : Number(r.value)),
-              render: (r) => (
-                <div className="text-[var(--muted-foreground)]">
-                  {r.value == null ? '—' : formatMoneyDisplay(r.value, moneyLocale, currency)}
-                </div>
-              ),
-            },
-            {
-              key: 'deliveryAt',
-              header: i.orders.deliveryAt,
-              sortValue: (r) => (r.deliveryAt ? new Date(r.deliveryAt) : new Date(0)),
-              render: (r) => (
-                <div className="text-[var(--muted-foreground)]">
-                  {r.deliveryAt ? new Date(r.deliveryAt).toLocaleDateString() : i.orders.noDeliveryAt}
-                </div>
-              ),
-            },
-          ]}
-        />
-      )}
+      ))}
 
-      {calendarFullscreen && view === 'upcoming' ? (
+      {calendarFullscreen ? (
         <div className="fixed inset-0 z-50">
           <button
             type="button"
@@ -674,9 +940,13 @@ export default function OrderBoard({ view }: { view: 'upcoming' | 'history' }) {
                     onChange={(e) => setDraft((d) => ({ ...d, status: e.target.value as Draft['status'] }))}
                     className="w-full rounded-lg border border-theme bg-transparent px-3 py-2"
                   >
-                    <option value="DRAFT">DRAFT</option>
-                    <option value="CONFIRMED">CONFIRMED</option>
-                    <option value="CANCELLED">CANCELLED</option>
+                    <option value="DRAFT">{statusLabel('DRAFT')}</option>
+                    <option value="CONFIRMED">{statusLabel('CONFIRMED')}</option>
+                    <option value="IN_PRODUCTION">{statusLabel('IN_PRODUCTION')}</option>
+                    <option value="READY">{statusLabel('READY')}</option>
+                    <option value="SHIPPED">{statusLabel('SHIPPED')}</option>
+                    <option value="DONE">{statusLabel('DONE')}</option>
+                    <option value="CANCELLED">{statusLabel('CANCELLED')}</option>
                   </select>
                 </label>
               </div>

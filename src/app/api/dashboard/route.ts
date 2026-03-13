@@ -2,6 +2,7 @@ import { getServerSession } from 'next-auth'
 
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { enterWithUser } from '@/lib/request-context'
 
 async function requireUser() {
   if (process.env.DISABLE_AUTH === '1') {
@@ -12,12 +13,14 @@ async function requireUser() {
         select: { id: true },
       })
     }
+    enterWithUser(u.id)
     return { ok: true as const, userId: u.id }
   }
 
   const session = await getServerSession(authOptions)
   const userId = (session?.user as { id?: string } | undefined)?.id
   if (!session || !userId) return { ok: false as const, status: 401, error: 'UNAUTHORIZED' }
+  enterWithUser(userId)
   return { ok: true as const, userId }
 }
 
@@ -41,15 +44,27 @@ export async function GET() {
 
   const wsId = await ensureWorkspaceId(auth.userId)
 
+  const now = new Date()
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const startOfTomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)
+
   const [
     openReceivables,
+    overdueReceivables,
     plannedPayables,
     openSalesOrders,
     openDeliveries,
+    shippedToday,
+    paymentsToday,
     refundsRequested,
   ] = await Promise.all([
     prisma.receivable.aggregate({
       where: { workspaceId: wsId, status: 'OPEN' },
+      _sum: { value: true },
+      _count: { _all: true },
+    }),
+    prisma.receivable.aggregate({
+      where: { workspaceId: wsId, status: 'OPEN', dueAt: { lt: startOfToday } },
       _sum: { value: true },
       _count: { _all: true },
     }),
@@ -59,10 +74,18 @@ export async function GET() {
       _count: { _all: true },
     }),
     prisma.salesOrder.count({
-      where: { workspaceId: wsId, status: { in: ['DRAFT', 'CONFIRMED'] } },
+      where: { workspaceId: wsId, status: { in: ['DRAFT', 'CONFIRMED', 'IN_PRODUCTION', 'READY', 'SHIPPED'] } },
     }),
     prisma.delivery.count({
       where: { workspaceId: wsId, status: { in: ['PLANNED', 'PICKING', 'SHIPPED'] } },
+    }),
+    prisma.delivery.count({
+      where: { workspaceId: wsId, shippedAt: { gte: startOfToday, lt: startOfTomorrow } },
+    }),
+    prisma.payment.aggregate({
+      where: { workspaceId: wsId, receivedAt: { gte: startOfToday, lt: startOfTomorrow } },
+      _sum: { value: true },
+      _count: { _all: true },
     }),
     prisma.refund.count({
       where: { workspaceId: wsId, status: { in: ['REQUESTED', 'PROCESSING'] } },
@@ -75,6 +98,10 @@ export async function GET() {
         count: openReceivables._count._all,
         total: openReceivables._sum.value ?? 0,
       },
+      receivablesOverdue: {
+        count: overdueReceivables._count._all,
+        total: overdueReceivables._sum.value ?? 0,
+      },
       payablesPlanned: {
         count: plannedPayables._count._all,
         total: plannedPayables._sum.value ?? 0,
@@ -84,6 +111,13 @@ export async function GET() {
       },
       deliveriesOpen: {
         count: openDeliveries,
+      },
+      deliveriesShippedToday: {
+        count: shippedToday,
+      },
+      paymentsToday: {
+        count: paymentsToday._count._all,
+        total: paymentsToday._sum.value ?? 0,
       },
       refundsPending: {
         count: refundsRequested,
