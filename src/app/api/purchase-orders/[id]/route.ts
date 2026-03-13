@@ -1,3 +1,4 @@
+import { NextRequest } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { z } from 'zod'
 
@@ -55,12 +56,12 @@ const PatchSchema = z.object({
   items: z.array(ItemSchema).optional(),
 })
 
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const auth = await requireUser()
   if (!auth.ok) return Response.json({ error: auth.error }, { status: auth.status })
   const ws = await ensureWorkspace(auth.userId)
 
-  const id = params.id
+  const { id } = await ctx.params
 
   const body = await req.json().catch(() => null)
   const parsed = PatchSchema.safeParse(body)
@@ -206,12 +207,12 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   return Response.json({ purchaseOrder: result })
 }
 
-export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
+export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const auth = await requireUser()
   if (!auth.ok) return Response.json({ error: auth.error }, { status: auth.status })
   const ws = await ensureWorkspace(auth.userId)
 
-  const id = params.id
+  const { id } = await ctx.params
 
   await prisma.purchaseOrder.delete({ where: { id, workspaceId: ws.id } })
   return Response.json({ ok: true })
