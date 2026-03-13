@@ -233,7 +233,6 @@ export default function OrderBoard() {
     queryFn: () => api<{ orders: Order[] }>(`/api/orders?view=all`),
   })
 
-  const view = 'all' as const
 
   const createM = useMutation({
     mutationFn: (payload: any) =>
@@ -390,7 +389,6 @@ export default function OrderBoard() {
   }
 
   const calendarEvents = useMemo(() => {
-    if (view !== 'upcoming') return []
     return (listFiltered ?? [])
       .filter((o) => !!o.deliveryAt)
       .map((o) => {
@@ -434,7 +432,7 @@ export default function OrderBoard() {
           textColor: '#ffffff',
         }
       })
-  }, [listFiltered, view])
+  }, [listFiltered])
 
   return (
     <div className="space-y-6">
