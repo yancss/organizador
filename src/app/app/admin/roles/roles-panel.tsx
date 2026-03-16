@@ -254,7 +254,11 @@ export default function RolesPanel() {
                                 key={m}
                                 className="grid grid-cols-[1fr_120px_120px] items-center gap-2 border-b p-2 last:border-b-0"
                               >
-                                <div className="text-sm">{i.admin.roles.moduleNames[MODULE_LABEL[m] as any] ?? m}</div>
+                                <div className="text-sm">
+                                  {m in MODULE_LABEL
+                                    ? i.admin.roles.moduleNames[MODULE_LABEL[m as keyof typeof MODULE_LABEL]]
+                                  : m}
+                                </div>
                                 <div className="flex justify-center">
                                   <input
                                     type="checkbox"
