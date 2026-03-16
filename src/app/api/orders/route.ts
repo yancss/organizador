@@ -1,51 +1,8 @@
-import { getServerSession } from 'next-auth'
 import { z } from 'zod'
 
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { enterWithUser } from '@/lib/request-context'
+import { requireWorkspace } from '@/lib/authz'
 // Finance hooks (recebíveis/pagamentos) serão adicionados no próximo passo.
-
-async function requireUser() {
-  // In local/dev mode, allow bypassing NextAuth entirely.
-  // Important: do this BEFORE calling getServerSession to avoid NextAuth misconfig causing 500s.
-  if (process.env.DISABLE_AUTH === '1') {
-    let u = await prisma.user.findFirst({ select: { id: true } })
-    if (!u) {
-      u = await prisma.user.create({
-        data: { email: 'dev@guardian.local', name: 'Dev', active: true, role: 'owner' },
-        select: { id: true },
-      })
-    }
-    enterWithUser(u.id)
-    return { ok: true as const, userId: u.id }
-  }
-
-  const session = await getServerSession(authOptions)
-  const userId = (session?.user as { id?: string } | undefined)?.id
-
-  if (!session || !userId) {
-    return { ok: false as const, status: 401, error: 'UNAUTHORIZED' }
-  }
-  enterWithUser(userId)
-  return { ok: true as const, userId }
-}
-
-async function ensureWorkspace(userId: string) {
-  const existing = await prisma.workspaceMember.findFirst({
-    where: { userId, role: 'owner' },
-    include: { workspace: true },
-  })
-  if (existing) return existing.workspace
-
-  const ws = await prisma.workspace.create({
-    data: {
-      name: 'Meu espaço',
-      members: { create: { userId, role: 'owner' } },
-    },
-  })
-  return ws
-}
 
 function startOfToday() {
   const d = new Date()
@@ -56,17 +13,17 @@ function startOfToday() {
 type View = 'upcoming' | 'history' | 'all'
 
 export async function GET(req: Request) {
-  const auth = await requireUser()
+  const auth = await requireWorkspace()
   if (!auth.ok) return Response.json({ error: auth.error }, { status: auth.status })
 
-  const ws = await ensureWorkspace(auth.userId)
+  const wsId = auth.user.workspaceId
 
   const url = new URL(req.url)
   const view = (url.searchParams.get('view') ?? 'upcoming') as View
 
   const today = startOfToday()
 
-  const whereBase = { workspaceId: ws.id, ownerId: auth.userId }
+  const whereBase = { workspaceId: wsId, ownerId: auth.user.id }
 
   const where =
     view === 'history'
@@ -124,10 +81,10 @@ const CreateOrderSchema = z.object({
 })
 
 export async function POST(req: Request) {
-  const auth = await requireUser()
+  const auth = await requireWorkspace()
   if (!auth.ok) return Response.json({ error: auth.error }, { status: auth.status })
 
-  const ws = await ensureWorkspace(auth.userId)
+  const wsId = auth.user.workspaceId
 
   const body = await req.json().catch(() => null)
   const parsed = CreateOrderSchema.safeParse(body)
@@ -140,7 +97,7 @@ export async function POST(req: Request) {
     const productIds = [...new Set(parsed.data.items.map((it) => it.productId))]
     const allowed = await prisma.product.findMany({
       where: {
-        workspaceId: ws.id,
+        workspaceId: wsId,
         id: { in: productIds },
         active: true,
         kind: 'FINISHED',
@@ -156,8 +113,8 @@ export async function POST(req: Request) {
 
   const order = await prisma.salesOrder.create({
     data: {
-      workspaceId: ws.id,
-      ownerId: auth.userId,
+      workspaceId: wsId,
+      ownerId: auth.user.id,
       name: parsed.data.name,
       observations: parsed.data.observations ?? null,
       clientId: parsed.data.clientId ?? null,
@@ -202,3 +159,4 @@ export async function POST(req: Request) {
 
   return Response.json({ order }, { status: 201 })
 }
+

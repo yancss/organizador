@@ -7,6 +7,16 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum UserRole {
+  USER
+  SUPERADMIN
+}
+
+enum WorkspaceRole {
+  USER
+  ADMIN
+}
+
 model User {
   id            String    @id @default(cuid())
   name          String?
@@ -20,14 +30,20 @@ model User {
   // Profile
   birthDate DateTime?
 
+  // Session policy (JWT)
+  // If null, use the system default.
+  sessionMaxAgeSec     Int?
+  sessionPolicyVersion Int      @default(0)
+
   // Basic access control
-  role   String  @default("user")
-  active Boolean @default(true)
+  role   UserRole @default(USER)
+  active Boolean  @default(true)
 
   accounts Account[]
   sessions Session[]
 
   memberships WorkspaceMember[]
+  workspaceUserRoles WorkspaceUserRole[]
   salesOrders SalesOrder[]      @relation("SalesOrderOwner")
 
   createdAt DateTime @default(now())
@@ -64,15 +80,21 @@ model Workspace {
   financialCategories FinancialCategory[]
   costCenters         CostCenter[]
 
+  // Admin
+  userInviteTokens UserInviteToken[]
+  roles           WorkspaceRoleModel[]
+  userRoles       WorkspaceUserRole[]
+  rolePermissions WorkspaceRolePermission[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
 model WorkspaceMember {
-  id          String @id @default(cuid())
+  id          String        @id @default(cuid())
   workspaceId String
   userId      String
-  role        String @default("owner")
+  role        WorkspaceRole @default(USER)
 
   createdById String?
   updatedById String?
@@ -85,6 +107,94 @@ model WorkspaceMember {
   @@unique([workspaceId, userId])
   @@index([userId])
   @@index([workspaceId])
+}
+
+model Permission {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  module      String
+  action      String
+  description String?
+  createdAt   DateTime @default(now())
+
+  rolePermissions WorkspaceRolePermission[]
+}
+
+model WorkspaceRoleModel {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  description String?
+  isSystem    Boolean  @default(false)
+
+  createdById String?
+  updatedById String?
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  permissions WorkspaceRolePermission[]
+  userRoles   WorkspaceUserRole[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId])
+}
+
+model WorkspaceRolePermission {
+  id           String   @id @default(cuid())
+  workspaceId  String
+  roleId       String
+  permissionId String
+  createdAt    DateTime @default(now())
+
+  workspace  Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  role       WorkspaceRoleModel @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission         @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@index([workspaceId])
+}
+
+model WorkspaceUserRole {
+  id          String   @id @default(cuid())
+  workspaceId String
+  userId      String
+  roleId      String
+
+  createdById String?
+
+  workspace Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      WorkspaceRoleModel @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  // One custom role per user per workspace
+  @@unique([workspaceId, userId])
+  @@index([workspaceId])
+  @@index([userId])
+}
+
+model UserInviteToken {
+  id        String    @id @default(cuid())
+  email     String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  // who invited (for audit)
+  createdById String?
+
+  createdAt DateTime @default(now())
+
+  @@index([email])
+  @@index([workspaceId])
+  @@index([expiresAt])
 }
 
 // ============================
@@ -670,7 +780,7 @@ model Delivery {
   trackingUrl  String?
   observations String?
 
-  // Valor a faturar por esta expedi��o (MVP). Evita precisar de pre�o por item agora.
+  // Valor a faturar por esta expedição (MVP). Evita precisar de preço por item agora.
   value Decimal? @db.Decimal(12, 2)
 
   workspace  Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)

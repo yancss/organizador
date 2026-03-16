@@ -1,51 +1,36 @@
 import { z } from 'zod'
-import bcrypt from 'bcryptjs'
 
-import { prisma } from '@/lib/prisma'
+// Public self-registration is disabled by default.
+// Use the invite flow instead: POST /api/admin/invites + /activate.
 
 const CreateUserSchema = z.object({
-  name: z.string().max(140).optional().nullable(),
   email: z.string().email(),
-  password: z.string().min(6).max(200),
-  birthDate: z.string().nullable().optional(),
 })
 
 export async function POST(req: Request) {
+  // Keep body parsing to return a consistent error message to the UI.
   const body = await req.json().catch(() => null)
   const parsed = CreateUserSchema.safeParse(body)
   if (!parsed.success) {
     return Response.json({ error: 'INVALID_BODY', details: parsed.error.flatten() }, { status: 400 })
   }
 
-  const email = parsed.data.email.trim().toLowerCase()
-  const name = parsed.data.name?.trim() || null
-
-  const birthDate = parsed.data.birthDate
-    ? new Date(parsed.data.birthDate)
-    : null
-
-  if (birthDate && Number.isNaN(birthDate.getTime())) {
-    return Response.json({ error: 'INVALID_BIRTHDATE' }, { status: 400 })
+  // Optional escape hatch (e.g., internal demo envs)
+  if (process.env.ENABLE_PUBLIC_REGISTRATION === '1') {
+    return Response.json(
+      {
+        error: 'PUBLIC_REGISTRATION_NOT_IMPLEMENTED',
+        hint: 'Use the invite flow (/api/admin/invites) or implement public registration behind this flag.',
+      },
+      { status: 501 },
+    )
   }
 
-  const existing = await prisma.user.findUnique({ where: { email }, select: { id: true } })
-  if (existing) {
-    return Response.json({ error: 'EMAIL_ALREADY_EXISTS' }, { status: 409 })
-  }
-
-  const passwordHash = await bcrypt.hash(parsed.data.password, 10)
-
-  const user = await prisma.user.create({
-    data: {
-      email,
-      name,
-      birthDate,
-      passwordHash,
-      active: true,
-      role: 'user',
+  return Response.json(
+    {
+      error: 'REGISTRATION_DISABLED',
+      hint: 'Solicite um convite ao administrador para criar sua conta.',
     },
-    select: { id: true, email: true, name: true },
-  })
-
-  return Response.json({ ok: true, user }, { status: 201 })
+    { status: 403 },
+  )
 }

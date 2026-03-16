@@ -21,11 +21,6 @@ export default async function SettingsPage() {
 
   const session = await getServerSession(authOptions)
 
-  // TEMP: bypass auth for local testing
-  if (process.env.DISABLE_AUTH === '1') {
-    return <SettingsPanel />
-  }
-
   if (!session) {
     return (
       <div className="rounded-md border p-6">

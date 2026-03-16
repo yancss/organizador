@@ -1,42 +1,26 @@
-import { getServerSession } from 'next-auth'
 import { z } from 'zod'
 
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { enterWithUser } from '@/lib/request-context'
-
-async function requireUser() {
-  const session = await getServerSession(authOptions)
-  const userId = (session?.user as { id?: string } | undefined)?.id
-
-  // TEMP: bypass auth for local testing
-  if (process.env.DISABLE_AUTH === '1') {
-    let u = await prisma.user.findFirst({ select: { id: true } })
-    if (!u) {
-      u = await prisma.user.create({
-        data: { email: 'dev@guardian.local', name: 'Dev', active: true, role: 'owner' },
-        select: { id: true },
-      })
-    }
-    enterWithUser(u.id)
-    return { ok: true as const, userId: u.id }
-  }
-
-  if (!session || !userId) return { ok: false as const, status: 401 }
-  enterWithUser(userId)
-  return { ok: true as const, userId }
-}
+import { requireWorkspace } from '@/lib/authz'
 
 export async function GET() {
-  const auth = await requireUser()
-  if (!auth.ok) return Response.json({ error: 'UNAUTHORIZED' }, { status: auth.status })
+  const auth = await requireWorkspace()
+  if (!auth.ok) return Response.json({ error: auth.error }, { status: auth.status })
 
   const user = await prisma.user.findUnique({
-    where: { id: auth.userId },
-    select: { id: true, name: true, email: true, birthDate: true },
+    where: { id: auth.user.id },
+    select: { id: true, name: true, email: true, birthDate: true, role: true, active: true },
   })
 
-  return Response.json({ ok: true, user })
+  return Response.json({
+    ok: true,
+    user,
+    workspace: {
+      id: auth.user.workspaceId,
+      role: auth.user.workspaceRole,
+      isSuperadmin: auth.user.isSuperadmin ?? false,
+    },
+  })
 }
 
 const PatchSchema = z.object({
@@ -45,8 +29,8 @@ const PatchSchema = z.object({
 })
 
 export async function PATCH(req: Request) {
-  const auth = await requireUser()
-  if (!auth.ok) return Response.json({ error: 'UNAUTHORIZED' }, { status: auth.status })
+  const auth = await requireWorkspace()
+  if (!auth.ok) return Response.json({ error: auth.error }, { status: auth.status })
 
   const body = await req.json().catch(() => null)
   const parsed = PatchSchema.safeParse(body)
@@ -70,7 +54,7 @@ export async function PATCH(req: Request) {
   }
 
   const user = await prisma.user.update({
-    where: { id: auth.userId },
+    where: { id: auth.user.id },
     data: {
       ...(name !== undefined ? { name } : {}),
       ...(birthDate !== undefined ? { birthDate } : {}),
@@ -80,3 +64,4 @@ export async function PATCH(req: Request) {
 
   return Response.json({ ok: true, user })
 }
+

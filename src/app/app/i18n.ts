@@ -246,6 +246,85 @@ export type I18n = {
     sendingReset: string
     resetSent: string
   }
+  admin: {
+    common: {
+      failedToLoad: string
+      failedToSave: string
+      invalidValue: string
+      nameTooShort: string
+      system: string
+      custom: string
+      active: string
+      inactive: string
+      noEmailPlaceholder: string
+    }
+    users: {
+      title: string
+      subtitle: string
+      name: string
+      email: string
+      role: string
+      actions: string
+      resetPassword: string
+      edit: string
+      deactivate: string
+      deactivateConfirm: string
+      inactive: string
+      noEmail: string
+      workspaceRole: string
+      customRole: string
+      noneRole: string
+      oneRoleHelp: string
+      save: string
+      cancel: string
+      editUser: string
+      sessionHours: string
+      sessionHoursHelp: string
+      adminBypassHelp: string
+    }
+    roles: {
+      title: string
+      subtitle: string
+      createTitle: string
+      createNamePlaceholder: string
+      createDescPlaceholder: string
+      create: string
+      module: string
+      view: string
+      edit: string
+      savePerms: string
+      pending: string
+      tip: string
+      open: string
+      close: string
+      moduleNames: {
+        sales: string
+        purchases: string
+        inventory: string
+        products: string
+        clients: string
+        finance: string
+        admin: string
+      }
+    }
+    security: {
+      title: string
+      subtitle: string
+      tabUsers: string
+      tabRoles: string
+
+      sessionPerUserTitle: string
+      loading: string
+      failedLoadUsers: string
+      maxAgeHours: string
+      maxAgePlaceholder: string
+      maxAgeHelp: string
+      saveAndKick: string
+
+      rolesWorkspaceTitle: string
+      failedLoadRoles: string
+    }
+  }
   settings: {
     title: string
     subtitle: string
@@ -500,6 +579,87 @@ const dict: Record<AppLanguage, I18n> = {
       sendingReset: 'Enviando…',
       resetSent: 'Se o email existir, o link será enviado.',
     },
+    admin: {
+      common: {
+        failedToLoad: 'Falha ao carregar {what}: {error}',
+        failedToSave: 'Falha ao salvar',
+        invalidValue: 'Valor inválido.',
+        nameTooShort: 'Nome muito curto',
+        system: 'system',
+        custom: 'custom',
+        active: 'ativo',
+        inactive: 'inativo',
+        noEmailPlaceholder: '(sem email)',
+      },
+      users: {
+        title: 'Admin · Usuários',
+        subtitle: 'Lista de usuários do workspace atual.',
+        name: 'Nome',
+        email: 'Email',
+        role: 'Role',
+        actions: 'Ações',
+        resetPassword: 'Reset senha',
+        edit: 'Editar',
+        deactivate: 'Desativar',
+        deactivateConfirm:
+          'Desativar o usuário {name}?\n\nEle será deslogado e não conseguirá entrar até ser reativado.',
+        inactive: 'inativo',
+        noEmail: 'Usuário sem email',
+        workspaceRole: 'Workspace role',
+        customRole: 'Role (custom)',
+        noneRole: '(sem role)',
+        oneRoleHelp: 'Apenas 1 role por usuário',
+        save: 'Salvar',
+        cancel: 'Cancelar',
+        editUser: 'Editar usuário',
+        sessionHours: 'Sessão (horas)',
+        sessionHoursHelp: 'vazio = padrão',
+        adminBypassHelp: 'Admin bypass total',
+      },
+      roles: {
+        title: 'Admin · Roles & permissões',
+        subtitle: 'Configure o que cada perfil pode visualizar e editar em cada módulo.',
+        createTitle: 'Criar role',
+        createNamePlaceholder: 'Ex.: Financeiro',
+        createDescPlaceholder: 'Descrição (opcional)',
+        create: 'Criar',
+        module: 'Módulo',
+        view: 'Visualizar',
+        edit: 'Editar',
+        savePerms: 'Salvar permissões',
+        pending: 'pendente',
+        tip: 'Dica: marcar Editar também marca Visualizar. Desmarcar Visualizar remove Editar.',
+        open: 'Abrir',
+        close: 'Fechar',
+        moduleNames: {
+          sales: 'Vendas',
+          purchases: 'Compras',
+          inventory: 'Estoque',
+          products: 'Produtos',
+          clients: 'Clientes',
+          finance: 'Financeiro',
+          admin: 'Administração',
+        },
+      },
+      security: {
+        title: 'Admin · Segurança',
+        subtitle:
+          'Sessões JWT expiram por padrão em 4 horas (fixo). Você pode sobrescrever por usuário e derrubar sessões ativas imediatamente.',
+        tabUsers: 'Usuários',
+        tabRoles: 'Roles & Permissões',
+
+        sessionPerUserTitle: 'Expiração de sessão por usuário',
+        loading: 'Carregando…',
+        failedLoadUsers: 'Falha ao carregar usuários: {error}',
+        maxAgeHours: 'MaxAge (horas)',
+        maxAgePlaceholder: '4',
+        maxAgeHelp: 'vazio = padrão (4h)',
+        saveAndKick: 'Salvar e derrubar sessões',
+
+        rolesWorkspaceTitle: 'Roles & Permissões (por workspace)',
+        failedLoadRoles: 'Falha ao carregar roles: {error}',
+      },
+    },
     settings: {
       title: 'Configurações',
       subtitle: 'Idioma, tema e moeda da aplicação.',
@@ -752,6 +912,87 @@ const dict: Record<AppLanguage, I18n> = {
       sendingReset: 'Sending…',
       resetSent: 'If the email exists, the link will be sent.',
     },
+    admin: {
+      common: {
+        failedToLoad: 'Failed to load {what}: {error}',
+        failedToSave: 'Failed to save',
+        invalidValue: 'Invalid value.',
+        nameTooShort: 'Name is too short',
+        system: 'system',
+        custom: 'custom',
+        active: 'active',
+        inactive: 'inactive',
+        noEmailPlaceholder: '(no email)',
+      },
+      users: {
+        title: 'Admin · Users',
+        subtitle: 'Users in the current workspace.',
+        name: 'Name',
+        email: 'Email',
+        role: 'Role',
+        actions: 'Actions',
+        resetPassword: 'Reset password',
+        edit: 'Edit',
+        deactivate: 'Deactivate',
+        deactivateConfirm:
+          'Deactivate user {name}?\n\nThey will be signed out and won\'t be able to log in until reactivated.',
+        inactive: 'inactive',
+        noEmail: 'User has no email',
+        workspaceRole: 'Workspace role',
+        customRole: 'Custom role',
+        noneRole: '(no role)',
+        oneRoleHelp: 'Only one role per user',
+        save: 'Save',
+        cancel: 'Cancel',
+        editUser: 'Edit user',
+        sessionHours: 'Session (hours)',
+        sessionHoursHelp: 'empty = default',
+        adminBypassHelp: 'Admin full bypass',
+      },
+      roles: {
+        title: 'Admin · Roles & permissions',
+        subtitle: 'Configure what each role can view and edit in each module.',
+        createTitle: 'Create role',
+        createNamePlaceholder: 'e.g. Finance',
+        createDescPlaceholder: 'Description (optional)',
+        create: 'Create',
+        module: 'Module',
+        view: 'View',
+        edit: 'Edit',
+        savePerms: 'Save permissions',
+        pending: 'pending',
+        tip: 'Tip: enabling Edit also enables View. Disabling View disables Edit.',
+        open: 'Open',
+        close: 'Close',
+        moduleNames: {
+          sales: 'Sales',
+          purchases: 'Purchases',
+          inventory: 'Inventory',
+          products: 'Products',
+          clients: 'Clients',
+          finance: 'Finance',
+          admin: 'Administration',
+        },
+      },
+      security: {
+        title: 'Admin · Security',
+        subtitle:
+          'JWT sessions expire by default in 4 hours (fixed). You can override per user and immediately revoke active sessions.',
+        tabUsers: 'Users',
+        tabRoles: 'Roles & permissions',
+
+        sessionPerUserTitle: 'Session expiration per user',
+        loading: 'Loading…',
+        failedLoadUsers: 'Failed to load users: {error}',
+        maxAgeHours: 'MaxAge (hours)',
+        maxAgePlaceholder: '4',
+        maxAgeHelp: 'empty = default (4h)',
+        saveAndKick: 'Save & revoke sessions',
+
+        rolesWorkspaceTitle: 'Roles & permissions (per workspace)',
+        failedLoadRoles: 'Failed to load roles: {error}',
+      },
+    },
     settings: {
       title: 'Settings',
       subtitle: 'Application language, theme and currency.',
@@ -1003,6 +1244,87 @@ const dict: Record<AppLanguage, I18n> = {
       resetPassword: 'Restablecer contraseña',
       sendingReset: 'Enviando…',
       resetSent: 'Si el correo existe, el enlace será enviado.',
+    },
+    admin: {
+      common: {
+        failedToLoad: 'Error al cargar {what}: {error}',
+        failedToSave: 'Error al guardar',
+        invalidValue: 'Valor inválido.',
+        nameTooShort: 'Nombre demasiado corto',
+        system: 'system',
+        custom: 'custom',
+        active: 'activo',
+        inactive: 'inactivo',
+        noEmailPlaceholder: '(sin correo)',
+      },
+      users: {
+        title: 'Admin · Usuarios',
+        subtitle: 'Usuarios del workspace actual.',
+        name: 'Nombre',
+        email: 'Correo',
+        role: 'Rol',
+        actions: 'Acciones',
+        resetPassword: 'Restablecer contraseña',
+        edit: 'Editar',
+        deactivate: 'Desactivar',
+        deactivateConfirm:
+          '¿Desactivar al usuario {name}?\n\nSerá desconectado y no podrá iniciar sesión hasta ser reactivado.',
+        inactive: 'inactivo',
+        noEmail: 'Usuario sin correo',
+        workspaceRole: 'Rol del workspace',
+        customRole: 'Rol (custom)',
+        noneRole: '(sin rol)',
+        oneRoleHelp: 'Solo 1 rol por usuario',
+        save: 'Guardar',
+        cancel: 'Cancelar',
+        editUser: 'Editar usuario',
+        sessionHours: 'Sesión (horas)',
+        sessionHoursHelp: 'vacío = predeterminado',
+        adminBypassHelp: 'Bypass total de admin',
+      },
+      roles: {
+        title: 'Admin · Roles y permisos',
+        subtitle: 'Configura lo que cada rol puede ver y editar en cada módulo.',
+        createTitle: 'Crear rol',
+        createNamePlaceholder: 'Ej.: Finanzas',
+        createDescPlaceholder: 'Descripción (opcional)',
+        create: 'Crear',
+        module: 'Módulo',
+        view: 'Ver',
+        edit: 'Editar',
+        savePerms: 'Guardar permisos',
+        pending: 'pendiente',
+        tip: 'Tip: marcar Editar también marca Ver. Desmarcar Ver quita Editar.',
+        open: 'Abrir',
+        close: 'Cerrar',
+        moduleNames: {
+          sales: 'Ventas',
+          purchases: 'Compras',
+          inventory: 'Inventario',
+          products: 'Productos',
+          clients: 'Clientes',
+          finance: 'Finanzas',
+          admin: 'Administración',
+        },
+      },
+      security: {
+        title: 'Admin · Seguridad',
+        subtitle:
+          'Las sesiones JWT expiran por defecto en 4 horas (fijo). Puedes sobrescribir por usuario y revocar sesiones activas inmediatamente.',
+        tabUsers: 'Usuarios',
+        tabRoles: 'Roles y permisos',
+
+        sessionPerUserTitle: 'Expiración de sesión por usuario',
+        loading: 'Cargando…',
+        failedLoadUsers: 'Error al cargar usuarios: {error}',
+        maxAgeHours: 'MaxAge (horas)',
+        maxAgePlaceholder: '4',
+        maxAgeHelp: 'vacío = predeterminado (4h)',
+        saveAndKick: 'Guardar y revocar sesiones',
+
+        rolesWorkspaceTitle: 'Roles y permisos (por workspace)',
+        failedLoadRoles: 'Error al cargar roles: {error}',
+      },
     },
     settings: {
       title: 'Configuración',

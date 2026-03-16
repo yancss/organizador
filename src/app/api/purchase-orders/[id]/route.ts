@@ -1,45 +1,10 @@
 import { NextRequest } from 'next/server'
-import { getServerSession } from 'next-auth'
 import { z } from 'zod'
 
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { enterWithUser } from '@/lib/request-context'
+import { requireWorkspace } from '@/lib/authz'
 import { adjustInventory } from '@/lib/inventory-movements'
 import { deletePlannedPayableForPurchaseOrder, upsertPayableForPurchaseOrder } from '@/lib/finance-defaults'
-
-async function requireUser() {
-  if (process.env.DISABLE_AUTH === '1') {
-    let u = await prisma.user.findFirst({ select: { id: true } })
-    if (!u) {
-      u = await prisma.user.create({
-        data: { email: 'dev@guardian.local', name: 'Dev', active: true, role: 'owner' },
-        select: { id: true },
-      })
-    }
-    enterWithUser(u.id)
-    return { ok: true as const, userId: u.id }
-  }
-
-  const session = await getServerSession(authOptions)
-  const userId = (session?.user as { id?: string } | undefined)?.id
-  if (!session || !userId) return { ok: false as const, status: 401, error: 'UNAUTHORIZED' }
-  enterWithUser(userId)
-  return { ok: true as const, userId }
-}
-
-async function ensureWorkspace(userId: string) {
-  const existing = await prisma.workspaceMember.findFirst({
-    where: { userId, role: 'owner' },
-    include: { workspace: true },
-  })
-  if (existing) return existing.workspace
-
-  const ws = await prisma.workspace.create({
-    data: { name: 'Meu espaço', members: { create: { userId, role: 'owner' } } },
-  })
-  return ws
-}
 
 const ItemSchema = z.object({
   productId: z.string().min(1),
@@ -57,9 +22,10 @@ const PatchSchema = z.object({
 })
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const auth = await requireUser()
+  const auth = await requireWorkspace()
   if (!auth.ok) return Response.json({ error: auth.error }, { status: auth.status })
-  const ws = await ensureWorkspace(auth.userId)
+
+  const wsId = auth.user.workspaceId
 
   const { id } = await ctx.params
 
@@ -71,7 +37,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
   const result = await prisma.$transaction(async (tx) => {
     const prev = await tx.purchaseOrder.findFirst({
-      where: { id, workspaceId: ws.id },
+      where: { id, workspaceId: wsId },
       select: {
         id: true,
         status: true,
@@ -98,7 +64,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     const productIds = [...nextItems.keys()]
     if (productIds.length) {
       const allowed = await tx.product.findMany({
-        where: { workspaceId: ws.id, id: { in: productIds }, active: true, kind: 'RAW' },
+        where: { workspaceId: wsId, id: { in: productIds }, active: true, kind: 'RAW' },
         select: { id: true },
       })
       const allowedSet = new Set(allowed.map((p) => p.id))
@@ -115,7 +81,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     const nextEstimatedCost =
       parsed.data.estimatedCost !== undefined
         ? parsed.data.estimatedCost
-        : (await tx.purchaseOrder.findFirst({ where: { id, workspaceId: ws.id }, select: { estimatedCost: true } }))
+        : (await tx.purchaseOrder.findFirst({ where: { id, workspaceId: wsId }, select: { estimatedCost: true } }))
             ?.estimatedCost ?? null
 
     // Rigid rule: confirming a PO requires estimated cost so we can create a payable commitment.
@@ -128,13 +94,13 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     // - If it WILL be confirmed, apply next items (add to stock)
     if (prevConfirmed) {
       for (const [productId, qty] of prevItems.entries()) {
-        await adjustInventory(tx as any, { workspaceId: ws.id, productId, delta: -qty })
+        await adjustInventory(tx as any, { workspaceId: wsId, productId, delta: -qty })
       }
     }
 
     if (nextConfirmed) {
       for (const [productId, qty] of nextItems.entries()) {
-        await adjustInventory(tx as any, { workspaceId: ws.id, productId, delta: qty })
+        await adjustInventory(tx as any, { workspaceId: wsId, productId, delta: qty })
       }
     }
 
@@ -149,14 +115,14 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     if (parsed.data.supplierId !== undefined) {
       if (!parsed.data.supplierId) throw new Error('SUPPLIER_REQUIRED')
       const supplier = await tx.client.findFirst({
-        where: { id: parsed.data.supplierId, workspaceId: ws.id, roles: { has: 'SUPPLIER' } },
+        where: { id: parsed.data.supplierId, workspaceId: wsId, roles: { has: 'SUPPLIER' } },
         select: { id: true },
       })
       if (!supplier) throw new Error('INVALID_SUPPLIER')
     }
 
     const po = await tx.purchaseOrder.update({
-      where: { id, workspaceId: ws.id },
+      where: { id, workspaceId: wsId },
       data: {
         supplierId: parsed.data.supplierId ?? undefined,
         supplier: null,
@@ -190,11 +156,11 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
     // Finance commitment (payable): create when CONFIRMED, remove when leaving CONFIRMED.
     if (prevConfirmed && !nextConfirmed) {
-      await deletePlannedPayableForPurchaseOrder(ws.id, po.id)
+      await deletePlannedPayableForPurchaseOrder(wsId, po.id)
     }
     if (nextConfirmed) {
       await upsertPayableForPurchaseOrder({
-        workspaceId: ws.id,
+        workspaceId: wsId,
         purchaseOrderId: po.id,
         competenceDate: po.orderedAt ?? new Date(),
         value: Number(po.estimatedCost ?? 0),
@@ -208,12 +174,15 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 }
 
 export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const auth = await requireUser()
+  const auth = await requireWorkspace()
   if (!auth.ok) return Response.json({ error: auth.error }, { status: auth.status })
-  const ws = await ensureWorkspace(auth.userId)
 
+  const wsId = auth.user.workspaceId
   const { id } = await ctx.params
 
-  await prisma.purchaseOrder.delete({ where: { id, workspaceId: ws.id } })
+  await prisma.purchaseOrder.delete({ where: { id, workspaceId: wsId } })
   return Response.json({ ok: true })
 }
+
+
+

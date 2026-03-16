@@ -1,49 +1,13 @@
-import { getServerSession } from 'next-auth'
 import { z } from 'zod'
 
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { enterWithUser } from '@/lib/request-context'
-
-async function requireUser() {
-  if (process.env.DISABLE_AUTH === '1') {
-    let u = await prisma.user.findFirst({ select: { id: true } })
-    if (!u) {
-      u = await prisma.user.create({
-        data: { email: 'dev@guardian.local', name: 'Dev', active: true, role: 'owner' },
-        select: { id: true },
-      })
-    }
-    enterWithUser(u.id)
-    return { ok: true as const, userId: u.id }
-  }
-
-  const session = await getServerSession(authOptions)
-  const userId = (session?.user as { id?: string } | undefined)?.id
-  if (!session || !userId) return { ok: false as const, status: 401, error: 'UNAUTHORIZED' }
-  enterWithUser(userId)
-  return { ok: true as const, userId }
-}
-
-async function ensureWorkspaceId(userId: string) {
-  const existing = await prisma.workspaceMember.findFirst({
-    where: { userId, role: 'owner' },
-    select: { workspaceId: true },
-  })
-  if (existing) return existing.workspaceId
-
-  const ws = await prisma.workspace.create({
-    data: { name: 'Meu espaço', members: { create: { userId, role: 'owner' } } },
-    select: { id: true },
-  })
-  return ws.id
-}
+import { requireWorkspace } from '@/lib/authz'
 
 export async function GET(req: Request) {
-  const auth = await requireUser()
+  const auth = await requireWorkspace()
   if (!auth.ok) return Response.json({ error: auth.error }, { status: auth.status })
 
-  const wsId = await ensureWorkspaceId(auth.userId)
+  const wsId = auth.user.workspaceId
 
   const url = new URL(req.url)
   const salesOrderId = url.searchParams.get('salesOrderId')
@@ -97,10 +61,10 @@ const CreateSchema = z.object({
 })
 
 export async function POST(req: Request) {
-  const auth = await requireUser()
+  const auth = await requireWorkspace()
   if (!auth.ok) return Response.json({ error: auth.error }, { status: auth.status })
 
-  const wsId = await ensureWorkspaceId(auth.userId)
+  const wsId = auth.user.workspaceId
 
   const body = await req.json().catch(() => null)
   const parsed = CreateSchema.safeParse(body)
@@ -109,7 +73,7 @@ export async function POST(req: Request) {
   }
 
   const so = await prisma.salesOrder.findFirst({
-    where: { id: parsed.data.salesOrderId, workspaceId: wsId, ownerId: auth.userId },
+    where: { id: parsed.data.salesOrderId, workspaceId: wsId, ownerId: auth.user.id },
     select: { id: true, clientId: true },
   })
   if (!so) return Response.json({ error: 'SALES_ORDER_NOT_FOUND' }, { status: 404 })
@@ -175,3 +139,4 @@ export async function POST(req: Request) {
 
   return Response.json({ refund: full }, { status: 201 })
 }
+

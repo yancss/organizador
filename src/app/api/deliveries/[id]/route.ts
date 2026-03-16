@@ -1,39 +1,9 @@
-import { getServerSession } from 'next-auth'
 import { z } from 'zod'
 
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { enterWithUser } from '@/lib/request-context'
+import { requireWorkspace } from '@/lib/authz'
 import { adjustInventory } from '@/lib/inventory-movements'
 import { createReceivableForDeliveryOnShipped } from '@/lib/sales/receivables'
-
-async function requireUser() {
-  if (process.env.DISABLE_AUTH === '1') {
-    let u = await prisma.user.findFirst({ select: { id: true } })
-    if (!u) {
-      u = await prisma.user.create({
-        data: { email: 'dev@guardian.local', name: 'Dev', active: true, role: 'owner' },
-        select: { id: true },
-      })
-    }
-    enterWithUser(u.id)
-    return { ok: true as const, userId: u.id }
-  }
-
-  const session = await getServerSession(authOptions)
-  const userId = (session?.user as { id?: string } | undefined)?.id
-  if (!session || !userId) return { ok: false as const, status: 401, error: 'UNAUTHORIZED' }
-  enterWithUser(userId)
-  return { ok: true as const, userId }
-}
-
-async function ensureWorkspaceId(userId: string) {
-  const existing = await prisma.workspaceMember.findFirst({
-    where: { userId, role: 'owner' },
-    select: { workspaceId: true },
-  })
-  return existing?.workspaceId ?? null
-}
 
 const PatchSchema = z.object({
   status: z.enum(['PLANNED', 'PICKING', 'SHIPPED', 'DELIVERED', 'CANCELLED', 'RETURNED']).optional(),
@@ -48,11 +18,10 @@ const PatchSchema = z.object({
 })
 
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
-  const auth = await requireUser()
+  const auth = await requireWorkspace()
   if (!auth.ok) return Response.json({ error: auth.error }, { status: auth.status })
 
-  const wsId = await ensureWorkspaceId(auth.userId)
-  if (!wsId) return Response.json({ error: 'NO_WORKSPACE' }, { status: 400 })
+  const wsId = auth.user.workspaceId
 
   const { id } = await ctx.params
 
@@ -144,11 +113,10 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
 }
 
 export async function DELETE(_req: Request, ctx: { params: Promise<{ id: string }> }) {
-  const auth = await requireUser()
+  const auth = await requireWorkspace()
   if (!auth.ok) return Response.json({ error: auth.error }, { status: auth.status })
 
-  const wsId = await ensureWorkspaceId(auth.userId)
-  if (!wsId) return Response.json({ error: 'NO_WORKSPACE' }, { status: 400 })
+  const wsId = auth.user.workspaceId
 
   const { id } = await ctx.params
 
@@ -161,3 +129,5 @@ export async function DELETE(_req: Request, ctx: { params: Promise<{ id: string 
 
   return Response.json({ ok: true })
 }
+
+

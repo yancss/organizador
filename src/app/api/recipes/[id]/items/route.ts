@@ -1,46 +1,7 @@
-import { getServerSession } from 'next-auth'
 import { z } from 'zod'
 
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { enterWithUser } from '@/lib/request-context'
-
-async function requireUser() {
-  const session = await getServerSession(authOptions)
-  const userId = (session?.user as { id?: string } | undefined)?.id
-  // TEMP: bypass auth for local testing
-  if (process.env.DISABLE_AUTH === '1') {
-    // pick first user in DB (or create a default)
-    let u = await prisma.user.findFirst({ select: { id: true } })
-    if (!u) {
-      u = await prisma.user.create({
-        data: {
-          email: 'dev@guardian.local',
-          name: 'Dev',
-          active: true,
-          role: 'owner',
-        },
-        select: { id: true },
-      })
-    }
-    enterWithUser(u.id)
-    return { ok: true, userId: u.id }
-  }
-
-  if (!session || !userId) {
-    return { ok: false as const, status: 401, error: 'UNAUTHORIZED' }
-  }
-  enterWithUser(userId)
-  return { ok: true as const, userId }
-}
-
-async function userWorkspaceId(userId: string) {
-  const existing = await prisma.workspaceMember.findFirst({
-    where: { userId, role: 'owner' },
-    select: { workspaceId: true },
-  })
-  return existing?.workspaceId ?? null
-}
+import { requireWorkspace } from '@/lib/authz'
 
 const AddItemSchema = z.object({
   productId: z.string().min(1),
@@ -48,11 +9,10 @@ const AddItemSchema = z.object({
 })
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
-  const auth = await requireUser()
+  const auth = await requireWorkspace()
   if (!auth.ok) return Response.json({ error: auth.error }, { status: auth.status })
 
-  const wsId = await userWorkspaceId(auth.userId)
-  if (!wsId) return Response.json({ error: 'NO_WORKSPACE' }, { status: 400 })
+  const wsId = auth.user.workspaceId
 
   const { id: recipeId } = await ctx.params
 
@@ -91,3 +51,5 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
 
   return Response.json({ item }, { status: 201 })
 }
+
+

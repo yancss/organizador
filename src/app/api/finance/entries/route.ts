@@ -1,45 +1,7 @@
-import { getServerSession } from 'next-auth'
 import { z } from 'zod'
 
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { enterWithUser } from '@/lib/request-context'
-
-async function requireUser() {
-  // In local/dev mode, allow bypassing NextAuth entirely.
-  // Important: do this BEFORE calling getServerSession to avoid NextAuth misconfig causing 500s.
-  if (process.env.DISABLE_AUTH === '1') {
-    let u = await prisma.user.findFirst({ select: { id: true } })
-    if (!u) {
-      u = await prisma.user.create({
-        data: { email: 'dev@guardian.local', name: 'Dev', active: true, role: 'owner' },
-        select: { id: true },
-      })
-    }
-    enterWithUser(u.id)
-    return { ok: true as const, userId: u.id }
-  }
-
-  const session = await getServerSession(authOptions)
-  const userId = (session?.user as { id?: string } | undefined)?.id
-
-  if (!session || !userId) return { ok: false as const, status: 401, error: 'UNAUTHORIZED' }
-  enterWithUser(userId)
-  return { ok: true as const, userId }
-}
-
-async function ensureWorkspace(userId: string) {
-  const existing = await prisma.workspaceMember.findFirst({
-    where: { userId, role: 'owner' },
-    include: { workspace: true },
-  })
-  if (existing) return existing.workspace
-
-  const ws = await prisma.workspace.create({
-    data: { name: 'Meu espaço', members: { create: { userId, role: 'owner' } } },
-  })
-  return ws
-}
+import { requireWorkspace } from '@/lib/authz'
 
 async function ensureDefaultAccount(workspaceId: string) {
   // Default requested: a BANK account.
@@ -57,11 +19,11 @@ async function ensureDefaultAccount(workspaceId: string) {
 }
 
 export async function GET(req: Request) {
-  const auth = await requireUser()
+  const auth = await requireWorkspace()
   if (!auth.ok) return Response.json({ error: auth.error }, { status: auth.status })
 
-  const ws = await ensureWorkspace(auth.userId)
-  await ensureDefaultAccount(ws.id)
+  const wsId = auth.user.workspaceId
+  await ensureDefaultAccount(wsId)
 
   const url = new URL(req.url)
   const from = url.searchParams.get('from')
@@ -85,7 +47,7 @@ export async function GET(req: Request) {
 
   const entries = await prisma.financialEntry.findMany({
     where: {
-      workspaceId: ws.id,
+      workspaceId: wsId,
       ...(status === 'PAID' || status === 'PLANNED' ? { status } : {}),
       ...(type === 'IN' || type === 'OUT' ? { type } : {}),
       ...(accountId ? { accountId } : {}),
@@ -141,10 +103,10 @@ const CreateSchema = z.object({
 })
 
 export async function POST(req: Request) {
-  const auth = await requireUser()
+  const auth = await requireWorkspace()
   if (!auth.ok) return Response.json({ error: auth.error }, { status: auth.status })
 
-  const ws = await ensureWorkspace(auth.userId)
+  const wsId = auth.user.workspaceId
 
   const body = await req.json().catch(() => null)
   const parsed = CreateSchema.safeParse(body)
@@ -154,14 +116,14 @@ export async function POST(req: Request) {
 
   // sanity: account must belong to workspace
   const account = await prisma.financialAccount.findFirst({
-    where: { id: parsed.data.accountId, workspaceId: ws.id, active: true },
+    where: { id: parsed.data.accountId, workspaceId: wsId, active: true },
     select: { id: true },
   })
   if (!account) return Response.json({ error: 'INVALID_ACCOUNT' }, { status: 400 })
 
   if (parsed.data.categoryId) {
     const cat = await prisma.financialCategory.findFirst({
-      where: { id: parsed.data.categoryId, workspaceId: ws.id, active: true, type: parsed.data.type },
+      where: { id: parsed.data.categoryId, workspaceId: wsId, active: true, type: parsed.data.type },
       select: { id: true },
     })
     if (!cat) return Response.json({ error: 'INVALID_CATEGORY' }, { status: 400 })
@@ -169,7 +131,7 @@ export async function POST(req: Request) {
 
   if (parsed.data.costCenterId) {
     const cc = await prisma.costCenter.findFirst({
-      where: { id: parsed.data.costCenterId, workspaceId: ws.id, active: true },
+      where: { id: parsed.data.costCenterId, workspaceId: wsId, active: true },
       select: { id: true },
     })
     if (!cc) return Response.json({ error: 'INVALID_COST_CENTER' }, { status: 400 })
@@ -187,7 +149,7 @@ export async function POST(req: Request) {
 
   const entry = await prisma.financialEntry.create({
     data: {
-      workspaceId: ws.id,
+      workspaceId: wsId,
       competenceDate,
       paidAt,
       status,
@@ -222,3 +184,4 @@ export async function POST(req: Request) {
 
   return Response.json({ entry }, { status: 201 })
 }
+

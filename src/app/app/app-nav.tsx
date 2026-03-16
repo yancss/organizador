@@ -2,7 +2,8 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Boxes, BookOpen, CalendarDays, Home as HomeIcon, Package, Users, Wallet, Landmark, ShoppingCart } from 'lucide-react'
+import { Boxes, BookOpen, CalendarDays, Home as HomeIcon, Package, Users, Wallet, Landmark, ShoppingCart, Shield } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
 
 import { useSettings } from './settings-context'
 import { t } from './i18n'
@@ -63,6 +64,18 @@ export default function AppNav({ onNavigate }: { onNavigate?: () => void }) {
   const { language } = useSettings()
   const i = t(language)
 
+  const { data: me } = useQuery<{ workspace?: { role?: 'USER' | 'ADMIN'; isSuperadmin?: boolean } }>({
+    queryKey: ['me'],
+    queryFn: async () => {
+      const res = await fetch('/api/me', { cache: 'no-store' })
+      if (!res.ok) return {}
+      return res.json().catch(() => ({}))
+    },
+    staleTime: 30_000,
+  })
+
+  const canAdmin = Boolean(me?.workspace?.isSuperadmin) || me?.workspace?.role === 'ADMIN'
+
   return (
     <nav className="mt-2 grid gap-1">
       <NavItem href="/app" label={i.nav.home} icon={HomeIcon} onNavigate={onNavigate} />
@@ -115,6 +128,23 @@ export default function AppNav({ onNavigate }: { onNavigate?: () => void }) {
         icon={Landmark}
         onNavigate={onNavigate}
       />
+
+      {canAdmin ? (
+        <Section title={language === 'pt' ? 'Admin' : language === 'es' ? 'Admin' : 'Admin'}>
+          <NavItem
+            href="/app/admin/users"
+            label={language === 'pt' ? 'Usuários' : language === 'es' ? 'Usuarios' : 'Users'}
+            icon={Users}
+            onNavigate={onNavigate}
+          />
+          <NavItem
+            href="/app/admin/roles"
+            label={language === 'pt' ? 'Roles & permissões' : language === 'es' ? 'Roles y permisos' : 'Roles & permissions'}
+            icon={Shield}
+            onNavigate={onNavigate}
+          />
+        </Section>
+      ) : null}
     </nav>
   )
 }

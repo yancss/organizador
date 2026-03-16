@@ -1,43 +1,8 @@
-import { getServerSession } from 'next-auth'
 import { z } from 'zod'
 
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { enterWithUser } from '@/lib/request-context'
+import { requireWorkspace } from '@/lib/authz'
 import { adjustInventory } from '@/lib/inventory-movements'
-
-async function requireUser() {
-  if (process.env.DISABLE_AUTH === '1') {
-    let u = await prisma.user.findFirst({ select: { id: true } })
-    if (!u) {
-      u = await prisma.user.create({
-        data: { email: 'dev@guardian.local', name: 'Dev', active: true, role: 'owner' },
-        select: { id: true },
-      })
-    }
-    enterWithUser(u.id)
-    return { ok: true as const, userId: u.id }
-  }
-
-  const session = await getServerSession(authOptions)
-  const userId = (session?.user as { id?: string } | undefined)?.id
-  if (!session || !userId) return { ok: false as const, status: 401, error: 'UNAUTHORIZED' }
-  enterWithUser(userId)
-  return { ok: true as const, userId }
-}
-
-async function ensureWorkspace(userId: string) {
-  const existing = await prisma.workspaceMember.findFirst({
-    where: { userId, role: 'owner' },
-    include: { workspace: true },
-  })
-  if (existing) return existing.workspace
-
-  const ws = await prisma.workspace.create({
-    data: { name: 'Meu espaço', members: { create: { userId, role: 'owner' } } },
-  })
-  return ws
-}
 
 const CreateSchema = z.object({
   recipeId: z.string().min(1),
@@ -50,9 +15,10 @@ const CreateSchema = z.object({
 // - Decrement RAW items (Consumption)
 // - Increment FINISHED product
 export async function POST(req: Request) {
-  const auth = await requireUser()
+  const auth = await requireWorkspace()
   if (!auth.ok) return Response.json({ error: auth.error }, { status: auth.status })
-  const ws = await ensureWorkspace(auth.userId)
+
+  const wsId = auth.user.workspaceId
 
   const body = await req.json().catch(() => null)
   const parsed = CreateSchema.safeParse(body)
@@ -61,7 +27,7 @@ export async function POST(req: Request) {
   }
 
   const recipe = await prisma.recipe.findFirst({
-    where: { id: parsed.data.recipeId, workspaceId: ws.id },
+    where: { id: parsed.data.recipeId, workspaceId: wsId },
     select: {
       id: true,
       productId: true,
@@ -93,11 +59,11 @@ export async function POST(req: Request) {
         const required = Number(it.quantity) * factor
         if (!Number.isFinite(required) || required <= 0) continue
 
-        await adjustInventory(tx as any, { workspaceId: ws.id, productId: it.productId, delta: -required })
+        await adjustInventory(tx as any, { workspaceId: wsId, productId: it.productId, delta: -required })
 
         await tx.consumption.create({
           data: {
-            workspaceId: ws.id,
+            workspaceId: wsId,
             date: at,
             productId: it.productId,
             quantity: required,
@@ -109,7 +75,7 @@ export async function POST(req: Request) {
       }
 
       // produce FINISHED
-      await adjustInventory(tx as any, { workspaceId: ws.id, productId: recipe.productId, delta: parsed.data.producedQty })
+      await adjustInventory(tx as any, { workspaceId: wsId, productId: recipe.productId, delta: parsed.data.producedQty })
 
       return { ok: true }
     })
@@ -122,3 +88,4 @@ export async function POST(req: Request) {
     return Response.json({ error: 'FAILED', details: msg }, { status: 500 })
   }
 }
+
