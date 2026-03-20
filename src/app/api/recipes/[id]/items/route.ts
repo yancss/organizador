@@ -28,12 +28,12 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
     return Response.json({ error: 'INVALID_BODY', details: parsed.error.flatten() }, { status: 400 })
   }
 
-  // Item deve ser matéria-prima (RAW)
-  const raw = await prisma.product.findFirst({
-    where: { id: parsed.data.productId, workspaceId: wsId, active: true, kind: 'RAW' },
+  // Item deve ser matéria-prima (RAW) ou intermediário (INTERMEDIATE)
+  const ingredient = await prisma.product.findFirst({
+    where: { id: parsed.data.productId, workspaceId: wsId, active: true, kind: { in: ['RAW', 'INTERMEDIATE'] as any } },
     select: { id: true },
   })
-  if (!raw) return Response.json({ error: 'INVALID_RAW_PRODUCT' }, { status: 400 })
+  if (!ingredient) return Response.json({ error: 'INVALID_INGREDIENT_PRODUCT' }, { status: 400 })
 
   const item = await prisma.recipeItem.create({
     data: {

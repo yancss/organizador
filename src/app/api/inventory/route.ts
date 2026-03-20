@@ -8,14 +8,14 @@ export async function GET() {
   const wsId = auth.user.workspaceId
 
   const items = await prisma.inventory.findMany({
-    // Estoque é para matéria-prima (RAW)
-    where: { workspaceId: wsId, product: { active: true, kind: 'RAW' } },
+    // Estoque: inclui matéria-prima + intermediários + produto final
+    where: { workspaceId: wsId, product: { active: true } },
     orderBy: [{ product: { name: 'asc' } }],
     select: {
       id: true,
       quantity: true,
       minimum: true,
-      product: { select: { id: true, name: true, unit: true } },
+      product: { select: { id: true, name: true, unit: true, kind: true, avgCost: true } },
       updatedAt: true,
     },
   })

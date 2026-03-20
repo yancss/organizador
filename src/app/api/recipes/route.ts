@@ -44,9 +44,9 @@ export async function POST(req: Request) {
     return Response.json({ error: 'INVALID_BODY', details: parsed.error.flatten() }, { status: 400 })
   }
 
-  // produto final precisa ser FINISHED
+  // produto final pode ser FINISHED ou INTERMEDIATE
   const finalProduct = await prisma.product.findFirst({
-    where: { id: parsed.data.productId, workspaceId: wsId, active: true, kind: 'FINISHED' },
+    where: { id: parsed.data.productId, workspaceId: wsId, active: true, kind: { in: ['FINISHED', 'INTERMEDIATE'] as any } },
     select: { id: true },
   })
   if (!finalProduct) return Response.json({ error: 'INVALID_FINAL_PRODUCT' }, { status: 400 })

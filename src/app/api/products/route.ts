@@ -29,7 +29,7 @@ export async function GET(req: Request) {
     },
     orderBy: [{ name: 'asc' }],
     take: q.length >= 2 ? 25 : 500,
-    select: { id: true, name: true, brand: true, kind: true, unit: true },
+    select: { id: true, name: true, brand: true, kind: true, unit: true, avgCost: true },
   })
 
   return Response.json({ products })
@@ -38,7 +38,7 @@ export async function GET(req: Request) {
 const CreateProductSchema = z.object({
   name: z.string().min(1).max(140),
   brand: z.string().max(140).optional().nullable(),
-  kind: z.enum(['RAW', 'FINISHED']).optional(),
+  kind: z.enum(['RAW', 'INTERMEDIATE', 'FINISHED']).optional(),
   unit: z.string().min(1).max(10),
 })
 
