@@ -4,16 +4,12 @@ import { render } from '@testing-library/react'
 import { SettingsProvider } from '@/app/app/settings-context'
 
 export function createTestQueryClient() {
+  // TanStack Query v5 removed `logger` from QueryClientConfig typings.
+  // For tests, we keep retries off and rely on assertions instead of silencing via config.
   return new QueryClient({
     defaultOptions: {
       queries: { retry: false },
       mutations: { retry: false },
-    },
-    logger: {
-      log: console.log,
-      warn: console.warn,
-      // silence react-query errors in test output (assert on UI instead)
-      error: () => {},
     },
   })
 }
