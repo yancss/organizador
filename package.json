@@ -9,6 +9,7 @@
     "lint": "eslint",
     "postinstall": "prisma generate",
     "prisma:generate": "prisma generate",
+    "prisma:generate:fix": "powershell -ExecutionPolicy Bypass -File scripts\\fix-prisma-eperm.ps1",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
     "bootstrap": "node scripts/bootstrap-support.js",

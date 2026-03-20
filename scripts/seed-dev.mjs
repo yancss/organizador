@@ -53,27 +53,65 @@ async function main() {
     select: { id: true, email: true },
   })
 
-  const workspaceId = (
-    await prisma.workspaceMember.findFirst({
-      where: { userId: u1.id },
-      orderBy: { createdAt: 'asc' },
-      select: { workspaceId: true },
-    })
-  )?.workspaceId
+  // We keep a deterministic workspace name for demos and RESET it on every run,
+  // so the visual state reflects the current seed logic (avgCost, production, etc.).
+  const wsNameFixed = 'Meu espaço'
 
-  const ws = workspaceId
-    ? await prisma.workspace.findUnique({ where: { id: workspaceId }, select: { id: true, name: true } })
-    : null
+  const existing = await prisma.workspace.findFirst({
+    where: { name: wsNameFixed, members: { some: { userId: u1.id } } },
+    select: { id: true, name: true },
+  })
 
-  const wsFinal =
-    ws ??
-    (await prisma.workspace.create({
+  async function wipeWorkspace(workspaceId) {
+    // Delete in dependency order (best-effort, dev-only)
+    await prisma.paymentApplication.deleteMany({ where: { workspaceId } }).catch(() => {})
+    await prisma.payment.deleteMany({ where: { workspaceId } }).catch(() => {})
+    await prisma.receivable.deleteMany({ where: { workspaceId } }).catch(() => {})
+    await prisma.refund.deleteMany({ where: { workspaceId } }).catch(() => {})
+
+    await prisma.deliveryItem.deleteMany({ where: { workspaceId } }).catch(() => {})
+    await prisma.delivery.deleteMany({ where: { workspaceId } }).catch(() => {})
+
+    await prisma.salesOrderItem.deleteMany({ where: { workspaceId } }).catch(() => {})
+    await prisma.salesOrder.deleteMany({ where: { workspaceId } }).catch(() => {})
+
+    await prisma.purchase.deleteMany({ where: { workspaceId } }).catch(() => {})
+    await prisma.consumption.deleteMany({ where: { workspaceId } }).catch(() => {})
+
+    await prisma.purchaseOrderItem.deleteMany({ where: { purchaseOrder: { workspaceId } } }).catch(() => {})
+    await prisma.purchaseOrder.deleteMany({ where: { workspaceId } }).catch(() => {})
+
+    await prisma.recipeItem.deleteMany({ where: { recipe: { workspaceId } } }).catch(() => {})
+    await prisma.recipe.deleteMany({ where: { workspaceId } }).catch(() => {})
+
+    await prisma.financialEntry.deleteMany({ where: { workspaceId } }).catch(() => {})
+
+    await prisma.costCenter.deleteMany({ where: { workspaceId } }).catch(() => {})
+    await prisma.financialCategory.deleteMany({ where: { workspaceId } }).catch(() => {})
+    await prisma.financialAccount.deleteMany({ where: { workspaceId } }).catch(() => {})
+    await prisma.workspaceSequence.deleteMany({ where: { workspaceId } }).catch(() => {})
+
+    await prisma.inventory.deleteMany({ where: { workspaceId } }).catch(() => {})
+
+    // These are referenced by recipe items / PO items etc; keep them for last
+    await prisma.client.deleteMany({ where: { workspaceId } }).catch(() => {})
+    await prisma.product.deleteMany({ where: { workspaceId } }).catch(() => {})
+  }
+
+  let wsFinal
+  if (existing) {
+    console.log('[seed] wiping workspace data', { id: existing.id, name: existing.name })
+    await wipeWorkspace(existing.id)
+    wsFinal = existing
+  } else {
+    wsFinal = await prisma.workspace.create({
       data: {
-        name: 'Meu espaço',
+        name: wsNameFixed,
         members: { create: [{ userId: u1.id, role: 'ADMIN' }] },
       },
       select: { id: true, name: true },
-    }))
+    })
+  }
 
   // Ensure membership is ADMIN
   await prisma.workspaceMember.upsert({
@@ -150,7 +188,26 @@ async function main() {
           kind: 'RAW',
           unit: 'kg',
           active: true,
-          inventory: { create: { workspaceId: wsTarget.id, quantity: 500 } },
+          inventory: { create: { workspaceId: wsTarget.id, quantity: 0 } },
+        },
+        select: { id: true, name: true, unit: true, kind: true },
+      }),
+    )
+  }
+
+  const intermediateNames = ['Massa Base', 'Recheio Base', 'Cobertura Base']
+
+  const intermediateProducts = []
+  for (let i = 0; i < intermediateNames.length; i++) {
+    intermediateProducts.push(
+      await prisma.product.create({
+        data: {
+          workspaceId: wsTarget.id,
+          name: intermediateNames[i],
+          kind: 'INTERMEDIATE',
+          unit: 'un',
+          active: true,
+          inventory: { create: { workspaceId: wsTarget.id, quantity: 0 } },
         },
         select: { id: true, name: true, unit: true, kind: true },
       }),
@@ -167,21 +224,53 @@ async function main() {
           kind: 'FINISHED',
           unit: 'un',
           active: true,
-          inventory: { create: { workspaceId: wsTarget.id, quantity: 200 } },
+          inventory: { create: { workspaceId: wsTarget.id, quantity: 0 } },
         },
         select: { id: true, name: true, unit: true, kind: true },
       }),
     )
   }
 
-  console.log('[seed] products', { raw: rawProducts.length, finished: finishedProducts.length })
+  console.log('[seed] products', {
+    raw: rawProducts.length,
+    intermediate: intermediateProducts.length,
+    finished: finishedProducts.length,
+  })
 
-  // Recipes (each finished product uses a few raw)
+  // Recipes:
+  // - Intermediates consume RAW
+  // - Finished consume RAW + INTERMEDIATE
   const recipes = []
-  for (const fp of finishedProducts) {
+
+  for (const ip of intermediateProducts) {
     const ins = new Set()
     while (ins.size < 3) ins.add(pick(rawProducts).id)
     const items = [...ins].map((pid) => ({ productId: pid, quantity: Number(rnd(0.5, 3).toFixed(3)) }))
+
+    const r = await prisma.recipe.create({
+      data: {
+        workspaceId: wsTarget.id,
+        productId: ip.id,
+        yieldQty: 10,
+        observations: `Receita base de ${ip.name}`,
+        items: { create: items },
+      },
+      select: { id: true, productId: true },
+    })
+    recipes.push(r)
+  }
+
+  for (const fp of finishedProducts) {
+    const insRaw = new Set()
+    while (insRaw.size < 2) insRaw.add(pick(rawProducts).id)
+
+    const insInter = new Set()
+    while (insInter.size < 1) insInter.add(pick(intermediateProducts).id)
+
+    const items = [
+      ...[...insRaw].map((pid) => ({ productId: pid, quantity: Number(rnd(0.5, 3).toFixed(3)) })),
+      ...[...insInter].map((pid) => ({ productId: pid, quantity: Number(rnd(0.5, 2).toFixed(3)) })),
+    ]
 
     const r = await prisma.recipe.create({
       data: {
@@ -199,15 +288,21 @@ async function main() {
   console.log('[seed] recipes', { recipes: recipes.length })
 
   // Purchase Orders (for pagination)
+  // Some are RECEIVED with unitCost, which will populate avgCost automatically.
   const purchaseOrders = []
   for (let i = 1; i <= 80; i++) {
     if (i % 20 === 0) console.log('[seed] purchaseOrders', i)
     const supplier = pick(suppliers)
-    const status = i % 3 === 0 ? 'CONFIRMED' : i % 7 === 0 ? 'CANCELLED' : 'DRAFT'
+
+    const status = i % 4 === 0 ? 'RECEIVED' : i % 3 === 0 ? 'CONFIRMED' : i % 7 === 0 ? 'CANCELLED' : 'DRAFT'
 
     const ins = new Set()
     while (ins.size < 3) ins.add(pick(rawProducts).id)
-    const items = [...ins].map((pid) => ({ productId: pid, quantity: Number(rnd(1, 20).toFixed(3)) }))
+    const items = [...ins].map((pid) => ({
+      productId: pid,
+      quantity: Number(rnd(5, 35).toFixed(3)),
+      unitCost: Number(rnd(0.5, 30).toFixed(2)),
+    }))
 
     const po = await prisma.purchaseOrder.create({
       data: {
@@ -216,21 +311,19 @@ async function main() {
         supplier: null,
         orderedAt: daysFromNow(-i),
         status,
+        receivedAt: status === 'RECEIVED' ? daysFromNow(-Math.max(0, i - 1)) : null,
         estimatedCost: Number(rnd(50, 800).toFixed(2)),
         observations: `PO #${i} (${status})`,
         items: { create: items },
       },
-      select: { id: true, status: true, items: { select: { productId: true, quantity: true } } },
+      select: { id: true, status: true, items: { select: { productId: true, quantity: true, unitCost: true } } },
     })
     purchaseOrders.push(po)
 
-    // If confirmed, reflect stock entry and create payable commitment
-    // (seed uses prisma directly, bypassing the API hooks)
+    // Seed uses prisma directly, so we replicate the relevant side-effects:
+    // - CONFIRMED: create payable commitment (no stock entry)
+    // - RECEIVED: stock entry + update avgCost (weighted)
     if (status === 'CONFIRMED') {
-      for (const it of po.items) {
-        await prisma.inventory.update({ where: { productId: it.productId }, data: { quantity: { increment: it.quantity } } })
-      }
-
       await prisma.financialEntry.create({
         data: {
           workspaceId: wsTarget.id,
@@ -248,6 +341,119 @@ async function main() {
         select: { id: true },
       })
     }
+
+    if (status === 'RECEIVED') {
+      for (const it of po.items) {
+        const qtyIn = Number(it.quantity)
+        const unitCost = it.unitCost == null ? 0 : Number(it.unitCost)
+
+        const invBefore = await prisma.inventory.findUnique({ where: { productId: it.productId }, select: { quantity: true } })
+        const prodBefore = await prisma.product.findUnique({ where: { id: it.productId }, select: { avgCost: true } })
+
+        const currentQty = invBefore?.quantity == null ? 0 : Number(invBefore.quantity)
+        const currentAvg = prodBefore?.avgCost == null ? 0 : Number(prodBefore.avgCost)
+
+        await prisma.inventory.update({ where: { productId: it.productId }, data: { quantity: { increment: qtyIn } } })
+
+        // Weighted average: (oldQty*oldAvg + inQty*unitCost) / (oldQty + inQty)
+        const denom = currentQty + qtyIn
+        const nextAvg = denom > 0 ? (currentQty * currentAvg + qtyIn * unitCost) / denom : unitCost
+
+        await prisma.product.update({ where: { id: it.productId }, data: { avgCost: nextAvg } })
+      }
+    }
+  }
+
+  // Production runs (so avgCost flows RAW -> INTERMEDIATE -> FINISHED)
+  async function runProduction(recipeId, producedQty, at, observations) {
+    const recipe = await prisma.recipe.findFirst({
+      where: { id: recipeId, workspaceId: wsTarget.id },
+      select: {
+        id: true,
+        productId: true,
+        yieldQty: true,
+        items: { select: { productId: true, quantity: true, product: { select: { kind: true, avgCost: true } } } },
+        product: { select: { kind: true } },
+      },
+    })
+    if (!recipe) return
+
+    const yieldQty = recipe.yieldQty == null ? 0 : Number(recipe.yieldQty)
+    if (!yieldQty || !Number.isFinite(yieldQty) || yieldQty <= 0) return
+
+    const factor = producedQty / yieldQty
+
+    await prisma.$transaction(async (tx) => {
+      const consumed = []
+      for (const it of recipe.items) {
+        if (it.product.kind !== 'RAW' && it.product.kind !== 'INTERMEDIATE') continue
+        const required = Number(it.quantity) * factor
+        if (!Number.isFinite(required) || required <= 0) continue
+        consumed.push({ productId: it.productId, required })
+      }
+
+      // Ensure costs exist
+      const prodRows = consumed.length
+        ? await tx.product.findMany({
+            where: { workspaceId: wsTarget.id, id: { in: consumed.map((c) => c.productId) }, active: true },
+            select: { id: true, avgCost: true },
+          })
+        : []
+      const avgById = new Map(prodRows.map((p) => [p.id, p.avgCost == null ? 0 : Number(p.avgCost)]))
+
+      for (const c of consumed) {
+        const avg = avgById.get(c.productId) ?? 0
+        if (!(Number.isFinite(avg) && avg > 0)) return // skip silently in seed
+      }
+
+      // Consume + compute batch cost
+      let batchCost = 0
+      for (const c of consumed) {
+        const avg = avgById.get(c.productId) ?? 0
+        batchCost += c.required * avg
+
+        // inventory decrement
+        await tx.inventory.update({ where: { productId: c.productId }, data: { quantity: { decrement: c.required } } })
+
+        await tx.consumption.create({
+          data: {
+            workspaceId: wsTarget.id,
+            date: at,
+            productId: c.productId,
+            quantity: c.required,
+            recipeId: recipe.id,
+            observations: observations ?? null,
+          },
+          select: { id: true },
+        })
+      }
+
+      const unitCostProduced = batchCost / producedQty
+
+      const invBefore = await tx.inventory.findUnique({ where: { productId: recipe.productId }, select: { quantity: true } })
+      const productBefore = await tx.product.findUnique({ where: { id: recipe.productId }, select: { avgCost: true } })
+
+      const currentQty = invBefore?.quantity == null ? 0 : Number(invBefore.quantity)
+      const currentAvg = productBefore?.avgCost == null ? 0 : Number(productBefore.avgCost)
+
+      await tx.inventory.update({ where: { productId: recipe.productId }, data: { quantity: { increment: producedQty } } })
+
+      const denom = currentQty + producedQty
+      const nextAvg = denom > 0 ? (currentQty * currentAvg + producedQty * unitCostProduced) / denom : unitCostProduced
+
+      await tx.product.update({ where: { id: recipe.productId }, data: { avgCost: nextAvg } })
+    })
+  }
+
+  // Produce intermediates first, then finished.
+  const intermediateRecipes = recipes.slice(0, intermediateProducts.length)
+  const finishedRecipes = recipes.slice(intermediateProducts.length)
+
+  for (let i = 0; i < intermediateRecipes.length; i++) {
+    await runProduction(intermediateRecipes[i].id, 20, daysFromNow(-5 - i), 'Produção seed (intermediário)')
+  }
+  for (let i = 0; i < finishedRecipes.length; i++) {
+    await runProduction(finishedRecipes[i].id, 15, daysFromNow(-2 - i), 'Produção seed (final)')
   }
 
   // Sales Orders + Deliveries + Receivables + Payments
@@ -274,7 +480,11 @@ async function main() {
         value: Number(rnd(100, 2000).toFixed(2)),
         orderIndex: String(Date.now() - i * 1000),
         items: {
-          create: [...picked].map((pid) => ({ productId: pid, quantity: Number(rnd(1, 15).toFixed(3)) })),
+          create: [...picked].map((pid) => ({
+            productId: pid,
+            quantity: Number(rnd(1, 15).toFixed(3)),
+            unitPrice: Number(rnd(5, 120).toFixed(2)),
+          })),
         },
       },
       select: { id: true, clientId: true, value: true, items: { select: { productId: true, quantity: true } } },
@@ -409,7 +619,7 @@ async function main() {
   }
 
   console.log('Seed completed')
-  console.log('Workspace:', ws)
+  console.log('Workspace:', wsTarget)
   console.log('Users:', u1.email)
 }
 
