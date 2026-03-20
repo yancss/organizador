@@ -55,7 +55,7 @@ export default function ProductsPage() {
   })
 
   const createM = useMutation({
-    mutationFn: (payload: { name: string; brand: string | null; kind: 'RAW' | 'FINISHED'; unit: string }) =>
+    mutationFn: (payload: { name: string; brand: string | null; kind: 'RAW' | 'INTERMEDIATE' | 'FINISHED'; unit: string }) =>
       api<{ product: Product }>('/api/products', {
         method: 'POST',
         body: JSON.stringify(payload),
