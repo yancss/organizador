@@ -5,18 +5,10 @@ import { useMemo, useState } from 'react'
 
 import { t } from '../i18n'
 import { useSettings } from '../settings-context'
+import { api } from '../api-client'
 
-async function api<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, {
-    ...init,
-    headers: {
-      'content-type': 'application/json',
-      ...(init?.headers ?? {}),
-    },
-  })
-  if (!res.ok) throw new Error(await res.text())
-  return (await res.json()) as T
-}
+// (moved to api-client.ts)
+
 
 type User = {
   id: string
@@ -156,7 +148,7 @@ export default function ProfileClient() {
               type="button"
               onClick={onResetPassword}
               disabled={resetM.isPending || !user.email}
-              className="rounded-md border border-theme px-4 py-2 text-sm text-[var(--foreground)] hover:bg-[var(--muted)] disabled:opacity-50"
+              className="btn btn-secondary"
             >
               {resetM.isPending ? i.profile.sendingReset : i.profile.resetPassword}
             </button>

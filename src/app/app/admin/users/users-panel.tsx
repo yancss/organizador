@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { useSettings } from '@/app/app/settings-context'
 import { t } from '@/app/app/i18n'
+import { toast, toastAlreadyExistsEmail } from '@/app/app/toast'
 
 type AdminUser = {
   id: string
@@ -15,6 +16,7 @@ type AdminUser = {
   workspaceRole: 'USER' | 'ADMIN'
   sessionMaxAgeSec: number | null
   sessionPolicyVersion: number
+  birthDate: string | null
   createdAt: string
   roleCustom: { id: string; name: string } | null
 }
@@ -129,6 +131,22 @@ export default function UsersPanel() {
     },
   })
 
+  const inviteMutation = useMutation({
+    mutationFn: async (args: { email: string; role: 'USER' | 'ADMIN' }) => {
+      const res = await fetch('/api/admin/invites', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(args),
+      })
+      const json = await res.json().catch(() => null)
+      if (!res.ok) throw new Error(json?.error || 'FAILED_TO_SEND')
+      return json
+    },
+  })
+
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteRole, setInviteRole] = useState<'USER' | 'ADMIN'>('USER')
+
   const [editingId, setEditingId] = useState<string | null>(null)
 
   const editingUser = users.find((u) => u.id === editingId) ?? null
@@ -136,12 +154,19 @@ export default function UsersPanel() {
   const [editHours, setEditHours] = useState('')
   const [editWorkspaceRole, setEditWorkspaceRole] = useState<'USER' | 'ADMIN'>('USER')
   const [editCustomRoleId, setEditCustomRoleId] = useState('')
+  const [editEmail, setEditEmail] = useState('')
+  const [editName, setEditName] = useState('')
+  const [editBirthDate, setEditBirthDate] = useState('')
 
   function openEdit(u: AdminUser) {
     setEditingId(u.id)
     setEditHours(secToHours(u.sessionMaxAgeSec))
     setEditWorkspaceRole(u.workspaceRole)
     setEditCustomRoleId(u.roleCustom?.id ?? '')
+    setEditEmail(u.email || '')
+    setEditName(u.name || '')
+    // HTML input[type=date] expects YYYY-MM-DD
+    setEditBirthDate(u.birthDate ? String(u.birthDate).slice(0, 10) : '')
   }
 
   async function saveEdit() {
@@ -150,13 +175,29 @@ export default function UsersPanel() {
     const raw = editHours.trim()
     const sessionMaxAgeSec = raw === '' ? null : hoursToSec(raw)
     if (raw !== '' && sessionMaxAgeSec == null) {
-      alert(i.admin.common.invalidValue)
+      toast.error(i.admin.common.invalidValue)
       return
     }
 
-    // Save 3 things. We keep it simple: fire sequentially.
+    // Save changes. We keep it simple: fire sequentially.
     await sessionMutation.mutateAsync({ id: editingUser.id, sessionMaxAgeSec })
-    await userMutation.mutateAsync({ userId: editingUser.id, patch: { workspaceRole: editWorkspaceRole } })
+
+    const patch: any = {
+      workspaceRole: editWorkspaceRole,
+      name: editName.trim() || null,
+      birthDate: editBirthDate.trim() || null,
+    }
+
+    // Never allow changing the SUPERADMIN's email (support account)
+    if (editingUser.role !== 'SUPERADMIN') {
+      patch.email = editEmail.trim() || null
+    }
+
+    await userMutation.mutateAsync({
+      userId: editingUser.id,
+      patch,
+    })
+
     await setRoleMutation.mutateAsync({ userId: editingUser.id, roleId: editCustomRoleId ? editCustomRoleId : null })
 
     setEditingId(null)
@@ -167,6 +208,63 @@ export default function UsersPanel() {
       <div>
         <h1 className="text-xl font-semibold">{i.admin.users.title}</h1>
         <p className="mt-1 text-sm text-[var(--text-muted)]">{i.admin.users.subtitle}</p>
+      </div>
+
+      <div className="surface rounded-xl border border-theme p-4">
+        <div className="text-sm font-semibold">Convidar usuário</div>
+        <div className="mt-1 text-xs text-[var(--text-muted)]">
+          Envia um e-mail com link para o usuário criar a conta e definir a senha.
+        </div>
+
+        <div className="mt-3 grid gap-2 sm:grid-cols-3 sm:items-end">
+          <label className="grid gap-1">
+            <span className="text-xs text-[var(--text-muted)]">Email</span>
+            <input
+              className="h-9 rounded-md border border-theme bg-transparent px-2 text-sm"
+              value={inviteEmail}
+              onChange={(e) => setInviteEmail(e.target.value)}
+              placeholder="novo@empresa.com"
+              type="email"
+              autoComplete="email"
+            />
+          </label>
+
+          <label className="grid gap-1">
+            <span className="text-xs text-[var(--text-muted)]">Role no workspace</span>
+            <select
+              className="h-9 rounded-md border border-theme bg-transparent px-2 text-sm"
+              value={inviteRole}
+              onChange={(e) => setInviteRole(e.target.value as any)}
+            >
+              <option value="USER">USER</option>
+              <option value="ADMIN">ADMIN</option>
+            </select>
+          </label>
+
+          <button
+            className="h-9 rounded-md bg-[var(--primary)] px-3 text-sm font-medium text-[var(--primary-foreground)] disabled:opacity-50"
+            disabled={inviteMutation.isPending || !inviteEmail.trim()}
+            onClick={() => {
+              inviteMutation
+                .mutateAsync({ email: inviteEmail.trim(), role: inviteRole })
+                .then(() => {
+                  toast.success(language === 'pt' ? 'Convite enviado.' : language === 'es' ? 'Invitación enviada.' : 'Invite sent.')
+                  setInviteEmail('')
+                  setInviteRole('USER')
+                })
+                .catch((e) => {
+                  const msg = String(e?.message || '')
+                  if (msg.includes('USER_ALREADY_EXISTS')) {
+                    toastAlreadyExistsEmail(i)
+                    return
+                  }
+                  toast.error(i.admin.common.failedToSave)
+                })
+            }}
+          >
+            {inviteMutation.isPending ? 'Enviando…' : 'Enviar convite'}
+          </button>
+        </div>
       </div>
 
       <div className="rounded-xl border">
@@ -204,7 +302,10 @@ export default function UsersPanel() {
                     className="h-9 rounded-md border px-3 text-sm disabled:opacity-50"
                     disabled={resetMutation.isPending}
                     onClick={() => {
-                      if (!u.email) return alert(i.admin.users.noEmail)
+                      if (!u.email) {
+                        toast.error(i.admin.users.noEmail)
+                        return
+                      }
                       resetMutation.mutate({ userId: u.id })
                     }}
                   >
@@ -235,7 +336,7 @@ export default function UsersPanel() {
 
       {editingUser ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="surface w-full max-w-2xl rounded-xl p-4 shadow">
+          <div className="surface modal-safe w-full max-w-2xl rounded-xl p-4 shadow">
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-sm font-semibold">{i.admin.users.editUser}</div>
@@ -247,6 +348,42 @@ export default function UsersPanel() {
             </div>
 
             <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <label className="grid gap-1">
+                <span className="text-xs text-[var(--text-muted)]">Nome</span>
+                <input
+                  className="h-9 rounded-md border px-2 text-sm"
+                  placeholder="Nome"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                />
+              </label>
+
+              <label className="grid gap-1">
+                <span className="text-xs text-[var(--text-muted)]">Email</span>
+                <input
+                  className="h-9 rounded-md border px-2 text-sm disabled:opacity-60"
+                  placeholder="email@empresa.com"
+                  value={editEmail}
+                  onChange={(e) => setEditEmail(e.target.value)}
+                  type="email"
+                  autoComplete="email"
+                  disabled={editingUser.role === 'SUPERADMIN'}
+                />
+                {editingUser.role === 'SUPERADMIN' ? (
+                  <span className="text-[11px] text-[var(--text-muted)]">Email do superadmin é fixo (bloqueado).</span>
+                ) : null}
+              </label>
+
+              <label className="grid gap-1">
+                <span className="text-xs text-[var(--text-muted)]">Data de nascimento</span>
+                <input
+                  className="h-9 rounded-md border px-2 text-sm"
+                  value={editBirthDate}
+                  onChange={(e) => setEditBirthDate(e.target.value)}
+                  type="date"
+                />
+              </label>
+
               <label className="grid gap-1">
                 <span className="text-xs text-[var(--text-muted)]">Sessão (horas)</span>
                 <input
@@ -300,7 +437,9 @@ export default function UsersPanel() {
               <button
                 className="h-9 rounded-md bg-black px-3 text-sm text-white disabled:opacity-50"
                 disabled={sessionMutation.isPending || userMutation.isPending || setRoleMutation.isPending}
-                onClick={() => saveEdit().catch((e) => alert(e?.message || i.admin.common.failedToSave))}
+                onClick={() =>
+                  saveEdit().catch((e) => toast.error(String(e?.message || i.admin.common.failedToSave)))
+                }
               >
                 Salvar
               </button>

@@ -16,6 +16,7 @@ export async function GET(req: Request) {
     where: {
       workspaceId: wsId,
       OR: [
+        { code: { contains: q, mode: 'insensitive' } },
         { name: { contains: q, mode: 'insensitive' } },
         { client: { name: { contains: q, mode: 'insensitive' } } },
       ],
@@ -24,6 +25,7 @@ export async function GET(req: Request) {
     take: 25,
     select: {
       id: true,
+      code: true,
       name: true,
       deliveryAt: true,
       orderedAt: true,

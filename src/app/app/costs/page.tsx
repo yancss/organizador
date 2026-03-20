@@ -3,8 +3,11 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
+import { t } from '../i18n'
 import { useSettings } from '../settings-context'
 import DataTable from '../ui/data-table'
+import { toastCreated, toastUpdated, toastDeleted, toastFailedToSave, toastFailedToDelete } from '../toast'
+import { api } from '../api-client'
 
 type CostCenter = { id: string; name: string }
 
@@ -15,17 +18,8 @@ type ReportRow = {
   count: number
 }
 
-async function api<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, {
-    ...init,
-    headers: {
-      'content-type': 'application/json',
-      ...(init?.headers ?? {}),
-    },
-  })
-  if (!res.ok) throw new Error(await res.text())
-  return (await res.json()) as T
-}
+// (moved to api-client.ts)
+
 
 function localeFromLanguage(language: string) {
   if (language === 'pt') return 'pt-PT'
@@ -50,6 +44,7 @@ function isoDaysAgo(days: number) {
 export default function CostsPage() {
   const qc = useQueryClient()
   const { language, currency } = useSettings()
+  const i = t(language)
 
   const [isOpen, setIsOpen] = useState(false)
   const [name, setName] = useState('')
@@ -84,9 +79,15 @@ export default function CostsPage() {
   async function save() {
     const n = name.trim()
     if (!n) return
-    await createM.mutateAsync({ name: n })
-    setName('')
-    setIsOpen(false)
+
+    try {
+      await createM.mutateAsync({ name: n })
+      toastCreated(i, 'costCenter')
+      setName('')
+      setIsOpen(false)
+    } catch (e: any) {
+      toastFailedToSave(i, String(e?.message ?? ''))
+    }
   }
 
   return (
@@ -106,7 +107,7 @@ export default function CostsPage() {
         </div>
 
         <button
-          className="rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-medium text-[var(--primary-foreground)] hover:opacity-90"
+          className="btn btn-primary"
           onClick={() => setIsOpen(true)}
           type="button"
         >
@@ -244,24 +245,27 @@ export default function CostsPage() {
                     <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                       <button
                         type="button"
-                        className="rounded-md border border-theme bg-[var(--surface)] px-3 py-1.5 text-xs hover:bg-[var(--muted)]"
+                        className="btn btn-secondary btn-sm"
                         onClick={() => {
                           const next = prompt(language === 'pt' ? 'Novo nome do centro:' : 'New center name:', r.name)
                           if (!next) return
                           api<{ costCenter: CostCenter }>(`/api/finance/cost-centers/${r.id}`, {
                             method: 'PATCH',
                             body: JSON.stringify({ name: next }),
-                          }).then(() => {
-                            qc.invalidateQueries({ queryKey: ['finance', 'cost-centers'] })
-                            qc.invalidateQueries({ queryKey: ['finance', 'reports', 'costs'] })
                           })
+                            .then(() => {
+                              toastUpdated(i, 'costCenter')
+                              qc.invalidateQueries({ queryKey: ['finance', 'cost-centers'] })
+                              qc.invalidateQueries({ queryKey: ['finance', 'reports', 'costs'] })
+                            })
+                            .catch((e: any) => toastFailedToSave(i, String(e?.message ?? '')))
                         }}
                       >
                         {language === 'pt' ? 'Renomear' : language === 'es' ? 'Renombrar' : 'Rename'}
                       </button>
                       <button
                         type="button"
-                        className="rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-xs text-red-700 hover:bg-red-100"
+                        className="btn btn-danger-soft btn-sm"
                         onClick={() => {
                           if (
                             !confirm(
@@ -273,10 +277,13 @@ export default function CostsPage() {
                             )
                           )
                             return
-                          api<{ ok: true }>(`/api/finance/cost-centers/${r.id}`, { method: 'DELETE' }).then(() => {
-                            qc.invalidateQueries({ queryKey: ['finance', 'cost-centers'] })
-                            qc.invalidateQueries({ queryKey: ['finance', 'reports', 'costs'] })
-                          })
+                          api<{ ok: true }>(`/api/finance/cost-centers/${r.id}`, { method: 'DELETE' })
+                            .then(() => {
+                              toastDeleted(i, 'costCenter')
+                              qc.invalidateQueries({ queryKey: ['finance', 'cost-centers'] })
+                              qc.invalidateQueries({ queryKey: ['finance', 'reports', 'costs'] })
+                            })
+                            .catch((e: any) => toastFailedToDelete(i, String(e?.message ?? '')))
                         }}
                       >
                         {language === 'pt' ? 'Desativar' : language === 'es' ? 'Desactivar' : 'Disable'}
@@ -293,7 +300,7 @@ export default function CostsPage() {
       {isOpen ? (
         <div className="fixed inset-0 z-50">
           <div className="absolute inset-0 bg-black/40" onClick={() => setIsOpen(false)} />
-          <div className="surface absolute bottom-0 left-0 right-0 mx-auto w-full max-w-xl rounded-t-2xl border border-theme p-5 shadow-xl sm:bottom-auto sm:top-20 sm:rounded-2xl">
+          <div className="surface modal-safe absolute bottom-0 left-0 right-0 mx-auto w-full max-w-xl rounded-t-2xl border border-theme p-5 shadow-xl sm:bottom-auto sm:top-20 sm:rounded-2xl">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-lg font-semibold">
@@ -309,7 +316,7 @@ export default function CostsPage() {
               </div>
               <button
                 aria-label="Fechar"
-                className="grid size-9 place-items-center rounded-md text-lg text-[var(--foreground)] hover:bg-[var(--muted)]"
+                className="btn btn-secondary btn-icon"
                 onClick={() => setIsOpen(false)}
                 type="button"
               >
@@ -330,14 +337,14 @@ export default function CostsPage() {
 
             <div className="mt-5 flex justify-end gap-2">
               <button
-                className="rounded-lg border border-theme px-4 py-2 text-sm text-[var(--foreground)] hover:bg-[var(--muted)]"
+                className="btn btn-secondary"
                 onClick={() => setIsOpen(false)}
                 type="button"
               >
                 {language === 'pt' ? 'Cancelar' : language === 'es' ? 'Cancelar' : 'Cancel'}
               </button>
               <button
-                className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50"
+                className="btn btn-primary"
                 onClick={save}
                 type="button"
                 disabled={!name.trim() || createM.isPending}

@@ -4,6 +4,7 @@ import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 
 import DataTable, { type ColumnDef } from '../../ui/data-table'
+import { api } from '../../api-client'
 
 type Entry = {
   id: string
@@ -23,11 +24,8 @@ type Entry = {
   updatedAt: string
 }
 
-async function api<T>(url: string): Promise<T> {
-  const res = await fetch(url, { headers: { 'content-type': 'application/json' } })
-  if (!res.ok) throw new Error(await res.text())
-  return (await res.json()) as T
-}
+// (moved to api-client.ts)
+
 
 export default function FinancePayablesPage() {
   const q = useQuery({

@@ -178,7 +178,7 @@ export default function DataTable<T>({
             <button
               type="button"
               onClick={() => setQuery('')}
-              className="rounded-md border border-theme bg-[var(--surface)] px-3 py-2 text-xs text-[var(--foreground)] hover:bg-[var(--muted)]"
+              className="btn btn-secondary btn-sm"
             >
               {labels.clear}
             </button>
@@ -268,7 +268,7 @@ export default function DataTable<T>({
                 type="button"
                 onClick={() => goTo(page - 1)}
                 disabled={page <= 1}
-                className="rounded-md border border-theme bg-[var(--surface)] px-3 py-1.5 text-xs text-[var(--foreground)] disabled:opacity-50"
+                className="btn btn-secondary btn-sm"
               >
                 {labels.previous}
               </button>
@@ -279,7 +279,7 @@ export default function DataTable<T>({
                 type="button"
                 onClick={() => goTo(page + 1)}
                 disabled={page >= totalPages}
-                className="rounded-md border border-theme bg-[var(--surface)] px-3 py-1.5 text-xs text-[var(--foreground)] disabled:opacity-50"
+                className="btn btn-secondary btn-sm"
               >
                 {labels.next}
               </button>

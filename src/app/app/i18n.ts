@@ -227,6 +227,37 @@ export type I18n = {
     clear: string
     noResults: string
   }
+  toast: {
+    entities: {
+      order: string
+      purchaseOrder: string
+      invite: string
+      user: string
+      role: string
+      security: string
+      product: string
+      client: string
+      recipe: string
+      inventory: string
+      account: string
+      category: string
+      entry: string
+      costCenter: string
+      event: string
+      task: string
+      generic: string
+    }
+    created: string // placeholder: {entity}
+    updated: string // placeholder: {entity}
+    deleted: string // placeholder: {entity}
+    failedToSave: string
+    failedToDelete: string
+    alreadyExistsEmail: string
+  }
+  form: {
+    requiredMark: string
+    requiredHint: string
+  }
   profile: {
     title: string
     subtitle: string
@@ -559,6 +590,37 @@ const dict: Record<AppLanguage, I18n> = {
       searchPlaceholder: 'Buscar…',
       clear: 'Limpar',
       noResults: 'Nenhum registro encontrado para a busca.',
+    },
+    toast: {
+      entities: {
+        order: 'Pedido',
+        purchaseOrder: 'Pedido de compra',
+        invite: 'Convite',
+        user: 'Usuário',
+        role: 'Perfil',
+        security: 'Segurança',
+        product: 'Produto',
+        client: 'Parceiro',
+        recipe: 'Receita',
+        inventory: 'Estoque',
+        account: 'Conta',
+        category: 'Categoria',
+        entry: 'Lançamento',
+        costCenter: 'Centro de custo',
+        event: 'Evento',
+        task: 'Tarefa',
+        generic: 'Registro',
+      },
+      created: '{entity} criado.',
+      updated: '{entity} atualizado.',
+      deleted: '{entity} excluído.',
+      failedToSave: 'Falha ao salvar.',
+      failedToDelete: 'Falha ao excluir.',
+      alreadyExistsEmail: 'Já existe um usuário com esse e-mail.',
+    },
+    form: {
+      requiredMark: '*',
+      requiredHint: 'Obrigatório',
     },
     profile: {
       title: 'Perfil',
@@ -893,6 +955,37 @@ const dict: Record<AppLanguage, I18n> = {
       clear: 'Clear',
       noResults: 'No records found for your search.',
     },
+    toast: {
+      entities: {
+        order: 'Order',
+        purchaseOrder: 'Purchase order',
+        invite: 'Invite',
+        user: 'User',
+        role: 'Role',
+        security: 'Security',
+        product: 'Product',
+        client: 'Partner',
+        recipe: 'Recipe',
+        inventory: 'Inventory',
+        account: 'Account',
+        category: 'Category',
+        entry: 'Entry',
+        costCenter: 'Cost center',
+        event: 'Event',
+        task: 'Task',
+        generic: 'Record',
+      },
+      created: '{entity} created.',
+      updated: '{entity} updated.',
+      deleted: '{entity} deleted.',
+      failedToSave: 'Failed to save.',
+      failedToDelete: 'Failed to delete.',
+      alreadyExistsEmail: 'A user with this email already exists.',
+    },
+    form: {
+      requiredMark: '*',
+      requiredHint: 'Required',
+    },
     profile: {
       title: 'Profile',
       subtitle: 'Your account information.',
@@ -1225,6 +1318,37 @@ const dict: Record<AppLanguage, I18n> = {
       searchPlaceholder: 'Buscar…',
       clear: 'Limpiar',
       noResults: 'No se encontraron registros para la búsqueda.',
+    },
+    toast: {
+      entities: {
+        order: 'Pedido',
+        purchaseOrder: 'Pedido de compra',
+        invite: 'Invitación',
+        user: 'Usuario',
+        role: 'Rol',
+        security: 'Seguridad',
+        product: 'Producto',
+        client: 'Socio',
+        recipe: 'Receta',
+        inventory: 'Inventario',
+        account: 'Cuenta',
+        category: 'Categoría',
+        entry: 'Asiento',
+        costCenter: 'Centro de costo',
+        event: 'Evento',
+        task: 'Tarea',
+        generic: 'Registro',
+      },
+      created: '{entity} creado.',
+      updated: '{entity} actualizado.',
+      deleted: '{entity} eliminado.',
+      failedToSave: 'Error al guardar.',
+      failedToDelete: 'Error al eliminar.',
+      alreadyExistsEmail: 'Ya existe un usuario con ese email.',
+    },
+    form: {
+      requiredMark: '*',
+      requiredHint: 'Obligatorio',
     },
     profile: {
       title: 'Perfil',

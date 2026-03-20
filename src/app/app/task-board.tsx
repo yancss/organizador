@@ -6,6 +6,10 @@ import FullCalendar from '@fullcalendar/react'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import timeGridPlugin from '@fullcalendar/timegrid'
 import interactionPlugin from '@fullcalendar/interaction'
+import { t } from './i18n'
+import { useSettings } from './settings-context'
+import { toastCreated, toastFailedToSave } from './toast'
+import { api } from './api-client'
 
 type Task = {
   id: string
@@ -16,20 +20,13 @@ type Task = {
   dueAt: string | null
 }
 
-async function api<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, {
-    ...init,
-    headers: {
-      'content-type': 'application/json',
-      ...(init?.headers ?? {}),
-    },
-  })
-  if (!res.ok) throw new Error(await res.text())
-  return (await res.json()) as T
-}
+// (moved to api-client.ts)
+
 
 export default function TaskBoard() {
   const qc = useQueryClient()
+  const { language } = useSettings()
+  const i = t(language)
   const [title, setTitle] = useState('')
 
   const tasksQ = useQuery({
@@ -44,8 +41,12 @@ export default function TaskBoard() {
         body: JSON.stringify({ title }),
       }),
     onSuccess: async () => {
+      toastCreated(i, 'task')
       setTitle('')
       await qc.invalidateQueries({ queryKey: ['tasks'] })
+    },
+    onError: (e: any) => {
+      toastFailedToSave(i, String(e?.message ?? ''))
     },
   })
 
@@ -81,7 +82,7 @@ export default function TaskBoard() {
             className="w-full rounded-md border px-3 py-2"
           />
           <button
-            className="rounded-md bg-black px-4 py-2 text-white disabled:opacity-50"
+            className="btn btn-primary"
             disabled={!title.trim() || createM.isPending}
             type="submit"
           >

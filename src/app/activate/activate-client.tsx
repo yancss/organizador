@@ -23,6 +23,7 @@ export default function ActivateClient() {
 
   const hasParams = useMemo(() => Boolean(email && token), [email, token])
 
+  const [name, setName] = useState('')
   const [password, setPassword] = useState('')
   const [password2, setPassword2] = useState('')
   const [loading, setLoading] = useState(false)
@@ -43,9 +44,10 @@ export default function ActivateClient() {
     try {
       await api<{ ok: true }>('/api/auth/activate', {
         method: 'POST',
-        body: JSON.stringify({ email, token, password }),
+        body: JSON.stringify({ email, token, name: name.trim() || null, password }),
       })
       setOk(true)
+      setName('')
       setPassword('')
       setPassword2('')
     } catch {
@@ -73,6 +75,18 @@ export default function ActivateClient() {
         <section className="surface rounded-xl border border-theme p-4">
           <form className="grid gap-3" onSubmit={onSubmit}>
             <div className="text-xs text-[var(--muted-foreground)]">{email}</div>
+
+            <label className="grid gap-1">
+              <span className="text-xs font-medium text-[var(--foreground)]">Nome (opcional)</span>
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                type="text"
+                autoComplete="name"
+                className="w-full rounded-md border border-theme bg-transparent px-3 py-2 text-sm"
+                placeholder="Seu nome"
+              />
+            </label>
 
             <label className="grid gap-1">
               <span className="text-xs font-medium text-[var(--foreground)]">Senha</span>

@@ -10,6 +10,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { t } from '../i18n'
 import { useSettings } from '../settings-context'
 import DataTable from '../ui/data-table'
+import FieldLabel from '../ui/field-label'
+import { toast, toastCreated, toastUpdated, toastDeleted, toastFailedToSave, toastFailedToDelete } from '../toast'
+import { api } from '../api-client'
 
 type Client = {
   id: string
@@ -39,17 +42,8 @@ type Client = {
   observations?: string | null
 }
 
-async function api<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, {
-    ...init,
-    headers: {
-      'content-type': 'application/json',
-      ...(init?.headers ?? {}),
-    },
-  })
-  if (!res.ok) throw new Error(await res.text())
-  return (await res.json()) as T
-}
+// (moved to api-client.ts)
+
 
 type Draft = {
   id?: string
@@ -254,22 +248,34 @@ export default function ClientsPage() {
       observations: draft.observations.trim() ? draft.observations.trim() : null,
     }
 
-    if (draft.id) {
-      await updateM.mutateAsync({ id: draft.id, payload })
-    } else {
-      await createM.mutateAsync(payload)
-    }
+    try {
+      if (draft.id) {
+        await updateM.mutateAsync({ id: draft.id, payload })
+        toastUpdated(i, 'client')
+      } else {
+        await createM.mutateAsync(payload)
+        toastCreated(i, 'client')
+      }
 
-    setIsOpen(false)
-    draftStore.clear()
+      setIsOpen(false)
+      draftStore.clear()
+    } catch (e: any) {
+      toastFailedToSave(i, String(e?.message ?? ''))
+    }
   }
 
   async function remove() {
     if (!draft.id) return
     if (!confirm(i.clients.deleteConfirm)) return
-    await deleteM.mutateAsync(draft.id)
-    setIsOpen(false)
-    draftStore.clear()
+
+    try {
+      await deleteM.mutateAsync(draft.id)
+      toastDeleted(i, 'client')
+      setIsOpen(false)
+      draftStore.clear()
+    } catch (e: any) {
+      toastFailedToDelete(i, String(e?.message ?? ''))
+    }
   }
 
   return (
@@ -281,7 +287,7 @@ export default function ClientsPage() {
         </div>
 
         <button
-          className="rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-medium text-[var(--primary-foreground)] hover:opacity-90"
+          className="btn btn-primary"
           onClick={openCreate}
           type="button"
         >
@@ -339,7 +345,7 @@ export default function ClientsPage() {
       {isOpen ? (
         <div className="fixed inset-0 z-50">
           <div className="absolute inset-0 bg-black/40" onClick={() => setIsOpen(false)} />
-          <div className="surface absolute bottom-0 left-0 right-0 mx-auto w-full max-w-2xl max-h-[85vh] overflow-y-auto rounded-t-2xl border border-theme p-5 shadow-xl sm:bottom-auto sm:top-20 sm:rounded-2xl">
+          <div className="surface modal-safe absolute bottom-0 left-0 right-0 mx-auto w-full max-w-2xl rounded-t-2xl border border-theme p-5 shadow-xl sm:bottom-auto sm:top-20 sm:rounded-2xl">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-lg font-semibold">{draft.id ? i.clients.editTitle : i.clients.newTitle}</h2>
@@ -347,7 +353,7 @@ export default function ClientsPage() {
               </div>
               <button
                 aria-label="Fechar"
-                className="grid size-9 place-items-center rounded-md text-lg text-[var(--foreground)] hover:bg-[var(--muted)]"
+                className="btn btn-secondary btn-icon"
                 onClick={() => setIsOpen(false)}
                 type="button"
               >
@@ -357,7 +363,7 @@ export default function ClientsPage() {
 
             <div className="mt-4 grid gap-3">
               <label className="grid gap-1">
-                <span className="text-xs font-medium text-[var(--foreground)]">{i.clients.nameLabel}</span>
+                <FieldLabel required>{i.clients.nameLabel}</FieldLabel>
                 <input
                   value={draft.name}
                   onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
@@ -575,7 +581,7 @@ export default function ClientsPage() {
 
             <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
               <button
-                className="rounded-lg border border-theme px-4 py-2 text-sm text-[var(--danger)] hover:bg-[var(--danger-bg)] disabled:opacity-50"
+                className="btn btn-danger-soft"
                 onClick={remove}
                 type="button"
                 disabled={!draft.id || deleteM.isPending}
@@ -585,14 +591,14 @@ export default function ClientsPage() {
 
               <div className="flex gap-2">
                 <button
-                  className="rounded-lg border border-theme px-4 py-2 text-sm text-[var(--foreground)] hover:bg-[var(--muted)]"
+                  className="btn btn-secondary"
                   onClick={() => setIsOpen(false)}
                   type="button"
                 >
                   {i.modal.cancel}
                 </button>
                 <button
-                  className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50"
+                  className="btn btn-primary"
                   onClick={save}
                   type="button"
                   disabled={!draft.name.trim() || createM.isPending || updateM.isPending}

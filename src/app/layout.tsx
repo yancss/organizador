@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
 import { Geist, Sora } from 'next/font/google'
 
+import { Toaster } from 'sonner'
+
 import './globals.css'
 
 const geistSans = Geist({
@@ -26,7 +28,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="pt-BR">
-      <body className={`${geistSans.variable} ${brandFont.variable} antialiased`}>{children}</body>
+      <body className={`${geistSans.variable} ${brandFont.variable} antialiased`}>
+        {children}
+        <Toaster richColors position="top-right" />
+      </body>
     </html>
   )
 }

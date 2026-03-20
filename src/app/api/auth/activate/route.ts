@@ -7,6 +7,7 @@ import { sha256 } from '@/lib/tokens'
 const BodySchema = z.object({
   email: z.string().email(),
   token: z.string().min(10),
+  name: z.string().max(140).optional().nullable(),
   password: z.string().min(6).max(200),
 })
 
@@ -22,7 +23,7 @@ export async function POST(req: Request) {
 
   const invite = await prisma.userInviteToken.findUnique({
     where: { tokenHash },
-    select: { id: true, email: true, expiresAt: true, usedAt: true },
+    select: { id: true, email: true, expiresAt: true, usedAt: true, workspaceId: true, workspaceRole: true },
   })
 
   if (!invite || invite.email !== email) {
@@ -37,21 +38,43 @@ export async function POST(req: Request) {
     return Response.json({ error: 'TOKEN_EXPIRED' }, { status: 400 })
   }
 
-  const passwordHash = await bcrypt.hash(parsed.data.password, 10)
+  // Block activation if user already exists
+  const existingUser = await prisma.user.findUnique({ where: { email }, select: { id: true } })
+  if (existingUser) {
+    return Response.json({ error: 'USER_ALREADY_EXISTS' }, { status: 409 })
+  }
 
-  // Update user + consume token atomically
-  await prisma.$transaction([
-    prisma.user.update({
-      where: { email },
-      data: { passwordHash, active: true },
+  const passwordHash = await bcrypt.hash(parsed.data.password, 10)
+  const name = parsed.data.name?.trim() || null
+
+  // Create user + membership + consume token atomically
+  await prisma.$transaction(async (tx) => {
+    const user = await tx.user.create({
+      data: {
+        email,
+        name,
+        passwordHash,
+        active: true,
+        role: 'USER',
+      },
       select: { id: true },
-    }),
-    prisma.userInviteToken.update({
+    })
+
+    await tx.workspaceMember.create({
+      data: {
+        workspaceId: invite.workspaceId,
+        userId: user.id,
+        role: invite.workspaceRole,
+      },
+      select: { id: true },
+    })
+
+    await tx.userInviteToken.update({
       where: { id: invite.id },
       data: { usedAt: new Date() },
       select: { id: true },
-    }),
-  ])
+    })
+  })
 
   return Response.json({ ok: true }, { status: 200 })
 }

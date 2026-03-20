@@ -3,8 +3,11 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
+import { t } from '../../i18n'
 import { useSettings } from '../../settings-context'
 import DataTable from '../../ui/data-table'
+import { toastCreated, toastUpdated, toastDeleted, toastFailedToSave, toastFailedToDelete } from '../../toast'
+import { api } from '../../api-client'
 
 type Account = {
   id: string
@@ -14,21 +17,13 @@ type Account = {
   openingBalance: string | null
 }
 
-async function api<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, {
-    ...init,
-    headers: {
-      'content-type': 'application/json',
-      ...(init?.headers ?? {}),
-    },
-  })
-  if (!res.ok) throw new Error(await res.text())
-  return (await res.json()) as T
-}
+// (moved to api-client.ts)
+
 
 export default function FinanceAccountsPage() {
   const qc = useQueryClient()
   const { language } = useSettings()
+  const i = t(language)
 
   const accountsQ = useQuery({
     queryKey: ['finance', 'accounts'],
@@ -86,14 +81,18 @@ export default function FinanceAccountsPage() {
     const openingBalanceRaw = create.openingBalance.trim()
     const openingBalance = openingBalanceRaw ? Number(openingBalanceRaw.replace(',', '.')) : null
 
-    await createM.mutateAsync({
-      name,
-      kind: create.kind,
-      openingBalance: openingBalanceRaw ? openingBalance : null,
-    })
-
-    setIsCreateOpen(false)
-    setCreate({ name: '', kind: 'CASH', openingBalance: '' })
+    try {
+      await createM.mutateAsync({
+        name,
+        kind: create.kind,
+        openingBalance: openingBalanceRaw ? openingBalance : null,
+      })
+      toastCreated(i, 'account')
+      setIsCreateOpen(false)
+      setCreate({ name: '', kind: 'CASH', openingBalance: '' })
+    } catch (e: any) {
+      toastFailedToSave(i, String(e?.message ?? ''))
+    }
   }
 
   return (
@@ -119,7 +118,7 @@ export default function FinanceAccountsPage() {
         </div>
 
         <button
-          className="rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-medium text-[var(--primary-foreground)] hover:opacity-90"
+          className="btn btn-primary"
           onClick={() => setIsCreateOpen(true)}
           type="button"
         >
@@ -193,7 +192,10 @@ export default function FinanceAccountsPage() {
                   }
                   onClick={(e) => {
                     e.stopPropagation()
-                    patchM.mutate({ id: r.id, active: !r.active })
+                    patchM
+                      .mutateAsync({ id: r.id, active: !r.active })
+                      .then(() => toastUpdated(i, 'account'))
+                      .catch((e: any) => toastFailedToSave(i, String(e?.message ?? '')))
                   }}
                 >
                   {r.active
@@ -217,19 +219,22 @@ export default function FinanceAccountsPage() {
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    className="rounded-md border border-theme bg-[var(--surface)] px-3 py-1.5 text-xs hover:bg-[var(--muted)]"
+                    className="btn btn-secondary btn-sm"
                     onClick={(e) => {
                       e.stopPropagation()
                       const name = prompt(language === 'pt' ? 'Novo nome da conta:' : 'New account name:', r.name)
                       if (!name) return
-                      patchM.mutate({ id: r.id, name })
+                      patchM
+                        .mutateAsync({ id: r.id, name })
+                        .then(() => toastUpdated(i, 'account'))
+                        .catch((e: any) => toastFailedToSave(i, String(e?.message ?? '')))
                     }}
                   >
                     {language === 'pt' ? 'Renomear' : language === 'es' ? 'Renombrar' : 'Rename'}
                   </button>
                   <button
                     type="button"
-                    className="rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-xs text-red-700 hover:bg-red-100"
+                    className="btn btn-danger-soft btn-sm"
                     onClick={(e) => {
                       e.stopPropagation()
                       if (
@@ -240,7 +245,10 @@ export default function FinanceAccountsPage() {
                         )
                       )
                         return
-                      deleteM.mutate(r.id)
+                      deleteM
+                        .mutateAsync(r.id)
+                        .then(() => toastDeleted(i, 'account'))
+                        .catch((e: any) => toastFailedToDelete(i, String(e?.message ?? '')))
                     }}
                   >
                     {language === 'pt' ? 'Desativar' : language === 'es' ? 'Desactivar' : 'Disable'}
@@ -255,7 +263,7 @@ export default function FinanceAccountsPage() {
       {isCreateOpen ? (
         <div className="fixed inset-0 z-50">
           <div className="absolute inset-0 bg-black/40" onClick={() => setIsCreateOpen(false)} />
-          <div className="surface absolute bottom-0 left-0 right-0 mx-auto w-full max-w-xl rounded-t-2xl border border-theme p-5 shadow-xl sm:bottom-auto sm:top-20 sm:rounded-2xl">
+          <div className="surface modal-safe absolute bottom-0 left-0 right-0 mx-auto w-full max-w-xl rounded-t-2xl border border-theme p-5 shadow-xl sm:bottom-auto sm:top-20 sm:rounded-2xl">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-lg font-semibold">
@@ -264,7 +272,7 @@ export default function FinanceAccountsPage() {
               </div>
               <button
                 aria-label="Fechar"
-                className="grid size-9 place-items-center rounded-md text-lg text-[var(--foreground)] hover:bg-[var(--muted)]"
+                className="btn btn-secondary btn-icon"
                 onClick={() => setIsCreateOpen(false)}
                 type="button"
               >
@@ -312,14 +320,14 @@ export default function FinanceAccountsPage() {
 
             <div className="mt-5 flex justify-end gap-2">
               <button
-                className="rounded-lg border border-theme px-4 py-2 text-sm text-[var(--foreground)] hover:bg-[var(--muted)]"
+                className="btn btn-secondary"
                 onClick={() => setIsCreateOpen(false)}
                 type="button"
               >
                 {language === 'pt' ? 'Cancelar' : language === 'es' ? 'Cancelar' : 'Cancel'}
               </button>
               <button
-                className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50"
+                className="btn btn-primary"
                 onClick={doCreate}
                 type="button"
                 disabled={!create.name.trim() || createM.isPending}

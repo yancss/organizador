@@ -7,7 +7,6 @@ import { newResetToken, sha256 } from '@/lib/tokens'
 
 const BodySchema = z.object({
   email: z.string().email(),
-  name: z.string().max(140).optional().nullable(),
   role: z.enum(['ADMIN', 'USER']).default('USER'),
 })
 
@@ -25,32 +24,15 @@ export async function POST(req: Request) {
   const workspaceId = inviter.workspaceId!
 
   const email = parsed.data.email.trim().toLowerCase()
-  const name = parsed.data.name?.trim() || null
   const workspaceRole = parsed.data.role
 
-  // 1) Upsert user (no password yet)
-  const user = await prisma.user.upsert({
-    where: { email },
-    update: { name: name ?? undefined, active: true },
-    create: {
-      email,
-      name,
-      active: true,
-      role: 'USER',
-      passwordHash: null,
-    },
-    select: { id: true, email: true, name: true, active: true },
-  })
+  // 1) Block if the user already exists
+  const existing = await prisma.user.findUnique({ where: { email }, select: { id: true } })
+  if (existing) {
+    return Response.json({ error: 'USER_ALREADY_EXISTS' }, { status: 409 })
+  }
 
-  // 2) Ensure membership in workspace
-  await prisma.workspaceMember.upsert({
-    where: { workspaceId_userId: { workspaceId, userId: user.id } },
-    update: { role: workspaceRole },
-    create: { workspaceId, userId: user.id, role: workspaceRole },
-    select: { id: true },
-  })
-
-  // 3) Create invite token
+  // 2) Create invite token (user is created only when accepting the invite)
   const token = newResetToken()
   const tokenHash = sha256(token)
   const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24) // 24h
@@ -61,6 +43,7 @@ export async function POST(req: Request) {
       tokenHash,
       expiresAt,
       workspaceId,
+      workspaceRole,
       createdById: inviter.id,
     },
     select: { id: true },
@@ -91,8 +74,8 @@ export async function POST(req: Request) {
       const ws = await prisma.workspace.findUnique({ where: { id: workspaceId }, select: { name: true } })
       await sendEmail({
         to: supportEmail,
-        subject: 'Guardian — usuário vinculado a workspace',
-        text: `Usuário ${email} foi vinculado ao workspace ${ws?.name ?? workspaceId} por ${inviter.id}.`,
+        subject: 'Guardian — convite enviado',
+        text: `Convite enviado para ${email} no workspace ${ws?.name ?? workspaceId} por ${inviter.id} (role: ${workspaceRole}).`,
       })
     } catch (err) {
       console.error('[admin/invites] notify support failed', err)

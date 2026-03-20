@@ -2,11 +2,17 @@ import { z } from 'zod'
 
 import { prisma } from '@/lib/prisma'
 import { requireWorkspace } from '@/lib/authz'
+import { calcOrderTotals } from '@/lib/sales-order-totals'
 // Finance hooks (recebíveis/pagamentos) serão adicionados no próximo passo.
 
 const OrderItemSchema = z.object({
   productId: z.string().min(1),
   quantity: z.coerce.number().positive(),
+  unitPrice: z.coerce.number().nonnegative(),
+  // Used when discountMode=PER_ITEM
+  discountType: z.enum(['VALUE', 'PERCENT']).optional().nullable(),
+  discountValue: z.coerce.number().optional().nullable(),
+  discountPercent: z.coerce.number().optional().nullable(),
 })
 
 const UpdateOrderSchema = z.object({
@@ -16,7 +22,12 @@ const UpdateOrderSchema = z.object({
   orderedAt: z.string().datetime().optional().nullable(),
   deliveryAt: z.string().datetime().optional().nullable(),
   status: z.enum(['DRAFT', 'CONFIRMED', 'IN_PRODUCTION', 'READY', 'SHIPPED', 'DONE', 'CANCELLED']).optional(),
-  value: z.coerce.number().optional().nullable(),
+
+  discountMode: z.enum(['SUBTOTAL', 'PER_ITEM']).optional(),
+  discountType: z.enum(['VALUE', 'PERCENT']).optional().nullable(),
+  discountValue: z.coerce.number().optional().nullable(),
+  discountPercent: z.coerce.number().optional().nullable(),
+
   orderIndex: z.string().max(64).optional().nullable(),
   items: z.array(OrderItemSchema).optional(),
 })
@@ -37,23 +48,38 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
 
   // Fetch previous order state (needed to decide whether to create/update receivable)
   const prev = await prisma.salesOrder.findFirst({
-    where: { id, workspaceId: wsId, ownerId: auth.user.id },
-    select: { id: true, status: true, value: true, deliveryAt: true, updatedAt: true },
+    where: { id, workspaceId: wsId },
+    select: {
+      id: true,
+      status: true,
+      deliveryAt: true,
+      updatedAt: true,
+      discountMode: true,
+      discountType: true,
+      discountValue: true,
+      discountPercent: true,
+      items: { select: { productId: true, quantity: true, unitPrice: true, discountType: true, discountValue: true, discountPercent: true } },
+    },
   })
   if (!prev) return Response.json({ error: 'NOT_FOUND' }, { status: 404 })
 
-  const data: any = {}
+  const data: any = { updatedById: auth.user.id }
   if (parsed.data.name !== undefined) data.name = parsed.data.name
   if (parsed.data.observations !== undefined) data.observations = parsed.data.observations ?? null
   if (parsed.data.clientId !== undefined) data.clientId = parsed.data.clientId ?? null
   if (parsed.data.orderedAt !== undefined) data.orderedAt = parsed.data.orderedAt ? new Date(parsed.data.orderedAt) : null
   if (parsed.data.deliveryAt !== undefined) data.deliveryAt = parsed.data.deliveryAt ? new Date(parsed.data.deliveryAt) : null
   if (parsed.data.status !== undefined) data.status = parsed.data.status
-  if (parsed.data.value !== undefined) data.value = parsed.data.value ?? null
+
+  if (parsed.data.discountMode !== undefined) data.discountMode = parsed.data.discountMode
+  if (parsed.data.discountType !== undefined) data.discountType = parsed.data.discountType ?? null
+  if (parsed.data.discountValue !== undefined) data.discountValue = parsed.data.discountValue ?? null
+  if (parsed.data.discountPercent !== undefined) data.discountPercent = parsed.data.discountPercent ?? null
+
   if (parsed.data.orderIndex !== undefined) data.orderIndex = parsed.data.orderIndex ?? null
 
   const updated = await prisma.salesOrder.updateMany({
-    where: { id, workspaceId: wsId, ownerId: auth.user.id },
+    where: { id, workspaceId: wsId },
     data,
   })
 
@@ -82,6 +108,8 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       }
     }
 
+    const discountMode = (parsed.data.discountMode ?? prev.discountMode) as any
+
     await prisma.salesOrderItem.deleteMany({ where: { salesOrderId: id } })
     if (parsed.data.items.length) {
       await prisma.salesOrderItem.createMany({
@@ -89,26 +117,65 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
           salesOrderId: id,
           productId: it.productId,
           quantity: it.quantity,
+          unitPrice: it.unitPrice,
+          discountType: discountMode === 'PER_ITEM' ? (it.discountType ?? null) : null,
+          discountValue: discountMode === 'PER_ITEM' ? (it.discountValue ?? null) : null,
+          discountPercent: discountMode === 'PER_ITEM' ? (it.discountPercent ?? null) : null,
         })),
       })
     }
   }
 
-  const order = await prisma.salesOrder.findFirst({
-    where: { id, workspaceId: wsId, ownerId: auth.user.id },
+  // Recalculate totals and persist value
+  const next = await prisma.salesOrder.findFirst({
+    where: { id, workspaceId: wsId },
     select: {
       id: true,
+      discountMode: true,
+      discountType: true,
+      discountValue: true,
+      discountPercent: true,
+      items: { select: { quantity: true, unitPrice: true, discountType: true, discountValue: true, discountPercent: true } },
+    },
+  })
+
+  if (next) {
+    const totals = calcOrderTotals({
+      items: next.items,
+      discountMode: next.discountMode as any,
+      discountType: next.discountType as any,
+      discountValue: next.discountValue,
+      discountPercent: next.discountPercent,
+    })
+    await prisma.salesOrder.updateMany({ where: { id, workspaceId: wsId }, data: { value: totals.total } })
+  }
+
+  const order = await prisma.salesOrder.findFirst({
+    where: { id, workspaceId: wsId },
+    select: {
+      id: true,
+      code: true,
       name: true,
       observations: true,
       orderedAt: true,
       deliveryAt: true,
       status: true,
       value: true,
+
+      discountMode: true,
+      discountType: true,
+      discountValue: true,
+      discountPercent: true,
+
       client: { select: { id: true, name: true } },
       items: {
         select: {
           id: true,
           quantity: true,
+          unitPrice: true,
+          discountType: true,
+          discountValue: true,
+          discountPercent: true,
           product: { select: { id: true, name: true, unit: true } },
         },
         orderBy: { createdAt: 'asc' },
@@ -130,7 +197,7 @@ export async function DELETE(_req: Request, ctx: { params: Promise<{ id: string 
   const { id } = await ctx.params
 
   const deleted = await prisma.salesOrder.deleteMany({
-    where: { id, workspaceId: wsId, ownerId: auth.user.id },
+    where: { id, workspaceId: wsId },
   })
 
   if (deleted.count === 0) return Response.json({ error: 'NOT_FOUND' }, { status: 404 })

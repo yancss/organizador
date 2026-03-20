@@ -5,26 +5,30 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import DataTable, { type ColumnDef } from '../../ui/data-table'
 import SearchSelect from '../../ui/search-select'
+import FieldLabel from '../../ui/field-label'
 
 import { useDraftStorage } from '../../use-draft-storage'
 import { useSettings } from '../../settings-context'
+import { t } from '../../i18n'
 import { formatMoneyDisplay, formatMoneyFromInput, formatMoneyFromNumber, localeFromLanguage, parseMoneyToNumber } from '../../money'
+import { api } from '../../api-client'
+import { toast, toastCreated, toastUpdated, toastDeleted, toastFailedToSave, toastFailedToDelete } from '../../toast'
 
 type Supplier = { id: string; name: string }
 
 type Product = { id: string; name: string; unit: string }
 
-type PurchaseOrderItemDraft = { productId: string; quantity: string }
+type PurchaseOrderItemDraft = { productId: string; quantity: string; unitCost: string }
 
 type PurchaseOrder = {
   id: string
   supplier: string | null
-  status: 'DRAFT' | 'CONFIRMED' | 'CANCELLED'
+  status: 'DRAFT' | 'CONFIRMED' | 'RECEIVED' | 'CANCELLED'
   orderedAt: string | null
   observations: string | null
   estimatedCost: string | number | null
   supplierEntity: Supplier | null
-  items: Array<{ id: string; quantity: string | number; product: Product }>
+  items: Array<{ id: string; quantity: string | number; unitCost?: string | number | null; product: Product }>
 }
 
 type Draft = {
@@ -48,17 +52,8 @@ function emptyDraft(): Draft {
   }
 }
 
-async function api<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, {
-    ...init,
-    headers: {
-      'content-type': 'application/json',
-      ...(init?.headers ?? {}),
-    },
-  })
-  if (!res.ok) throw new Error(await res.text())
-  return (await res.json()) as T
-}
+// (moved to api-client.ts)
+
 
 function pad2(n: number) {
   return String(n).padStart(2, '0')
@@ -80,6 +75,7 @@ function fromLocalInputValue(v: string): string | null {
 export default function PurchaseOrdersPage() {
   const qc = useQueryClient()
   const { language, currency } = useSettings()
+  const i = t(language)
   const moneyLocale = localeFromLanguage(language)
 
   const [isOpen, setIsOpen] = useState(false)
@@ -135,15 +131,18 @@ export default function PurchaseOrdersPage() {
     if (language === 'pt') {
       if (s === 'DRAFT') return 'Rascunho'
       if (s === 'CONFIRMED') return 'Confirmado'
+      if (s === 'RECEIVED') return 'Recebido'
       return 'Cancelado'
     }
     if (language === 'es') {
       if (s === 'DRAFT') return 'Borrador'
       if (s === 'CONFIRMED') return 'Confirmado'
+      if (s === 'RECEIVED') return 'Recibido'
       return 'Cancelado'
     }
     if (s === 'DRAFT') return 'Draft'
     if (s === 'CONFIRMED') return 'Confirmed'
+    if (s === 'RECEIVED') return 'Received'
     return 'Cancelled'
   }
 
@@ -160,7 +159,7 @@ export default function PurchaseOrdersPage() {
       status: po.status,
       estimatedCost: po.estimatedCost == null ? '' : formatMoneyFromNumber(Number(po.estimatedCost), moneyLocale),
       observations: po.observations ?? '',
-      items: (po.items ?? []).map((it) => ({ productId: it.product.id, quantity: String(it.quantity) })),
+      items: (po.items ?? []).map((it) => ({ productId: it.product.id, quantity: String(it.quantity), unitCost: it.unitCost == null ? '' : formatMoneyFromNumber(Number(it.unitCost), moneyLocale) })), 
     })
     setIsOpen(true)
   }
@@ -169,7 +168,7 @@ export default function PurchaseOrdersPage() {
     const products = productsQ.data?.products ?? []
     const used = new Set(draft.items.map((it) => it.productId))
     const firstAvailable = products.find((p) => !used.has(p.id))?.id ?? products[0]?.id ?? ''
-    setDraft((d) => ({ ...d, items: [...d.items, { productId: firstAvailable, quantity: '1' }] }))
+    setDraft((d) => ({ ...d, items: [...d.items, { productId: firstAvailable, quantity: '1', unitCost: '' }] }))
   }
 
   function updateItemLine(idx: number, patch: Partial<PurchaseOrderItemDraft>) {
@@ -192,26 +191,43 @@ export default function PurchaseOrdersPage() {
       observations: draft.observations.trim() ? draft.observations : null,
       items: draft.items
         .filter((it) => it.productId && it.quantity.trim())
-        .map((it) => ({ productId: it.productId, quantity: Number(it.quantity.replace(',', '.')) }))
+        .map((it) => ({
+          productId: it.productId,
+          quantity: Number(it.quantity.replace(',', '.')),
+          unitCost: it.unitCost.trim() ? parseMoneyToNumber(it.unitCost, moneyLocale) : null,
+        }))
         .filter((it) => Number.isFinite(it.quantity) && it.quantity > 0),
     }
 
-    if (draft.id) {
-      await updateM.mutateAsync({ id: draft.id, payload })
-    } else {
-      await createM.mutateAsync(payload)
-    }
+    try {
+      if (draft.id) {
+        await updateM.mutateAsync({ id: draft.id, payload })
+        toastUpdated(i, 'purchaseOrder')
+      } else {
+        await createM.mutateAsync(payload)
+        toastCreated(i, 'purchaseOrder')
+      }
 
-    setIsOpen(false)
-    draftStore.clear()
+      setIsOpen(false)
+      draftStore.clear()
+    } catch (e: any) {
+      toastFailedToSave(i, String(e?.message ?? ''))
+      throw e
+    }
   }
 
   async function remove() {
     if (!draft.id) return
     if (!confirm(language === 'pt' ? 'Excluir este pedido de compra?' : language === 'es' ? '¿Eliminar este pedido de compra?' : 'Delete this purchase order?')) return
-    await deleteM.mutateAsync(draft.id)
-    setIsOpen(false)
-    draftStore.clear()
+    try {
+      await deleteM.mutateAsync(draft.id)
+      toastDeleted(i, 'purchaseOrder')
+      setIsOpen(false)
+      draftStore.clear()
+    } catch (e: any) {
+      toastFailedToDelete(i, String(e?.message ?? ''))
+      throw e
+    }
   }
 
   const columns = useMemo<ColumnDef<PurchaseOrder>[]>(
@@ -222,7 +238,7 @@ export default function PurchaseOrdersPage() {
         sortValue: (r) => r.status,
         searchValue: (r) => statusLabel(r.status),
         render: (r) => (
-          <span className="rounded-full border border-theme bg-[var(--surface)] px-2 py-0.5 text-xs text-[var(--foreground)]">
+          <span className="badge badge-solid">
             {statusLabel(r.status)}
           </span>
         ),
@@ -286,7 +302,7 @@ export default function PurchaseOrdersPage() {
         </div>
 
         <button
-          className="rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-medium text-[var(--primary-foreground)] hover:opacity-90"
+          className="btn btn-primary"
           onClick={openCreate}
           type="button"
         >
@@ -306,7 +322,7 @@ export default function PurchaseOrdersPage() {
       {isOpen ? (
         <div className="fixed inset-0 z-50">
           <div className="absolute inset-0 bg-black/40" onClick={() => setIsOpen(false)} />
-          <div className="surface absolute bottom-0 left-0 right-0 mx-auto w-full max-w-2xl rounded-t-2xl border border-theme p-5 shadow-xl sm:bottom-auto sm:top-20 sm:rounded-2xl">
+          <div className="surface modal-safe absolute bottom-0 left-0 right-0 mx-auto w-full max-w-2xl rounded-t-2xl border border-theme p-5 shadow-xl sm:bottom-auto sm:top-20 sm:rounded-2xl">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-lg font-semibold">{draft.id ? (language === 'pt' ? 'Editar pedido de compra' : language === 'es' ? 'Editar pedido de compra' : 'Edit purchase order') : language === 'pt' ? 'Novo pedido de compra' : language === 'es' ? 'Nuevo pedido de compra' : 'New purchase order'}</h2>
@@ -314,7 +330,7 @@ export default function PurchaseOrdersPage() {
               </div>
               <button
                 aria-label={language === 'pt' ? 'Fechar' : language === 'es' ? 'Cerrar' : 'Close'}
-                className="grid size-9 place-items-center rounded-md text-lg text-[var(--foreground)] hover:bg-[var(--muted)]"
+                className="btn btn-secondary btn-icon"
                 onClick={() => setIsOpen(false)}
                 type="button"
               >
@@ -324,7 +340,7 @@ export default function PurchaseOrdersPage() {
 
             <div className="mt-4 grid gap-3">
               <label className="grid gap-1">
-                <span className="text-xs font-medium text-[var(--foreground)]">{language === 'pt' ? 'Fornecedor' : language === 'es' ? 'Proveedor' : 'Supplier'}</span>
+                <FieldLabel required>{language === 'pt' ? 'Fornecedor' : language === 'es' ? 'Proveedor' : 'Supplier'}</FieldLabel>
                 <SearchSelect
                   value={
                     draft.supplierId
@@ -376,6 +392,7 @@ export default function PurchaseOrdersPage() {
                   >
                     <option value="DRAFT">{statusLabel('DRAFT')}</option>
                     <option value="CONFIRMED">{statusLabel('CONFIRMED')}</option>
+                    <option value="RECEIVED">{statusLabel('RECEIVED')}</option>
                     <option value="CANCELLED">{statusLabel('CANCELLED')}</option>
                   </select>
                 </label>
@@ -407,7 +424,7 @@ export default function PurchaseOrdersPage() {
                   <div className="text-sm font-medium">{language === 'pt' ? 'Itens' : language === 'es' ? 'Ítems' : 'Items'}</div>
                   <button
                     type="button"
-                    className="rounded-md border border-theme px-3 py-1.5 text-sm hover:bg-[var(--muted)]"
+                    className="btn btn-secondary btn-sm"
                     onClick={addItemLine}
                     disabled={productsQ.isLoading || (productsQ.data?.products?.length ?? 0) === 0}
                   >
@@ -422,7 +439,7 @@ export default function PurchaseOrdersPage() {
                 ) : (
                   <div className="mt-3 grid gap-2">
                     {draft.items.map((it, idx) => (
-                      <div key={idx} className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_140px_80px] sm:items-center">
+                      <div key={idx} className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_140px_140px_80px] sm:items-center">
                         <select
                           value={it.productId}
                           onChange={(e) => updateItemLine(idx, { productId: e.target.value })}
@@ -442,9 +459,17 @@ export default function PurchaseOrdersPage() {
                           placeholder={language === 'pt' ? 'Qtd' : language === 'es' ? 'Cant.' : 'Qty'}
                         />
 
+                        <input
+                          value={it.unitCost}
+                          onChange={(e) => updateItemLine(idx, { unitCost: formatMoneyFromInput(e.target.value, moneyLocale) })}
+                          className="w-full rounded-lg border border-theme bg-transparent px-3 py-2 text-sm"
+                          inputMode="numeric"
+                          placeholder={language === 'pt' ? 'Custo un.' : language === 'es' ? 'Costo un.' : 'Unit cost'}
+                        />
+
                         <button
                           type="button"
-                          className="rounded-lg border border-theme px-3 py-2 text-sm text-[var(--danger)] hover:bg-[var(--danger-bg)]"
+                          className="btn btn-danger-soft"
                           onClick={() => removeItemLine(idx)}
                         >
                           {language === 'pt' ? 'Remover' : language === 'es' ? 'Quitar' : 'Remove'}
@@ -458,7 +483,7 @@ export default function PurchaseOrdersPage() {
 
             <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
               <button
-                className="rounded-lg border border-theme px-4 py-2 text-sm text-[var(--danger)] hover:bg-[var(--danger-bg)] disabled:opacity-50"
+                className="btn btn-danger-soft"
                 onClick={remove}
                 type="button"
                 disabled={!draft.id || deleteM.isPending}
@@ -468,14 +493,14 @@ export default function PurchaseOrdersPage() {
 
               <div className="flex gap-2">
                 <button
-                  className="rounded-lg border border-theme px-4 py-2 text-sm text-[var(--foreground)] hover:bg-[var(--muted)]"
+                  className="btn btn-secondary"
                   onClick={() => setIsOpen(false)}
                   type="button"
                 >
                   {language === 'pt' ? 'Cancelar' : language === 'es' ? 'Cancelar' : 'Cancel'}
                 </button>
                 <button
-                  className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50"
+                  className="btn btn-primary"
                   onClick={() => void save()}
                   type="button"
                   disabled={!draft.supplierId.trim() || createM.isPending || updateM.isPending}

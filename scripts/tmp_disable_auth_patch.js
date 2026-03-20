@@ -22,7 +22,7 @@ function patchRequireUser(file, src) {
   const m = src.match(re);
   if (!m) return null;
 
-  const insert = `${m[1]}  // TEMP: bypass auth for local testing\n  if (process.env.DISABLE_AUTH === '1') {\n    // pick first user in DB (or create a default)\n    let u = await prisma.user.findFirst({ select: { id: true } })\n    if (!u) {\n      u = await prisma.user.create({\n        data: {\n          email: 'dev@guardian.local',\n          name: 'Dev',\n          active: true,\n          role: 'owner',\n        },\n        select: { id: true },\n      })\n    }\n    return { ok: true, userId: u.id }\n  }\n\n`;
+  const insert = `${m[1]}  // TEMP: bypass auth for local testing\n  if (process.env.DISABLE_AUTH === '1') {\n    // pick first user in DB (or create a default)\n    let u = await prisma.user.findFirst({ select: { id: true } })\n    if (!u) {\n      u = await prisma.user.create({\n        data: {\n          email: 'dev@guardian.local',\n          name: 'Dev',\n          active: true,\n          role: 'ADMIN',\n        },\n        select: { id: true },\n      })\n    }\n    return { ok: true, userId: u.id }\n  }\n\n`;
 
   return src.replace(re, insert);
 }
@@ -77,3 +77,4 @@ function main() {
 }
 
 main();
+

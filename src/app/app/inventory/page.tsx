@@ -3,12 +3,15 @@
 import { useMemo, useState } from 'react'
 
 import DataTable from '../ui/data-table'
+import { api } from '../api-client'
 
 import { useDraftStorage } from '../use-draft-storage'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { t } from '../i18n'
 import { useSettings } from '../settings-context'
+import FieldLabel from '../ui/field-label'
+import { toast, toastUpdated, toastFailedToSave } from '../toast'
 
 type InventoryItem = {
   id: string
@@ -18,17 +21,8 @@ type InventoryItem = {
   product: { id: string; name: string; unit: string }
 }
 
-async function api<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, {
-    ...init,
-    headers: {
-      'content-type': 'application/json',
-      ...(init?.headers ?? {}),
-    },
-  })
-  if (!res.ok) throw new Error(await res.text())
-  return (await res.json()) as T
-}
+// (moved to api-client.ts)
+
 
 type Draft = {
   productId: string
@@ -100,9 +94,14 @@ export default function InventoryPage() {
       minimum: draft.minimum.trim() ? Number(draft.minimum.replace(',', '.')) : null,
     }
 
-    await updateM.mutateAsync({ productId: draft.productId, payload })
-    setIsOpen(false)
-    draftStore.clear()
+    try {
+      await updateM.mutateAsync({ productId: draft.productId, payload })
+      toastUpdated(i, 'inventory')
+      setIsOpen(false)
+      draftStore.clear()
+    } catch (e: any) {
+      toastFailedToSave(i, String(e?.message ?? ''))
+    }
   }
 
   return (
@@ -137,7 +136,7 @@ export default function InventoryPage() {
                 <div className="font-medium text-[var(--foreground)]">
                   {r.product.name}
                   {r.below ? (
-                    <span className="ml-2 rounded-full border border-theme bg-[var(--danger-bg)] px-2 py-0.5 text-xs text-[var(--danger)]">
+                    <span className="ml-2 badge badge-danger">
                       {language === 'pt' ? 'Abaixo do mín.' : language === 'es' ? 'Bajo mínimo' : 'Below min'}
                     </span>
                   ) : null}
@@ -183,7 +182,7 @@ export default function InventoryPage() {
       {isOpen ? (
         <div className="fixed inset-0 z-50">
           <div className="absolute inset-0 bg-black/40" onClick={() => setIsOpen(false)} />
-          <div className="surface absolute bottom-0 left-0 right-0 mx-auto w-full max-w-2xl rounded-t-2xl border border-theme p-5 shadow-xl sm:bottom-auto sm:top-20 sm:rounded-2xl">
+          <div className="surface modal-safe absolute bottom-0 left-0 right-0 mx-auto w-full max-w-2xl rounded-t-2xl border border-theme p-5 shadow-xl sm:bottom-auto sm:top-20 sm:rounded-2xl">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-lg font-semibold">{i.inventory.editTitle}: {draft.productName}</h2>
@@ -191,7 +190,7 @@ export default function InventoryPage() {
               </div>
               <button
                 aria-label="Fechar"
-                className="grid size-9 place-items-center rounded-md text-lg text-[var(--foreground)] hover:bg-[var(--muted)]"
+                className="btn btn-secondary btn-icon"
                 onClick={() => setIsOpen(false)}
                 type="button"
               >
@@ -201,7 +200,7 @@ export default function InventoryPage() {
 
             <div className="mt-4 grid gap-3">
               <label className="grid gap-1">
-                <span className="text-xs font-medium text-[var(--foreground)]">{i.inventory.quantityLabel} ({draft.unit})</span>
+                <FieldLabel>{i.inventory.quantityLabel} ({draft.unit})</FieldLabel>
                 <input
                   value={draft.quantity}
                   onChange={(e) => setDraft((d) => ({ ...d, quantity: e.target.value }))}
@@ -222,14 +221,14 @@ export default function InventoryPage() {
 
             <div className="mt-5 flex justify-end gap-2">
               <button
-                className="rounded-lg border border-theme px-4 py-2 text-sm text-[var(--foreground)] hover:bg-[var(--muted)]"
+                className="btn btn-secondary"
                 onClick={() => setIsOpen(false)}
                 type="button"
               >
                 {i.modal.cancel}
               </button>
               <button
-                className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50"
+                className="btn btn-primary"
                 onClick={save}
                 type="button"
                 disabled={updateM.isPending}

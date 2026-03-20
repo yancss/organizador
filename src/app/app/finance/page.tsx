@@ -3,8 +3,11 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
+import { t } from '../i18n'
 import { useSettings } from '../settings-context'
 import DataTable from '../ui/data-table'
+import { toastCreated, toastUpdated, toastDeleted, toastFailedToSave, toastFailedToDelete } from '../toast'
+import { api } from '../api-client'
 
 type Account = { id: string; name: string; kind: string }
 type Category = { id: string; name: string; type: 'IN' | 'OUT' }
@@ -26,17 +29,7 @@ type Entry = {
   consumptionId?: string | null
 }
 
-async function api<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, {
-    ...init,
-    headers: {
-      'content-type': 'application/json',
-      ...(init?.headers ?? {}),
-    },
-  })
-  if (!res.ok) throw new Error(await res.text())
-  return (await res.json()) as T
-}
+// (moved to api-client.ts)
 
 function localeFromLanguage(language: string) {
   if (language === 'pt') return 'pt-PT'
@@ -72,6 +65,7 @@ type Draft = {
 export default function FinancePage() {
   const qc = useQueryClient()
   const { language, currency } = useSettings()
+  const i = t(language)
 
   const [isOpen, setIsOpen] = useState(false)
 
@@ -266,14 +260,20 @@ export default function FinancePage() {
       observations: draft.observations.trim() ? draft.observations.trim() : null,
     }
 
-    if (draft.id) {
-      await updateEntryM.mutateAsync({ id: draft.id, ...payload })
-    } else {
-      await createEntryM.mutateAsync(payload)
-    }
+    try {
+      if (draft.id) {
+        await updateEntryM.mutateAsync({ id: draft.id, ...payload })
+        toastUpdated(i, 'entry')
+      } else {
+        await createEntryM.mutateAsync(payload)
+        toastCreated(i, 'entry')
+      }
 
-    setIsOpen(false)
-    setDraft((d) => ({ ...d, id: undefined, value: '', observations: '' }))
+      setIsOpen(false)
+      setDraft((d) => ({ ...d, id: undefined, value: '', observations: '' }))
+    } catch (e: any) {
+      toastFailedToSave(i, String(e?.message ?? ''))
+    }
   }
 
   return (
@@ -295,18 +295,18 @@ export default function FinancePage() {
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <a
             href="/app/finance/accounts"
-            className="rounded-lg border border-theme bg-[var(--surface)] px-4 py-2 text-sm font-medium text-[var(--foreground)] hover:bg-[var(--muted)]"
+            className="btn btn-secondary"
           >
             {language === 'pt' ? 'Contas' : language === 'es' ? 'Cuentas' : 'Accounts'}
           </a>
           <a
             href="/app/finance/categories"
-            className="rounded-lg border border-theme bg-[var(--surface)] px-4 py-2 text-sm font-medium text-[var(--foreground)] hover:bg-[var(--muted)]"
+            className="btn btn-secondary"
           >
             {language === 'pt' ? 'Categorias' : language === 'es' ? 'Categorías' : 'Categories'}
           </a>
           <button
-            className="rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-medium text-[var(--primary-foreground)] hover:opacity-90"
+            className="btn btn-primary"
             onClick={openCreate}
             type="button"
           >
@@ -330,10 +330,7 @@ export default function FinancePage() {
                 type="button"
                 onClick={() => setView('all')}
                 className={
-                  'rounded-full border px-3 py-1.5 text-xs ' +
-                  (view === 'all'
-                    ? 'border-neutral-900 bg-neutral-900 text-white'
-                    : 'border-theme bg-[var(--surface)] text-[var(--foreground)] hover:bg-[var(--muted)]')
+                  'chip ' + (view === 'all' ? 'chip-on' : '')
                 }
               >
                 {language === 'pt' ? 'Tudo' : language === 'es' ? 'Todo' : 'All'}
@@ -342,10 +339,7 @@ export default function FinancePage() {
                 type="button"
                 onClick={() => setView('receivable')}
                 className={
-                  'rounded-full border px-3 py-1.5 text-xs ' +
-                  (view === 'receivable'
-                    ? 'border-neutral-900 bg-neutral-900 text-white'
-                    : 'border-theme bg-[var(--surface)] text-[var(--foreground)] hover:bg-[var(--muted)]')
+                  'chip ' + (view === 'receivable' ? 'chip-on' : '')
                 }
               >
                 {language === 'pt' ? 'A receber' : language === 'es' ? 'Por cobrar' : 'Receivable'}
@@ -354,10 +348,7 @@ export default function FinancePage() {
                 type="button"
                 onClick={() => setView('payable')}
                 className={
-                  'rounded-full border px-3 py-1.5 text-xs ' +
-                  (view === 'payable'
-                    ? 'border-neutral-900 bg-neutral-900 text-white'
-                    : 'border-theme bg-[var(--surface)] text-[var(--foreground)] hover:bg-[var(--muted)]')
+                  'chip ' + (view === 'payable' ? 'chip-on' : '')
                 }
               >
                 {language === 'pt' ? 'A pagar' : language === 'es' ? 'Por pagar' : 'Payable'}
@@ -492,8 +483,13 @@ export default function FinancePage() {
                   {r.status === 'PLANNED' ? (
                     <button
                       type="button"
-                      className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs text-emerald-800 hover:bg-emerald-100"
-                      onClick={() => markPaidM.mutate({ id: r.id })}
+                      className="btn btn-success-soft btn-sm"
+                      onClick={() => {
+                        markPaidM
+                          .mutateAsync({ id: r.id })
+                          .then(() => toastUpdated(i, 'entry'))
+                          .catch((e: any) => toastFailedToSave(i, String(e?.message ?? '')))
+                      }}
                     >
                       {r.type === 'IN'
                         ? language === 'pt'
@@ -513,7 +509,7 @@ export default function FinancePage() {
                   {!r.orderId && !r.purchaseId && !r.consumptionId ? (
                     <button
                       type="button"
-                      className="rounded-md border border-theme bg-[var(--surface)] px-3 py-1.5 text-xs hover:bg-[var(--muted)]"
+                      className="btn btn-secondary btn-sm"
                       onClick={() => openEdit(r)}
                     >
                       {language === 'pt' ? 'Editar' : language === 'es' ? 'Editar' : 'Edit'}
@@ -522,7 +518,7 @@ export default function FinancePage() {
 
                   <button
                     type="button"
-                    className="rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-xs text-red-700 hover:bg-red-100"
+                    className="btn btn-danger-soft btn-sm"
                     onClick={() => {
                       if (
                         !confirm(
@@ -534,7 +530,10 @@ export default function FinancePage() {
                         )
                       )
                         return
-                      deleteEntryM.mutate(r.id)
+                      deleteEntryM
+                        .mutateAsync(r.id)
+                        .then(() => toastDeleted(i, 'entry'))
+                        .catch((e: any) => toastFailedToDelete(i, String(e?.message ?? '')))
                     }}
                   >
                     {language === 'pt' ? 'Excluir' : language === 'es' ? 'Eliminar' : 'Delete'}
@@ -615,7 +614,7 @@ export default function FinancePage() {
       {isOpen ? (
         <div className="fixed inset-0 z-50">
           <div className="absolute inset-0 bg-black/40" onClick={() => setIsOpen(false)} />
-          <div className="surface absolute bottom-0 left-0 right-0 mx-auto w-full max-w-2xl rounded-t-2xl border border-theme p-5 shadow-xl sm:bottom-auto sm:top-20 sm:rounded-2xl">
+          <div className="surface modal-safe absolute bottom-0 left-0 right-0 mx-auto w-full max-w-2xl rounded-t-2xl border border-theme p-5 shadow-xl sm:bottom-auto sm:top-20 sm:rounded-2xl">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-lg font-semibold">
@@ -631,7 +630,7 @@ export default function FinancePage() {
               </div>
               <button
                 aria-label="Fechar"
-                className="grid size-9 place-items-center rounded-md text-lg text-[var(--foreground)] hover:bg-[var(--muted)]"
+                className="btn btn-secondary btn-icon"
                 onClick={() => setIsOpen(false)}
                 type="button"
               >
@@ -761,14 +760,14 @@ export default function FinancePage() {
 
             <div className="mt-5 flex justify-end gap-2">
               <button
-                className="rounded-lg border border-theme px-4 py-2 text-sm text-[var(--foreground)] hover:bg-[var(--muted)]"
+                className="btn btn-secondary"
                 onClick={() => setIsOpen(false)}
                 type="button"
               >
                 {language === 'pt' ? 'Cancelar' : language === 'es' ? 'Cancelar' : 'Cancel'}
               </button>
               <button
-                className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50"
+                className="btn btn-primary"
                 onClick={save}
                 type="button"
                 disabled={!draft.accountId || !draft.value.trim() || createEntryM.isPending}

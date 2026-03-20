@@ -1,0 +1,19 @@
+services:
+  db:
+    image: postgres:16
+    container_name: guardian-postgres-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: guardian_dev
+      POSTGRES_USER: guardian
+      POSTGRES_PASSWORD: guardian
+      # Local dev safety: allow local connections without password hassles (still isolated on your machine).
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      # Use a high port on the host to avoid conflicts with any local Postgres service.
+      - "55432:5432"
+    volumes:
+      - guardian_pgdata_dev:/var/lib/postgresql/data
+
+volumes:
+  guardian_pgdata_dev:

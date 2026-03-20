@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { useSettings } from '@/app/app/settings-context'
 import { t } from '@/app/app/i18n'
+import { toast } from '@/app/app/toast'
 
 type AdminUser = {
   id: string
@@ -228,7 +229,7 @@ export default function SecurityPanel() {
                           const raw = (draftHoursById[u.id] ?? '').trim()
                           const sessionMaxAgeSec = raw === '' ? null : hoursToSec(raw)
                           if (raw !== '' && sessionMaxAgeSec == null) {
-                            alert(i.admin.common.invalidValue)
+                            toast.error(i.admin.common.invalidValue)
                             return
                           }
                           sessionMutation.mutate({ id: u.id, sessionMaxAgeSec, forceLogout: true })
@@ -275,7 +276,10 @@ export default function SecurityPanel() {
                     disabled={createRoleMutation.isPending}
                     onClick={() => {
                       const name = newRoleName.trim()
-                      if (name.length < 2) return alert(i.admin.common.nameTooShort)
+                      if (name.length < 2) {
+                        toast.error(i.admin.common.nameTooShort)
+                        return
+                      }
                       createRoleMutation.mutate({ name, description: newRoleDesc.trim() || null })
                       setNewRoleName('')
                       setNewRoleDesc('')

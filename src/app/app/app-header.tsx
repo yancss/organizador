@@ -2,8 +2,10 @@
 
 import Link from 'next/link'
 import { Bebas_Neue, Montserrat_Alternates, Rajdhani } from 'next/font/google'
-import { Menu, X } from 'lucide-react'
+import { Menu, Moon, Sun, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
+
+import { useSettings } from './settings-context'
 
 // Quick font switch for the brand name (test options)
 const BRAND_FONT: 'bebas' | 'montserrat' | 'rajdhani' = 'montserrat'
@@ -26,6 +28,7 @@ import AvatarMenu from './ui/avatar-menu'
 
 export default function AppHeader() {
   const [open, setOpen] = useState(false)
+  const { theme, setTheme, language } = useSettings()
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -67,6 +70,26 @@ export default function AppHeader() {
         </div>
 
         <nav className="ml-auto flex items-center gap-2">
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              className={"btn btn-secondary btn-icon " + (theme === 'light' ? 'ring-2 ring-[var(--primary)] ring-offset-2 ring-offset-[var(--surface)]' : '')}
+              aria-label={language === 'pt' ? 'Tema claro' : language === 'es' ? 'Tema claro' : 'Light theme'}
+              title={language === 'pt' ? 'Tema claro' : language === 'es' ? 'Tema claro' : 'Light theme'}
+              onClick={() => setTheme('light')}
+            >
+              <Sun className="size-4" />
+            </button>
+            <button
+              type="button"
+              className={"btn btn-secondary btn-icon " + (theme === 'dark' ? 'ring-2 ring-[var(--primary)] ring-offset-2 ring-offset-[var(--surface)]' : '')}
+              aria-label={language === 'pt' ? 'Tema escuro' : language === 'es' ? 'Tema oscuro' : 'Dark theme'}
+              title={language === 'pt' ? 'Tema escuro' : language === 'es' ? 'Tema oscuro' : 'Dark theme'}
+              onClick={() => setTheme('dark')}
+            >
+              <Moon className="size-4" />
+            </button>
+          </div>
           <AvatarMenu />
         </nav>
       </div>

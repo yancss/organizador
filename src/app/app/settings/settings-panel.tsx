@@ -1,10 +1,10 @@
 'use client'
 
 import { t } from '../i18n'
-import { useSettings, type AppCurrency, type AppLanguage, type AppTheme } from '../settings-context'
+import { useSettings, type AppCurrency, type AppLanguage } from '../settings-context'
 
 export default function SettingsPanel() {
-  const { language, theme, currency, setLanguage, setTheme, setCurrency } = useSettings()
+  const { language, currency, setLanguage, setCurrency } = useSettings()
   const i = t(language)
 
   return (
@@ -34,43 +34,8 @@ export default function SettingsPanel() {
                   <button
                     key={opt.value}
                     type="button"
-                    className={`rounded-md border px-2.5 py-1.5 text-xs ${
-                      language === opt.value
-                        ? 'border-[var(--primary)] bg-[var(--primary)] text-[var(--primary-foreground)]'
-                        : 'border-theme bg-transparent text-[var(--foreground)] hover:bg-[var(--muted)]'
-                    }`}
+                    className={"chip " + (language === opt.value ? 'chip-on' : '')}
                     onClick={() => setLanguage(opt.value as AppLanguage)}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="p-4">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <div className="text-sm font-medium text-[var(--foreground)]">{i.settings.theme}</div>
-                <p className="mt-1 text-xs text-[var(--muted-foreground)]">Light / Dark</p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                {(
-                  [
-                    { value: 'light', label: i.settings.light },
-                    { value: 'dark', label: i.settings.dark },
-                  ] as const
-                ).map((opt) => (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    className={`rounded-md border px-2.5 py-1.5 text-xs ${
-                      theme === opt.value
-                        ? 'border-[var(--primary)] bg-[var(--primary)] text-[var(--primary-foreground)]'
-                        : 'border-theme bg-transparent text-[var(--foreground)] hover:bg-[var(--muted)]'
-                    }`}
-                    onClick={() => setTheme(opt.value as AppTheme)}
                   >
                     {opt.label}
                   </button>
@@ -97,11 +62,7 @@ export default function SettingsPanel() {
                   <button
                     key={opt.value}
                     type="button"
-                    className={`rounded-md border px-2.5 py-1.5 text-xs ${
-                      currency === opt.value
-                        ? 'border-[var(--primary)] bg-[var(--primary)] text-[var(--primary-foreground)]'
-                        : 'border-theme bg-transparent text-[var(--foreground)] hover:bg-[var(--muted)]'
-                    }`}
+                    className={"chip " + (currency === opt.value ? 'chip-on' : '')}
                     onClick={() => setCurrency(opt.value as AppCurrency)}
                   >
                     {opt.label}

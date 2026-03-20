@@ -9,6 +9,10 @@ import { t } from '../i18n'
 import { useSettings } from '../settings-context'
 import DataTable from '../ui/data-table'
 import SearchSelect from '../ui/search-select'
+import FieldLabel from '../ui/field-label'
+import { toast, toastCreated, toastUpdated, toastDeleted, toastFailedToSave, toastFailedToDelete } from '../toast'
+import { api } from '../api-client'
+import { convertQty, formatConvertedPreview, isConvertible, normalizeUnit } from '@/lib/unit-conversion'
 
 type Product = { id: string; name: string; unit: string; kind: 'RAW' | 'FINISHED' }
 
@@ -27,17 +31,8 @@ type Recipe = {
   _count?: { items: number }
 }
 
-async function api<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, {
-    ...init,
-    headers: {
-      'content-type': 'application/json',
-      ...(init?.headers ?? {}),
-    },
-  })
-  if (!res.ok) throw new Error(await res.text())
-  return (await res.json()) as T
-}
+// (moved to api-client.ts)
+
 
 type Draft = {
   id?: string
@@ -63,6 +58,9 @@ export default function RecipesPage() {
   const [selectedRecipeId, setSelectedRecipeId] = useState<string | null>(null)
   const [addRawProductId, setAddRawProductId] = useState('')
   const [addQty, setAddQty] = useState('')
+  const [addQtyUnit, setAddQtyUnit] = useState('')
+
+  const [editUnits, setEditUnits] = useState<Record<string, string>>({})
 
   // We keep these queries for display purposes in lists, but selection in the modal is search-based.
   const finalProductsQ = useQuery({
@@ -164,8 +162,13 @@ export default function RecipesPage() {
 
     // If RAW products are not loaded yet, we'll fill this via effect below.
     const raws = rawProductsQ.data?.products ?? []
-    setAddRawProductId(raws[0]?.id ?? '')
+    const first = raws[0]?.id ?? ''
+    setAddRawProductId(first)
+    const unit = first ? (raws.find((p) => p.id === first)?.unit ?? '') : ''
+    setAddQtyUnit(unit)
     setAddQty('')
+
+    setEditUnits({})
   }
 
   async function saveRecipe() {
@@ -175,26 +178,38 @@ export default function RecipesPage() {
       observations: draft.observations.trim() ? draft.observations.trim() : null,
     }
 
-    if (draft.id) {
-      await updateRecipeM.mutateAsync({ id: draft.id, payload })
-    } else {
-      const res = await createRecipeM.mutateAsync(payload)
-      // open newly created
-      setDraft((d) => ({ ...d, id: res.recipe.id }))
-      setSelectedRecipeId(res.recipe.id)
+    try {
+      if (draft.id) {
+        await updateRecipeM.mutateAsync({ id: draft.id, payload })
+        toastUpdated(i, 'recipe')
+      } else {
+        const res = await createRecipeM.mutateAsync(payload)
+        toastCreated(i, 'recipe')
+        // open newly created
+        setDraft((d) => ({ ...d, id: res.recipe.id }))
+        setSelectedRecipeId(res.recipe.id)
 
-      const firstRaw = rawProductsQ.data?.products?.[0]?.id
-      if (firstRaw) setAddRawProductId(firstRaw)
+        const firstRaw = rawProductsQ.data?.products?.[0]?.id
+        if (firstRaw) setAddRawProductId(firstRaw)
+      }
+    } catch (e: any) {
+      toastFailedToSave(i, String(e?.message ?? ''))
     }
   }
 
   async function removeRecipe() {
     if (!draft.id) return
     if (!confirm(i.recipes.deleteConfirm)) return
-    await deleteRecipeM.mutateAsync(draft.id)
-    setIsOpen(false)
-    draftStore.clear()
-    setSelectedRecipeId(null)
+
+    try {
+      await deleteRecipeM.mutateAsync(draft.id)
+      toastDeleted(i, 'recipe')
+      setIsOpen(false)
+      draftStore.clear()
+      setSelectedRecipeId(null)
+    } catch (e: any) {
+      toastFailedToDelete(i, String(e?.message ?? ''))
+    }
   }
 
   // Ensure the RAW product selector is always initialized when editing/creating a recipe.
@@ -204,7 +219,11 @@ export default function RecipesPage() {
     if (addRawProductId) return
 
     const firstRaw = rawProductsQ.data?.products?.[0]?.id ?? ''
-    if (firstRaw) setAddRawProductId(firstRaw)
+    if (firstRaw) {
+      setAddRawProductId(firstRaw)
+      const unit = rawProductsQ.data?.products?.find((p) => p.id === firstRaw)?.unit ?? ''
+      setAddQtyUnit(unit)
+    }
   }, [addRawProductId, draft.id, isOpen, rawProductsQ.data?.products])
 
   async function addItem() {
@@ -212,7 +231,16 @@ export default function RecipesPage() {
     const q = Number(addQty.replace(',', '.'))
     if (!addRawProductId || !Number.isFinite(q) || q <= 0) return
 
-    await addItemM.mutateAsync({ recipeId: draft.id, productId: addRawProductId, quantity: q })
+    const raw = (rawProductsQ.data?.products ?? []).find((p) => p.id === addRawProductId)
+    const productUnit = raw?.unit ?? ''
+    const fromUnit = addQtyUnit || productUnit
+
+    if (!productUnit || !fromUnit) return
+    if (!isConvertible(fromUnit, productUnit)) return
+
+    const qConverted = convertQty(q, fromUnit, productUnit)
+
+    await addItemM.mutateAsync({ recipeId: draft.id, productId: addRawProductId, quantity: qConverted })
     setAddQty('')
   }
 
@@ -227,7 +255,7 @@ export default function RecipesPage() {
         </div>
 
         <button
-          className="rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-medium text-[var(--primary-foreground)] hover:opacity-90"
+          className="btn btn-primary"
           onClick={openCreate}
           type="button"
         >
@@ -290,7 +318,7 @@ export default function RecipesPage() {
       {isOpen ? (
         <div className="fixed inset-0 z-50">
           <div className="absolute inset-0 bg-black/40" onClick={() => setIsOpen(false)} />
-          <div className="surface absolute bottom-0 left-0 right-0 mx-auto w-full max-w-3xl rounded-t-2xl border border-theme p-5 shadow-xl sm:bottom-auto sm:top-16 sm:rounded-2xl">
+          <div className="surface modal-safe absolute bottom-0 left-0 right-0 mx-auto flex max-h-[calc(100dvh-1.5rem)] w-full max-w-3xl flex-col overflow-hidden rounded-t-2xl border border-theme p-5 shadow-xl sm:bottom-auto sm:top-16 sm:max-h-[calc(100dvh-8rem)] sm:rounded-2xl">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-lg font-semibold">{draft.id ? i.recipes.editTitle : i.recipes.newTitle}</h2>
@@ -298,7 +326,7 @@ export default function RecipesPage() {
               </div>
               <button
                 aria-label="Fechar"
-                className="grid size-9 place-items-center rounded-md text-lg text-[var(--foreground)] hover:bg-[var(--muted)]"
+                className="btn btn-secondary btn-icon"
                 onClick={() => setIsOpen(false)}
                 type="button"
               >
@@ -306,9 +334,10 @@ export default function RecipesPage() {
               </button>
             </div>
 
-            <div className="mt-4 grid gap-3">
+            <div className="mt-4 flex-1 overflow-y-auto">
+              <div className="grid gap-3">
               <label className="grid gap-1">
-                <span className="text-xs font-medium text-[var(--foreground)]">{i.recipes.finalProduct}</span>
+                <FieldLabel required>{i.recipes.finalProduct}</FieldLabel>
 
                 <SearchSelect
                   value={
@@ -361,7 +390,7 @@ export default function RecipesPage() {
                 <div className="rounded-lg border border-theme p-3">
                   <div className="text-sm font-medium">{i.recipes.itemsTitle}</div>
 
-                  <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_140px_120px] sm:items-center">
+                  <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_120px_140px_120px] sm:items-center">
                     <SearchSelect
                       value={
                         addRawProductId
@@ -371,7 +400,12 @@ export default function RecipesPage() {
                             })()
                           : null
                       }
-                      onChange={(next) => setAddRawProductId(next?.id ?? '')}
+                      onChange={(next) => {
+                        const id = next?.id ?? ''
+                        setAddRawProductId(id)
+                        const unit = id ? (rawProductsQ.data?.products ?? []).find((p) => p.id === id)?.unit ?? '' : ''
+                        setAddQtyUnit(unit)
+                      }}
                       minChars={2}
                       labels={{
                         placeholder: language === 'pt' ? 'Selecione…' : language === 'es' ? 'Seleccione…' : 'Select…',
@@ -388,15 +422,48 @@ export default function RecipesPage() {
                       }}
                     />
 
-                    <input
-                      value={addQty}
-                      onChange={(e) => setAddQty(e.target.value)}
-                      placeholder={i.recipes.qtyPlaceholder}
+                    <select
+                      value={addQtyUnit}
+                      onChange={(e) => setAddQtyUnit(e.target.value)}
                       className="w-full rounded-lg border border-theme bg-transparent px-3 py-2 text-sm"
-                    />
+                    >
+                      {(() => {
+                        const raw = (rawProductsQ.data?.products ?? []).find((p) => p.id === addRawProductId)
+                        const base = raw?.unit ?? ''
+                        const n = normalizeUnit(base)
+                        const options: string[] = []
+                        if (!n) return options
+                        if (n === 'kg' || n === 'gr' || n === 'g') options.push('kg', 'gr')
+                        if (n === 'l' || n === 'ml') options.push('l', 'ml')
+                        if (n === 'un' || n === 'dz') options.push('un', 'dz')
+                        return options
+                      })().map((u) => (
+                        <option key={u} value={u}>
+                          {u}
+                        </option>
+                      ))}
+                    </select>
+
+                    <div className="grid gap-1">
+                      <input
+                        value={addQty}
+                        onChange={(e) => setAddQty(e.target.value)}
+                        placeholder={i.recipes.qtyPlaceholder}
+                        className="w-full rounded-lg border border-theme bg-transparent px-3 py-2 text-sm"
+                      />
+                      {(() => {
+                        const raw = (rawProductsQ.data?.products ?? []).find((p) => p.id === addRawProductId)
+                        const base = raw?.unit ?? ''
+                        if (!addQty.trim() || !base || !addQtyUnit) return null
+                        if (normalizeUnit(addQtyUnit) === normalizeUnit(base)) return null
+                        const res = formatConvertedPreview({ qtyRaw: addQty, fromUnit: addQtyUnit, toUnit: base, digits: 4 })
+                        if (!res.ok) return null
+                        return <div className="text-[10px] text-[var(--muted-foreground)]">{res.text}</div>
+                      })()}
+                    </div>
                     <button
                       type="button"
-                      className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50"
+                      className="btn btn-primary"
                       onClick={addItem}
                       disabled={addItemM.isPending}
                     >
@@ -408,32 +475,65 @@ export default function RecipesPage() {
                     <p className="mt-3 text-sm text-neutral-600">Carregando itens…</p>
                   ) : selected?.items?.length ? (
                     <div className="mt-3 grid gap-2">
-                      {selected.items.map((it) => (
-                        <div key={it.id} className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_160px_120px] sm:items-center">
-                          <div className="text-sm">
-                            {it.product.name} <span className="text-neutral-500">({it.product.unit})</span>
+                      {selected.items.map((it) => {
+                        const unitKey = it.id
+                        const baseUnit = it.product.unit
+                        const currentUnit = editUnits[unitKey] ?? baseUnit
+
+                        return (
+                          <div key={it.id} className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_120px_160px_120px] sm:items-center">
+                            <div className="text-sm">
+                              {it.product.name} <span className="text-neutral-500">({it.product.unit})</span>
+                            </div>
+
+                            <select
+                              value={currentUnit}
+                              onChange={(e) => setEditUnits((m) => ({ ...m, [unitKey]: e.target.value }))}
+                              className="w-full rounded-lg border border-theme bg-transparent px-3 py-2 text-sm"
+                            >
+                              {(() => {
+                                const n = normalizeUnit(baseUnit)
+                                const options: string[] = []
+                                if (!n) return options
+                                if (n === 'kg' || n === 'gr' || n === 'g') options.push('kg', 'gr')
+                                if (n === 'l' || n === 'ml') options.push('l', 'ml')
+                                if (n === 'un' || n === 'dz') options.push('un', 'dz')
+                                return options
+                              })().map((u) => (
+                                <option key={u} value={u}>
+                                  {u}
+                                </option>
+                              ))}
+                            </select>
+
+                            <div className="grid gap-1">
+                              <input
+                                defaultValue={String(it.quantity)}
+                                className="w-full rounded-lg border border-theme bg-transparent px-3 py-2 text-sm"
+                                onBlur={(e) => {
+                                  const q = Number(e.target.value.replace(',', '.'))
+                                  if (!Number.isFinite(q) || q <= 0) return
+                                  if (!isConvertible(currentUnit, baseUnit)) return
+                                  const q2 = convertQty(q, currentUnit, baseUnit)
+                                  updateItemM.mutate({ recipeId: draft.id!, itemId: it.id, quantity: q2 })
+                                }}
+                              />
+
+                            </div>
+
+                            <button
+                              type="button"
+                              className="btn btn-danger-soft"
+                              onClick={() => {
+                                if (!confirm(i.recipes.deleteItemConfirm)) return
+                                deleteItemM.mutate({ recipeId: draft.id!, itemId: it.id })
+                              }}
+                            >
+                              {i.recipes.removeItem}
+                            </button>
                           </div>
-                          <input
-                            defaultValue={String(it.quantity)}
-                            className="w-full rounded-lg border border-theme bg-transparent px-3 py-2 text-sm"
-                            onBlur={(e) => {
-                              const q = Number(e.target.value.replace(',', '.'))
-                              if (!Number.isFinite(q) || q <= 0) return
-                              updateItemM.mutate({ recipeId: draft.id!, itemId: it.id, quantity: q })
-                            }}
-                          />
-                          <button
-                            type="button"
-                            className="rounded-lg border border-theme px-3 py-2 text-sm text-[var(--danger)] hover:bg-[var(--danger-bg)]"
-                            onClick={() => {
-                              if (!confirm(i.recipes.deleteItemConfirm)) return
-                              deleteItemM.mutate({ recipeId: draft.id!, itemId: it.id })
-                            }}
-                          >
-                            {i.recipes.removeItem}
-                          </button>
-                        </div>
-                      ))}
+                        )
+                      })}
                     </div>
                   ) : (
                     <p className="mt-3 text-sm text-neutral-600">{i.recipes.noItems}</p>
@@ -444,11 +544,12 @@ export default function RecipesPage() {
                   {i.recipes.saveToAddItems}
                 </div>
               )}
+              </div>
             </div>
 
             <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
               <button
-                className="rounded-lg border border-theme px-4 py-2 text-sm text-[var(--danger)] hover:bg-[var(--danger-bg)] disabled:opacity-50"
+                className="btn btn-danger-soft"
                 onClick={removeRecipe}
                 type="button"
                 disabled={!draft.id || deleteRecipeM.isPending}
@@ -458,14 +559,14 @@ export default function RecipesPage() {
 
               <div className="flex gap-2">
                 <button
-                  className="rounded-lg border border-theme px-4 py-2 text-sm text-[var(--foreground)] hover:bg-[var(--muted)]"
+                  className="btn btn-secondary"
                   onClick={() => setIsOpen(false)}
                   type="button"
                 >
                   {i.modal.cancel}
                 </button>
                 <button
-                  className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50"
+                  className="btn btn-primary"
                   onClick={saveRecipe}
                   type="button"
                   disabled={!draft.productId || createRecipeM.isPending || updateRecipeM.isPending}

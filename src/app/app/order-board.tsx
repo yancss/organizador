@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, Maximize2, Minimize2, Settings, X } from 'lu
 
 import DataTable from './ui/data-table'
 import SearchSelect from './ui/search-select'
+import FieldLabel from './ui/field-label'
 
 import { useDraftStorage } from './use-draft-storage'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -18,19 +19,87 @@ import enGbLocale from '@fullcalendar/core/locales/en-gb'
 
 import { t } from './i18n'
 import { localeFromLanguage, formatMoneyDisplay, formatMoneyFromInput, formatMoneyFromNumber, parseMoneyToNumber } from './money'
+
+function clampPercent(p: number) {
+  if (!Number.isFinite(p)) return 0
+  return Math.max(0, Math.min(100, p))
+}
+
+function calcDraftTotals(draft: {
+  discountMode: 'SUBTOTAL' | 'PER_ITEM'
+  discountType: 'VALUE' | 'PERCENT'
+  discountValue: string
+  discountPercent: string
+  items: Array<{
+    quantity: string
+    unitPrice: string
+    discountType?: 'VALUE' | 'PERCENT' | null
+    discountValue?: string
+    discountPercent?: string
+  }>
+}, moneyLocale: string) {
+  const lines = (draft.items ?? []).map((it) => {
+    const qty = Number(String(it.quantity ?? '').replace(',', '.'))
+    const unit = it.unitPrice?.trim() ? (parseMoneyToNumber(it.unitPrice, moneyLocale) ?? 0) : 0
+    const subtotal = (Number.isFinite(qty) ? Math.max(0, qty) : 0) * Math.max(0, unit)
+
+    let discount = 0
+    if (draft.discountMode === 'PER_ITEM') {
+      const dt = (it.discountType ?? 'VALUE') as any
+      if (dt === 'PERCENT') {
+        const p = clampPercent(Number(String(it.discountPercent ?? '').replace(',', '.')))
+        discount = (subtotal * p) / 100
+      } else {
+        discount = it.discountValue?.trim() ? Math.max(0, parseMoneyToNumber(it.discountValue, moneyLocale) ?? 0) : 0
+      }
+      discount = Math.min(subtotal, discount)
+    }
+
+    const total = Math.max(0, subtotal - discount)
+    return { subtotal, discount, total }
+  })
+
+  const subtotal = lines.reduce((a, b) => a + b.subtotal, 0)
+
+  let discount = 0
+  if (draft.discountMode === 'SUBTOTAL') {
+    if (draft.discountType === 'PERCENT') {
+      const p = clampPercent(Number(String(draft.discountPercent ?? '').replace(',', '.')))
+      discount = (subtotal * p) / 100
+    } else {
+      discount = draft.discountValue?.trim() ? Math.max(0, parseMoneyToNumber(draft.discountValue, moneyLocale) ?? 0) : 0
+    }
+    discount = Math.min(subtotal, discount)
+  } else {
+    discount = lines.reduce((a, b) => a + b.discount, 0)
+  }
+
+  const total = Math.max(0, subtotal - discount)
+  return { subtotal, discount, total }
+}
+
 import { useSettings, type AppLanguage } from './settings-context'
+import { api } from './api-client'
+import { toast, toastCreated, toastUpdated, toastDeleted, toastFailedToSave, toastFailedToDelete } from './toast'
 
 type Client = { id: string; name: string }
 
 type Product = { id: string; name: string; unit: string }
 
+type DiscountType = 'VALUE' | 'PERCENT'
+
 type OrderItem = {
   productId: string
   quantity: string // input
+  unitPrice: string // money input
+  discountType?: DiscountType | null
+  discountValue?: string // money input
+  discountPercent?: string // percent input
 }
 
 type Order = {
   id: string
+  code?: string | null
   name: string
   observations: string | null
   orderedAt: string | null
@@ -38,21 +107,26 @@ type Order = {
   status: 'DRAFT' | 'CONFIRMED' | 'IN_PRODUCTION' | 'READY' | 'SHIPPED' | 'DONE' | 'CANCELLED'
   orderIndex?: string | null
   value: string | number | null
+
+  discountMode?: 'SUBTOTAL' | 'PER_ITEM'
+  discountType?: DiscountType | null
+  discountValue?: string | number | null
+  discountPercent?: string | number | null
+
   client: Client | null
-  items: Array<{ id: string; quantity: string | number; product: Product }>
+  items: Array<{
+    id: string
+    quantity: string | number
+    unitPrice?: string | number
+    discountType?: DiscountType | null
+    discountValue?: string | number | null
+    discountPercent?: string | number | null
+    product: Product
+  }>
 }
 
-async function api<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, {
-    ...init,
-    headers: {
-      'content-type': 'application/json',
-      ...(init?.headers ?? {}),
-    },
-  })
-  if (!res.ok) throw new Error(await res.text())
-  return (await res.json()) as T
-}
+// (moved to api-client.ts)
+
 
 function pad2(n: number) {
   return String(n).padStart(2, '0')
@@ -95,7 +169,12 @@ type Draft = {
   orderedAt: string
   deliveryAt: string
   status: 'DRAFT' | 'CONFIRMED' | 'IN_PRODUCTION' | 'READY' | 'SHIPPED' | 'DONE' | 'CANCELLED'
-  value: string
+
+  discountMode: 'SUBTOTAL' | 'PER_ITEM'
+  discountType: DiscountType
+  discountValue: string
+  discountPercent: string
+
   observations: string
   items: OrderItem[]
 }
@@ -107,7 +186,12 @@ function emptyDraft(): Draft {
     orderedAt: '',
     deliveryAt: '',
     status: 'DRAFT',
-    value: '',
+
+    discountMode: 'SUBTOTAL',
+    discountType: 'VALUE',
+    discountValue: '',
+    discountPercent: '',
+
     observations: '',
     items: [],
   }
@@ -206,6 +290,14 @@ export default function OrderBoard() {
   const [mode, setMode] = useState<'list' | 'kanban'>('list')
   const [columnsOpen, setColumnsOpen] = useState(false)
   const [listQuery, setListQuery] = useState('')
+
+  // Operational filters (server-side; exports reuse them)
+  const [view, setView] = useState<'upcoming' | 'history' | 'all'>('upcoming')
+  const [createdByMe, setCreatedByMe] = useState(false)
+  const [ownerMe, setOwnerMe] = useState(false)
+  const [overdueOnly, setOverdueOnly] = useState(false)
+  const [statusFilter, setStatusFilter] = useState<Order['status'][]>([])
+
   const defaultVisibleStatuses = useMemo(() => STATUS_ORDER.filter((s) => s !== 'CANCELLED'), [])
   const [visibleStatuses, setVisibleStatuses] = useState<Order['status'][]>(() => defaultVisibleStatuses)
 
@@ -218,6 +310,8 @@ export default function OrderBoard() {
   const draft = draftStore.value
   const setDraft = draftStore.setValue
 
+  const liveTotals = useMemo(() => calcDraftTotals(draft, moneyLocale), [draft, moneyLocale])
+
   const productsQ = useQuery({
     queryKey: ['products', 'FINISHED'],
     queryFn: () => api<{ products: Product[] }>('/api/products?kind=FINISHED'),
@@ -228,9 +322,25 @@ export default function OrderBoard() {
     queryFn: () => api<{ clients: Client[] }>('/api/clients'),
   })
 
+  const ordersParams = useMemo(() => {
+    const p = new URLSearchParams()
+    p.set('view', view)
+
+    const q = listQuery.trim()
+    if (q) p.set('q', q)
+
+    if (createdByMe) p.set('createdBy', 'me')
+    if (ownerMe) p.set('owner', 'me')
+    if (overdueOnly) p.set('overdue', '1')
+
+    for (const st of statusFilter) p.append('status', st)
+
+    return p
+  }, [view, listQuery, createdByMe, ownerMe, overdueOnly, statusFilter])
+
   const ordersQ = useQuery({
-    queryKey: ['orders'],
-    queryFn: () => api<{ orders: Order[] }>(`/api/orders?view=all`),
+    queryKey: ['orders', ordersParams.toString()],
+    queryFn: () => api<{ orders: Order[] }>(`/api/orders?${ordersParams.toString()}`),
   })
 
 
@@ -288,10 +398,12 @@ export default function OrderBoard() {
     }
   }, [columnsStorageKey, visibleStatuses])
 
+  // Server-side filtering (ordersParams) already applies. Keep a tiny client-side fallback for safety.
   const listFiltered = useMemo(() => {
     const q = listQuery.trim().toLowerCase()
     if (!q) return orders
     return orders.filter((o) => {
+      if ((o.code ?? '').toLowerCase().includes(q)) return true
       if (o.name.toLowerCase().includes(q)) return true
       if (o.client?.name && o.client.name.toLowerCase().includes(q)) return true
       return false
@@ -321,9 +433,21 @@ export default function OrderBoard() {
       orderedAt: toLocalInputValue(o.orderedAt),
       deliveryAt: toLocalInputValue(o.deliveryAt),
       status: o.status,
-      value: o.value == null ? '' : formatMoneyFromNumber(Number(o.value), moneyLocale),
+
+      discountMode: o.discountMode ?? 'SUBTOTAL',
+      discountType: (o.discountType as any) ?? 'VALUE',
+      discountValue: o.discountValue == null ? '' : formatMoneyFromNumber(Number(o.discountValue), moneyLocale),
+      discountPercent: o.discountPercent == null ? '' : String(o.discountPercent),
+
       observations: o.observations ?? '',
-      items: o.items.map((it) => ({ productId: it.product.id, quantity: String(it.quantity) })),
+      items: o.items.map((it) => ({
+        productId: it.product.id,
+        quantity: String(it.quantity),
+        unitPrice: it.unitPrice == null ? '' : formatMoneyFromNumber(Number(it.unitPrice), moneyLocale),
+        discountType: (it.discountType as any) ?? null,
+        discountValue: it.discountValue == null ? '' : formatMoneyFromNumber(Number(it.discountValue), moneyLocale),
+        discountPercent: it.discountPercent == null ? '' : String(it.discountPercent),
+      })),
     })
     setIsOpen(true)
   }
@@ -332,7 +456,7 @@ export default function OrderBoard() {
     const products = productsQ.data?.products ?? []
     const used = new Set(draft.items.map((it) => it.productId))
     const firstAvailable = products.find((p) => !used.has(p.id))?.id ?? products[0]?.id ?? ''
-    setDraft((d) => ({ ...d, items: [...d.items, { productId: firstAvailable, quantity: '1' }] }))
+    setDraft((d) => ({ ...d, items: [...d.items, { productId: firstAvailable, quantity: '1', unitPrice: '', discountType: null, discountValue: '', discountPercent: '' }] }))
   }
 
   function updateItemLine(idx: number, patch: Partial<OrderItem>) {
@@ -350,15 +474,6 @@ export default function OrderBoard() {
     const name = draft.name.trim()
     if (!name) return
 
-    // Consolidar itens repetidos (evita duplicidade e respeita @@unique([orderId, productId]))
-    const consolidated = new Map<string, number>()
-    for (const it of draft.items) {
-      if (!it.productId || !it.quantity.trim()) continue
-      const q = Number(it.quantity.replace(',', '.'))
-      if (!Number.isFinite(q) || q <= 0) continue
-      consolidated.set(it.productId, (consolidated.get(it.productId) ?? 0) + q)
-    }
-
     const payload = {
       name,
       observations: draft.observations.trim() ? draft.observations : null,
@@ -366,26 +481,66 @@ export default function OrderBoard() {
       orderedAt: fromLocalInputValue(draft.orderedAt),
       deliveryAt: fromLocalInputValue(draft.deliveryAt),
       status: draft.status,
-      value: parseMoneyToNumber(draft.value, moneyLocale),
-      items: Array.from(consolidated.entries()).map(([productId, quantity]) => ({ productId, quantity })),
+
+      discountMode: draft.discountMode,
+      discountType: draft.discountMode === 'SUBTOTAL' ? draft.discountType : null,
+      discountValue:
+        draft.discountMode === 'SUBTOTAL' && draft.discountType === 'VALUE' && draft.discountValue.trim()
+          ? parseMoneyToNumber(draft.discountValue, moneyLocale)
+          : null,
+      discountPercent:
+        draft.discountMode === 'SUBTOTAL' && draft.discountType === 'PERCENT' && draft.discountPercent.trim()
+          ? Number(draft.discountPercent.replace(',', '.'))
+          : null,
+
+      items: draft.items
+        .filter((it) => it.productId && it.quantity.trim())
+        .map((it) => ({
+          productId: it.productId,
+          quantity: Number(it.quantity.replace(',', '.')),
+          unitPrice: it.unitPrice.trim() ? parseMoneyToNumber(it.unitPrice, moneyLocale) : 0,
+          discountType: draft.discountMode === 'PER_ITEM' ? (it.discountType ?? 'VALUE') : null,
+          discountValue:
+            draft.discountMode === 'PER_ITEM' && (it.discountType ?? 'VALUE') === 'VALUE' && it.discountValue?.trim()
+              ? parseMoneyToNumber(it.discountValue, moneyLocale)
+              : null,
+          discountPercent:
+            draft.discountMode === 'PER_ITEM' && (it.discountType ?? 'VALUE') === 'PERCENT' && it.discountPercent?.trim()
+              ? Number(it.discountPercent.replace(',', '.'))
+              : null,
+        }))
+        .filter((it) => Number.isFinite(it.quantity) && it.quantity > 0),
     }
 
-    if (draft.id) {
-      await updateM.mutateAsync({ id: draft.id, payload })
-    } else {
-      await createM.mutateAsync(payload)
-    }
+    try {
+      if (draft.id) {
+        await updateM.mutateAsync({ id: draft.id, payload })
+        toastUpdated(i, 'order')
+      } else {
+        await createM.mutateAsync(payload)
+        toastCreated(i, 'order')
+      }
 
-    setIsOpen(false)
-    draftStore.clear()
+      setIsOpen(false)
+      draftStore.clear()
+    } catch (e: any) {
+      toastFailedToSave(i, String(e?.message ?? ''))
+      throw e
+    }
   }
 
   async function remove() {
     if (!draft.id) return
     if (!confirm(i.modal.deleteConfirm)) return
-    await deleteM.mutateAsync(draft.id)
-    setIsOpen(false)
-    draftStore.clear()
+    try {
+      await deleteM.mutateAsync(draft.id)
+      toastDeleted(i, 'order')
+      setIsOpen(false)
+      draftStore.clear()
+    } catch (e: any) {
+      toastFailedToDelete(i, String(e?.message ?? ''))
+      throw e
+    }
   }
 
   const calendarEvents = useMemo(() => {
@@ -465,7 +620,7 @@ export default function OrderBoard() {
             </button>
 
             <button
-              className="rounded-lg bg-[var(--primary)] px-4 py-2 text-sm font-medium text-[var(--primary-foreground)] hover:opacity-90"
+              className="btn btn-primary"
               onClick={openCreate}
               type="button"
             >
@@ -482,7 +637,7 @@ export default function OrderBoard() {
             aria-label={language === 'pt' ? 'Fechar' : language === 'es' ? 'Cerrar' : 'Close'}
             onClick={() => setColumnsOpen(false)}
           />
-          <div className="surface absolute left-3 right-3 top-24 mx-auto w-full max-w-md rounded-2xl border border-theme p-4 shadow-xl">
+          <div className="surface modal-safe absolute left-3 right-3 top-24 mx-auto w-full max-w-md rounded-2xl border border-theme p-4 shadow-xl">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-base font-semibold text-[var(--foreground)]">
@@ -498,7 +653,7 @@ export default function OrderBoard() {
               </div>
               <button
                 type="button"
-                className="grid size-9 place-items-center rounded-md text-lg text-[var(--foreground)] hover:bg-[var(--muted)]"
+                className="btn btn-secondary btn-icon"
                 aria-label={language === 'pt' ? 'Fechar' : language === 'es' ? 'Cerrar' : 'Close'}
                 onClick={() => setColumnsOpen(false)}
               >
@@ -541,7 +696,7 @@ export default function OrderBoard() {
               </button>
               <button
                 type="button"
-                className="rounded-lg bg-[var(--primary)] px-3 py-2 text-sm font-medium text-[var(--primary-foreground)] hover:opacity-90"
+                className="btn btn-primary"
                 onClick={() => setColumnsOpen(false)}
               >
                 {language === 'pt' ? 'Ok' : language === 'es' ? 'Ok' : 'Ok'}
@@ -636,13 +791,134 @@ export default function OrderBoard() {
         ) : (
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <section className="space-y-2">
-            <div className="flex items-center gap-2">
-              <input
-                value={listQuery}
-                onChange={(e) => setListQuery(e.target.value)}
-                placeholder={language === 'pt' ? 'Buscar pedido ou cliente…' : language === 'es' ? 'Buscar pedido o cliente…' : 'Search order or client…'}
-                className="w-full rounded-lg border border-theme bg-[var(--surface)] px-3 py-2 text-sm text-[var(--foreground)]"
-              />
+            <div className="flex flex-col gap-2">
+              <div className="rounded-xl border border-theme bg-[var(--surface)]/40 p-3">
+                <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <input
+                      value={listQuery}
+                      onChange={(e) => setListQuery(e.target.value)}
+                      placeholder={
+                        language === 'pt'
+                          ? 'Buscar código, pedido ou cliente…'
+                          : language === 'es'
+                            ? 'Buscar código, pedido o cliente…'
+                            : 'Search code, order or client…'
+                      }
+                      className="min-w-[220px] flex-1 rounded-lg border border-theme bg-[var(--surface)] px-3 py-2 text-sm text-[var(--foreground)]"
+                    />
+
+                    <select
+                      value={view}
+                      onChange={(e) => setView(e.target.value as any)}
+                      className="h-9 rounded-lg border border-theme bg-[var(--surface)] px-2 text-sm text-[var(--foreground)]"
+                      title={language === 'pt' ? 'Visualização' : language === 'es' ? 'Vista' : 'View'}
+                    >
+                      <option value="upcoming">{language === 'pt' ? 'Operacional' : language === 'es' ? 'Operativo' : 'Operational'}</option>
+                      <option value="history">{language === 'pt' ? 'Histórico' : language === 'es' ? 'Historial' : 'History'}</option>
+                      <option value="all">{language === 'pt' ? 'Todos' : language === 'es' ? 'Todos' : 'All'}</option>
+                    </select>
+
+                    {/** Toggles */}
+                    <button
+                      type="button"
+                      className={
+                        'chip ' + (createdByMe ? 'chip-on' : '')
+                      }
+                      onClick={() => setCreatedByMe((v) => !v)}
+                    >
+                      {language === 'pt' ? 'Criado por mim' : language === 'es' ? 'Creado por mí' : 'Created by me'}
+                    </button>
+
+                    <button
+                      type="button"
+                      className={
+                        'chip ' + (ownerMe ? 'chip-on' : '')
+                      }
+                      onClick={() => setOwnerMe((v) => !v)}
+                    >
+                      {language === 'pt' ? 'Responsável: eu' : language === 'es' ? 'Responsable: yo' : 'Owner: me'}
+                    </button>
+
+                    <button
+                      type="button"
+                      className={
+                        'chip ' + (overdueOnly ? 'chip-danger-on' : '')
+                      }
+                      onClick={() => setOverdueOnly((v) => !v)}
+                    >
+                      {language === 'pt' ? 'Atrasados' : language === 'es' ? 'Atrasados' : 'Overdue'}
+                    </button>
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => {
+                        const p = new URLSearchParams(ordersParams)
+                        p.set('currency', currency)
+                        window.location.href = `/api/orders/export/csv?${p.toString()}`
+                      }}
+                    >
+                      {language === 'pt' ? 'CSV' : language === 'es' ? 'CSV' : 'CSV'}
+                    </button>
+
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => {
+                        const p = new URLSearchParams(ordersParams)
+                        p.set('currency', currency)
+                        window.location.href = `/api/orders/export/pdf?${p.toString()}`
+                      }}
+                    >
+                      {language === 'pt' ? 'PDF' : language === 'es' ? 'PDF' : 'PDF'}
+                    </button>
+
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => {
+                        setListQuery('')
+                        setCreatedByMe(false)
+                        setOwnerMe(false)
+                        setOverdueOnly(false)
+                        setStatusFilter([])
+                        setView('upcoming')
+                      }}
+                    >
+                      {language === 'pt' ? 'Limpar' : language === 'es' ? 'Limpiar' : 'Clear'}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {STATUS_ORDER.filter((s) => s !== 'DONE' && s !== 'CANCELLED').map((st) => {
+                    const on = statusFilter.includes(st)
+                    return (
+                      <button
+                        key={st}
+                        type="button"
+                        className={
+                          'chip ' + (on ? 'chip-on' : '')
+                        }
+                        onClick={() =>
+                          setStatusFilter((prev) => {
+                            const set = new Set(prev)
+                            if (set.has(st)) set.delete(st)
+                            else set.add(st)
+                            return STATUS_ORDER.filter((x) => set.has(x))
+                          })
+                        }
+                      >
+                        {statusLabel(st)}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
             </div>
 
             <DataTable
@@ -656,14 +932,21 @@ export default function OrderBoard() {
                 {
                   key: 'name',
                   header: language === 'pt' ? 'Pedido' : language === 'es' ? 'Pedido' : 'Order',
-                  sortValue: (r) => r.name,
-                  searchValue: (r) => r.name,
+                  sortValue: (r) => `${r.code ?? ''} ${r.name}`,
+                  searchValue: (r) => `${r.code ?? ''} ${r.name}`,
                   render: (r) => (
                     <div className="font-medium text-[var(--foreground)]">
-                      {r.name}
-                      <span className={'ml-2 rounded-full px-2 py-0.5 text-xs ' + statusBadgeClass(r.status)}>
-                        {statusLabel(r.status)}
-                      </span>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span>{r.name}</span>
+                        {r.code ? (
+                          <span className="badge badge-muted">
+                            {r.code}
+                          </span>
+                        ) : null}
+                        <span className={'rounded-full px-2 py-0.5 text-xs ' + statusBadgeClass(r.status)}>
+                          {statusLabel(r.status)}
+                        </span>
+                      </div>
                     </div>
                   ),
                 },
@@ -682,7 +965,7 @@ export default function OrderBoard() {
                   sortValue: (r) => (r.value == null ? -1 : Number(r.value)),
                   searchValue: (r) => (r.value == null ? '' : String(r.value)),
                   render: (r) => (
-                    <div className="text-[var(--muted-foreground)]">
+                    <div className="text-right tabular-nums text-[var(--muted-foreground)]">
                       {r.value == null ? '—' : formatMoneyDisplay(r.value, moneyLocale, currency)}
                     </div>
                   ),
@@ -706,7 +989,7 @@ export default function OrderBoard() {
             <div className="mb-2 flex items-center justify-between gap-2 px-1">
               <button
                 type="button"
-                className="rounded-md border border-theme bg-[var(--surface)] px-2 py-1.5 text-xs text-[var(--foreground)] hover:bg-[var(--muted)]"
+                className="btn btn-secondary btn-sm"
                 onClick={() => calRef.current?.getApi().today()}
               >
                 {i.calendar.today}
@@ -715,7 +998,7 @@ export default function OrderBoard() {
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  className="grid size-8 place-items-center rounded-md border border-theme bg-[var(--surface)] text-[var(--foreground)] hover:bg-[var(--muted)]"
+                  className="btn btn-secondary btn-icon"
                   aria-label="Mês anterior"
                   onClick={() => calRef.current?.getApi().prev()}
                 >
@@ -728,7 +1011,7 @@ export default function OrderBoard() {
 
                 <button
                   type="button"
-                  className="grid size-8 place-items-center rounded-md border border-theme bg-[var(--surface)] text-[var(--foreground)] hover:bg-[var(--muted)]"
+                  className="btn btn-secondary btn-icon"
                   aria-label="Próximo mês"
                   onClick={() => calRef.current?.getApi().next()}
                 >
@@ -738,7 +1021,7 @@ export default function OrderBoard() {
 
               <button
                 type="button"
-                className="grid size-9 place-items-center rounded-md border border-theme bg-[var(--surface)] text-[var(--foreground)] hover:bg-[var(--muted)]"
+                className="btn btn-secondary btn-icon"
                 aria-label="Ampliar calendário"
                 title="Ampliar calendário"
                 onClick={() => setCalendarFullscreen(true)}
@@ -778,7 +1061,7 @@ export default function OrderBoard() {
             <div className="flex items-center justify-between gap-3 border-b border-theme px-4 py-3">
               <button
                 type="button"
-                className="rounded-md border border-theme bg-[var(--surface)] px-2 py-1.5 text-xs text-[var(--foreground)] hover:bg-[var(--muted)]"
+                className="btn btn-secondary btn-sm"
                 onClick={() => calModalRef.current?.getApi().today()}
               >
                 {i.calendar.today}
@@ -787,7 +1070,7 @@ export default function OrderBoard() {
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  className="grid size-8 place-items-center rounded-md border border-theme bg-[var(--surface)] text-[var(--foreground)] hover:bg-[var(--muted)]"
+                  className="btn btn-secondary btn-icon"
                   aria-label="Mês anterior"
                   onClick={() => calModalRef.current?.getApi().prev()}
                 >
@@ -800,7 +1083,7 @@ export default function OrderBoard() {
 
                 <button
                   type="button"
-                  className="grid size-8 place-items-center rounded-md border border-theme bg-[var(--surface)] text-[var(--foreground)] hover:bg-[var(--muted)]"
+                  className="btn btn-secondary btn-icon"
                   aria-label="Próximo mês"
                   onClick={() => calModalRef.current?.getApi().next()}
                 >
@@ -810,7 +1093,7 @@ export default function OrderBoard() {
 
               <button
                 type="button"
-                className="grid size-9 place-items-center rounded-md border border-theme bg-[var(--surface)] text-[var(--foreground)] hover:bg-[var(--muted)]"
+                className="btn btn-secondary btn-icon"
                 onClick={() => setCalendarFullscreen(false)}
                 aria-label="Fechar"
                 title="Fechar"
@@ -842,7 +1125,7 @@ export default function OrderBoard() {
       {isOpen ? (
         <div className="fixed inset-0 z-50">
           <div className="absolute inset-0 bg-black/40" onClick={() => setIsOpen(false)} />
-          <div className="surface absolute bottom-0 left-0 right-0 mx-auto w-full max-w-2xl rounded-t-2xl border border-theme p-5 shadow-xl sm:bottom-auto sm:top-20 sm:rounded-2xl">
+          <div className="surface modal-safe absolute bottom-0 left-0 right-0 mx-auto w-full max-w-2xl rounded-t-2xl border border-theme p-5 shadow-xl sm:bottom-auto sm:top-20 sm:rounded-2xl">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-lg font-semibold">{draft.id ? i.modal.editTitleOrder : i.modal.newTitleOrder}</h2>
@@ -850,7 +1133,7 @@ export default function OrderBoard() {
               </div>
               <button
                 aria-label="Fechar"
-                className="grid size-9 place-items-center rounded-md text-lg text-[var(--foreground)] hover:bg-[var(--muted)]"
+                className="btn btn-secondary btn-icon"
                 onClick={() => setIsOpen(false)}
                 type="button"
               >
@@ -860,7 +1143,7 @@ export default function OrderBoard() {
 
             <div className="mt-4 grid gap-3">
               <label className="grid gap-1">
-                <span className="text-xs font-medium text-[var(--foreground)]">{i.modal.orderNameLabel}</span>
+                <FieldLabel required>{i.modal.orderNameLabel}</FieldLabel>
                 <input
                   value={draft.name}
                   onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
@@ -870,7 +1153,7 @@ export default function OrderBoard() {
               </label>
 
               <label className="grid gap-1">
-                <span className="text-xs font-medium text-[var(--foreground)]">{i.modal.clientLabel}</span>
+                <FieldLabel>{i.modal.clientLabel}</FieldLabel>
 
                 <SearchSelect
                   value={
@@ -885,9 +1168,19 @@ export default function OrderBoard() {
                   minChars={2}
                   labels={{
                     placeholder: i.modal.clientNone,
-                    hint: language === 'pt' ? 'Digite pelo menos 2 letras…' : language === 'es' ? 'Escribe 2+ letras…' : 'Type at least 2 letters…',
+                    hint:
+                      language === 'pt'
+                        ? 'Digite pelo menos 2 letras…'
+                        : language === 'es'
+                          ? 'Escribe 2+ letras…'
+                          : 'Type at least 2 letters…',
                     loading: language === 'pt' ? 'Buscando…' : language === 'es' ? 'Buscando…' : 'Searching…',
-                    empty: language === 'pt' ? 'Nenhum cliente encontrado.' : language === 'es' ? 'No se encontraron clientes.' : 'No clients found.',
+                    empty:
+                      language === 'pt'
+                        ? 'Nenhum cliente encontrado.'
+                        : language === 'es'
+                          ? 'No se encontraron clientes.'
+                          : 'No clients found.',
                   }}
                   fetcher={async (q) => {
                     const res = await fetch(`/api/clients?q=${encodeURIComponent(q)}`)
@@ -900,7 +1193,7 @@ export default function OrderBoard() {
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <label className="grid gap-1">
-                  <span className="text-xs font-medium text-[var(--foreground)]">{i.modal.orderedAtLabel}</span>
+                  <FieldLabel>{i.modal.orderedAtLabel}</FieldLabel>
                   <input
                     type="datetime-local"
                     value={draft.orderedAt}
@@ -909,7 +1202,7 @@ export default function OrderBoard() {
                   />
                 </label>
                 <label className="grid gap-1">
-                  <span className="text-xs font-medium text-[var(--foreground)]">{i.modal.deliveryAtLabel}</span>
+                  <FieldLabel>{i.modal.deliveryAtLabel}</FieldLabel>
                   <input
                     type="datetime-local"
                     value={draft.deliveryAt}
@@ -920,17 +1213,6 @@ export default function OrderBoard() {
               </div>
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <label className="grid gap-1">
-                  <span className="text-xs font-medium text-[var(--foreground)]">{i.modal.valueLabel}</span>
-                  <input
-                    value={draft.value}
-                    onChange={(e) => setDraft((d) => ({ ...d, value: formatMoneyFromInput(e.target.value, moneyLocale) }))}
-                    inputMode="numeric"
-                    placeholder={i.modal.optional}
-                    className="w-full rounded-lg border border-theme bg-transparent px-3 py-2"
-                  />
-                </label>
-
                 <label className="grid gap-1">
                   <span className="text-xs font-medium text-[var(--foreground)]">{i.modal.statusLabel}</span>
                   <select
@@ -949,22 +1231,12 @@ export default function OrderBoard() {
                 </label>
               </div>
 
-              <label className="grid gap-1">
-                <span className="text-xs font-medium text-[var(--foreground)]">{i.modal.observationsLabel}</span>
-                <textarea
-                  value={draft.observations}
-                  onChange={(e) => setDraft((d) => ({ ...d, observations: e.target.value }))}
-                  placeholder={i.modal.optional}
-                  className="min-h-24 w-full rounded-lg border border-theme bg-transparent px-3 py-2"
-                />
-              </label>
-
               <div className="mt-2 rounded-lg border border-theme p-3">
                 <div className="flex items-center justify-between gap-3">
                   <div className="text-sm font-medium">{i.modal.itemsTitle}</div>
                   <button
                     type="button"
-                    className="rounded-md border border-theme px-3 py-1.5 text-sm hover:bg-[var(--muted)]"
+                    className="btn btn-secondary btn-sm"
                     onClick={addItemLine}
                     disabled={productsQ.isLoading || (productsQ.data?.products?.length ?? 0) === 0}
                   >
@@ -977,7 +1249,10 @@ export default function OrderBoard() {
                 ) : (
                   <div className="mt-3 grid gap-2">
                     {draft.items.map((it, idx) => (
-                      <div key={idx} className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_140px_80px] sm:items-center">
+                      <div
+                        key={idx}
+                        className={`grid grid-cols-1 gap-2 sm:items-center ${draft.discountMode === 'PER_ITEM' ? 'sm:grid-cols-[1fr_120px_120px_120px_80px]' : 'sm:grid-cols-[1fr_140px_140px_80px]'}`}
+                      >
                         <select
                           value={it.productId}
                           onChange={(e) => updateItemLine(idx, { productId: e.target.value })}
@@ -997,23 +1272,179 @@ export default function OrderBoard() {
                           placeholder={i.modal.quantityPlaceholder}
                         />
 
-                        <button
-                          type="button"
-                          className="rounded-lg border border-theme px-3 py-2 text-sm text-[var(--danger)] hover:bg-[var(--danger-bg)]"
-                          onClick={() => removeItemLine(idx)}
-                        >
-                          {i.modal.removeItem}
-                        </button>
+                        <input
+                          value={it.unitPrice}
+                          onChange={(e) => updateItemLine(idx, { unitPrice: formatMoneyFromInput(e.target.value, moneyLocale) })}
+                          className="w-full rounded-lg border border-theme bg-transparent px-3 py-2 text-sm"
+                          inputMode="numeric"
+                          placeholder={language === 'pt' ? 'Preço un.' : language === 'es' ? 'Precio un.' : 'Unit price'}
+                        />
+
+                        {draft.discountMode === 'PER_ITEM' ? (
+                          <>
+                            <select
+                              value={it.discountType ?? 'VALUE'}
+                              onChange={(e) => {
+                                const nextType = e.target.value as any
+                                updateItemLine(idx, {
+                                  discountType: nextType,
+                                  discountValue: nextType === 'VALUE' ? it.discountValue ?? '' : '',
+                                  discountPercent: nextType === 'PERCENT' ? it.discountPercent ?? '' : '',
+                                })
+                              }}
+                              className="w-full rounded-lg border border-theme bg-transparent px-3 py-2 text-sm"
+                            >
+                              <option value="VALUE">Desc. valor</option>
+                              <option value="PERCENT">Desc. %</option>
+                            </select>
+
+                            {it.discountType === 'PERCENT' ? (
+                              <input
+                                value={it.discountPercent ?? ''}
+                                onChange={(e) => updateItemLine(idx, { discountPercent: e.target.value })}
+                                className="w-full rounded-lg border border-theme bg-transparent px-3 py-2 text-sm"
+                                inputMode="decimal"
+                                placeholder="%"
+                              />
+                            ) : (
+                              <input
+                                value={it.discountValue ?? ''}
+                                onChange={(e) => updateItemLine(idx, { discountValue: formatMoneyFromInput(e.target.value, moneyLocale) })}
+                                className="w-full rounded-lg border border-theme bg-transparent px-3 py-2 text-sm"
+                                inputMode="numeric"
+                                placeholder={language === 'pt' ? 'Desc.' : language === 'es' ? 'Desc.' : 'Disc.'}
+                              />
+                            )}
+                          </>
+                        ) : null}
+
+                        <div className="flex items-center justify-between gap-2 sm:flex-col sm:items-end">
+                          <div className="text-xs tabular-nums text-[var(--text-muted)]">
+                            {formatMoneyDisplay(
+                              (() => {
+                                const qty = Number(String(it.quantity ?? '').replace(',', '.'))
+                                const unit = it.unitPrice?.trim() ? (parseMoneyToNumber(it.unitPrice, moneyLocale) ?? 0) : 0
+                                const subtotal = (Number.isFinite(qty) ? Math.max(0, qty) : 0) * Math.max(0, unit)
+
+                                let disc = 0
+                                if (draft.discountMode === 'PER_ITEM') {
+                                  const dt = (it.discountType ?? 'VALUE') as any
+                                  if (dt === 'PERCENT') {
+                                    const p = clampPercent(Number(String(it.discountPercent ?? '').replace(',', '.')))
+                                    disc = (subtotal * p) / 100
+                                  } else {
+                                    disc = it.discountValue?.trim() ? Math.max(0, parseMoneyToNumber(it.discountValue, moneyLocale) ?? 0) : 0
+                                  }
+                                  disc = Math.min(subtotal, disc)
+                                }
+
+                                return Math.max(0, subtotal - disc)
+                              })(),
+                              moneyLocale,
+                              currency,
+                            )}
+                          </div>
+
+                          <button
+                            type="button"
+                            className="btn btn-danger-soft"
+                            onClick={() => removeItemLine(idx)}
+                          >
+                            {i.modal.removeItem}
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
                 )}
+
+                <div className="mt-4 flex flex-col gap-1 border-t border-theme pt-3 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[var(--text-muted)]">Subtotal</span>
+                    <span className="tabular-nums">{formatMoneyDisplay(liveTotals.subtotal, moneyLocale, currency)}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[var(--text-muted)]">Desconto</span>
+                    <span className="tabular-nums">{formatMoneyDisplay(liveTotals.discount, moneyLocale, currency)}</span>
+                  </div>
+                  <div className="flex items-center justify-between font-semibold">
+                    <span>Total</span>
+                    <span className="tabular-nums">{formatMoneyDisplay(liveTotals.total, moneyLocale, currency)}</span>
+                  </div>
+                </div>
               </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <label className="grid gap-1">
+                  <FieldLabel>Desconto</FieldLabel>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <select
+                      value={draft.discountMode}
+                      onChange={(e) => setDraft((d) => ({ ...d, discountMode: e.target.value as any }))}
+                      className="w-full rounded-lg border border-theme bg-transparent px-3 py-2"
+                    >
+                      <option value="SUBTOTAL">No total</option>
+                      <option value="PER_ITEM">Por item</option>
+                    </select>
+
+                    <select
+                      value={draft.discountType}
+                      onChange={(e) => {
+                        const nextType = e.target.value as any
+                        setDraft((d) => {
+                          // keep only one filled; wipe the other to avoid ambiguity
+                          if (nextType === 'VALUE') return { ...d, discountType: nextType, discountPercent: '' }
+                          return { ...d, discountType: nextType, discountValue: '' }
+                        })
+                      }}
+                      className="w-full rounded-lg border border-theme bg-transparent px-3 py-2"
+                      disabled={draft.discountMode !== 'SUBTOTAL'}
+                    >
+                      <option value="VALUE">Valor</option>
+                      <option value="PERCENT">%</option>
+                    </select>
+                  </div>
+
+                  {draft.discountMode === 'SUBTOTAL' ? (
+                    <div className="mt-2 grid grid-cols-2 gap-2">
+                      <input
+                        value={draft.discountValue}
+                        onChange={(e) => setDraft((d) => ({ ...d, discountValue: formatMoneyFromInput(e.target.value, moneyLocale) }))}
+                        inputMode="numeric"
+                        placeholder="Valor"
+                        className="w-full rounded-lg border border-theme bg-transparent px-3 py-2"
+                        disabled={draft.discountType !== 'VALUE'}
+                      />
+                      <input
+                        value={draft.discountPercent}
+                        onChange={(e) => setDraft((d) => ({ ...d, discountPercent: e.target.value }))}
+                        inputMode="decimal"
+                        placeholder="%"
+                        className="w-full rounded-lg border border-theme bg-transparent px-3 py-2"
+                        disabled={draft.discountType !== 'PERCENT'}
+                      />
+                    </div>
+                  ) : (
+                    <div className="mt-2 text-xs text-[var(--text-muted)]">Configure os descontos na seção de itens.</div>
+                  )}
+                </label>
+              </div>
+
+              <label className="grid gap-1">
+                <span className="text-xs font-medium text-[var(--foreground)]">{i.modal.observationsLabel}</span>
+                <textarea
+                  value={draft.observations}
+                  onChange={(e) => setDraft((d) => ({ ...d, observations: e.target.value }))}
+                  placeholder={i.modal.optional}
+                  className="min-h-24 w-full rounded-lg border border-theme bg-transparent px-3 py-2"
+                />
+              </label>
             </div>
 
             <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
               <button
-                className="rounded-lg border border-theme px-4 py-2 text-sm text-[var(--danger)] hover:bg-[var(--danger-bg)] disabled:opacity-50"
+                className="btn btn-danger-soft"
                 onClick={remove}
                 type="button"
                 disabled={!draft.id || deleteM.isPending}
@@ -1023,14 +1454,14 @@ export default function OrderBoard() {
 
               <div className="flex gap-2">
                 <button
-                  className="rounded-lg border border-theme px-4 py-2 text-sm text-[var(--foreground)] hover:bg-[var(--muted)]"
+                  className="btn btn-secondary"
                   onClick={() => setIsOpen(false)}
                   type="button"
                 >
                   {i.modal.cancel}
                 </button>
                 <button
-                  className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-50"
+                  className="btn btn-primary"
                   onClick={save}
                   type="button"
                   disabled={!draft.name.trim() || createM.isPending || updateM.isPending}

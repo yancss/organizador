@@ -19,6 +19,9 @@ const eslintConfig = defineConfig([
     "scripts/tmp_*.js",
     "scripts/tmp_*.ts",
     "scripts/tmp_*.mjs",
+
+    // Node bootstrap/check scripts (CommonJS)
+    "scripts/*.js",
   ]),
 
   // Reduce noisy/over-strict rules that don't correlate with real runtime bugs in this app.

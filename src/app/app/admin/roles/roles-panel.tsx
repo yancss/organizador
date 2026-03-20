@@ -6,6 +6,7 @@ import { ChevronDown, ChevronUp } from 'lucide-react'
 
 import { useSettings } from '@/app/app/settings-context'
 import { t } from '@/app/app/i18n'
+import { toast } from '@/app/app/toast'
 
 type Permission = {
   id: string
@@ -179,7 +180,10 @@ export default function RolesPanel() {
             disabled={createRole.isPending}
             onClick={() => {
               const name = newRoleName.trim()
-              if (name.length < 2) return alert(i.admin.common.nameTooShort)
+              if (name.length < 2) {
+      toast.error(i.admin.common.nameTooShort)
+      return
+    }
               createRole.mutate({ name, description: newRoleDesc.trim() || null })
               setNewRoleName('')
               setNewRoleDesc('')

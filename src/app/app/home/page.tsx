@@ -15,6 +15,7 @@ import {
 
 import { useSettings } from '../settings-context'
 import { t } from '../i18n'
+import { api } from '../api-client'
 
 function formatMoney(language: string, currency: string, value: string | number) {
   const n = typeof value === 'number' ? value : Number(value)
@@ -35,11 +36,8 @@ function formatMoney(language: string, currency: string, value: string | number)
   }
 }
 
-async function api<T>(url: string): Promise<T> {
-  const res = await fetch(url, { headers: { 'content-type': 'application/json' } })
-  if (!res.ok) throw new Error(await res.text())
-  return (await res.json()) as T
-}
+// (moved to api-client.ts)
+
 
 type Tone = 'blue' | 'green' | 'amber' | 'red' | 'purple' | 'slate'
 
