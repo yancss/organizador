@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { nextFinancialEntryCode } from '@/lib/finance-codes'
 
 export async function ensureDefaultBankAccount(workspaceId: string) {
   const existing = await prisma.financialAccount.findFirst({
@@ -64,6 +65,13 @@ export async function upsertReceivableForSalesOrder(args: {
 }) {
   const defs = await ensureFinanceDefaults(args.workspaceId)
 
+  const so = await prisma.salesOrder.findFirst({
+    where: { id: args.salesOrderId, workspaceId: args.workspaceId },
+    select: { id: true, name: true, code: true },
+  })
+  const soRef = so ? `${so.code ?? ''}${so.code ? ' - ' : ''}${so.name}` : ''
+  const ref = soRef ? `REF: ${soRef}` : null
+
   const existing = await prisma.financialEntry.findFirst({
     where: { workspaceId: args.workspaceId, salesOrderId: args.salesOrderId, type: 'IN' },
     select: { id: true, status: true },
@@ -82,14 +90,19 @@ export async function upsertReceivableForSalesOrder(args: {
         accountId: defs.accountId,
         categoryId: defs.categorySalesId,
         costCenterId: defs.costCenterSalesId,
+        name: ref,
+        observations: ref,
       },
       select: { id: true },
     })
   }
 
+  const code = await nextFinancialEntryCode(args.workspaceId)
+
   return prisma.financialEntry.create({
     data: {
       workspaceId: args.workspaceId,
+      code,
       type: 'IN',
       status: 'PLANNED',
       competenceDate: args.competenceDate,
@@ -98,6 +111,8 @@ export async function upsertReceivableForSalesOrder(args: {
       accountId: defs.accountId,
       categoryId: defs.categorySalesId,
       costCenterId: defs.costCenterSalesId,
+      name: ref,
+      observations: ref,
       salesOrderId: args.salesOrderId,
     },
     select: { id: true },
@@ -173,6 +188,15 @@ export async function upsertPayableForPurchaseOrder(args: {
 }) {
   const defs = await ensureFinanceDefaults(args.workspaceId)
 
+  const po = await prisma.purchaseOrder.findFirst({
+    where: { id: args.purchaseOrderId, workspaceId: args.workspaceId },
+    select: { id: true, code: true, supplier: true, supplierEntity: { select: { name: true } } },
+  })
+  const poRef = po
+    ? `${po.code ?? ''}${po.code ? ' - ' : ''}${po.supplierEntity?.name ?? po.supplier ?? ''}`.trim()
+    : ''
+  const ref = poRef ? `REF: ${poRef}` : null
+
   const existing = await prisma.financialEntry.findFirst({
     where: { workspaceId: args.workspaceId, purchaseOrderId: args.purchaseOrderId, type: 'OUT' },
     select: { id: true, status: true },
@@ -195,14 +219,19 @@ export async function upsertPayableForPurchaseOrder(args: {
         accountId: defs.accountId,
         categoryId: defs.categoryPurchasesId,
         costCenterId: defs.costCenterProductionId,
+        name: ref,
+        observations: ref,
       },
       select: { id: true },
     })
   }
 
+  const code = await nextFinancialEntryCode(args.workspaceId)
+
   return prisma.financialEntry.create({
     data: {
       workspaceId: args.workspaceId,
+      code,
       type: 'OUT',
       status,
       competenceDate: args.competenceDate,
@@ -211,6 +240,8 @@ export async function upsertPayableForPurchaseOrder(args: {
       accountId: defs.accountId,
       categoryId: defs.categoryPurchasesId,
       costCenterId: defs.costCenterProductionId,
+      name: ref,
+      observations: ref,
       purchaseOrderId: args.purchaseOrderId,
     },
     select: { id: true },

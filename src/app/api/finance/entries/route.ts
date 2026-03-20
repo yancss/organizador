@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 import { prisma } from '@/lib/prisma'
 import { requireWorkspace } from '@/lib/authz'
+import { nextFinancialEntryCode } from '@/lib/finance-codes'
 
 async function ensureDefaultAccount(workspaceId: string) {
   // Default requested: a BANK account.
@@ -65,18 +66,23 @@ export async function GET(req: Request) {
     take: 500,
     select: {
       id: true,
+      code: true,
       competenceDate: true,
       paidAt: true,
       type: true,
       status: true,
       value: true,
+      name: true,
       observations: true,
       account: { select: { id: true, name: true } },
       category: { select: { id: true, name: true, type: true } },
       costCenter: { select: { id: true, name: true } },
       salesOrderId: true,
+      purchaseOrderId: true,
       purchaseId: true,
       consumptionId: true,
+      salesOrder: { select: { id: true, code: true, name: true } },
+      purchaseOrder: { select: { id: true, code: true } },
       createdAt: true,
       updatedAt: true,
     },
@@ -94,10 +100,12 @@ const CreateSchema = z.object({
   categoryId: z.string().optional().nullable(),
   costCenterId: z.string().optional().nullable(),
   value: z.coerce.number().positive(),
+  name: z.string().max(200).optional().nullable(),
   observations: z.string().max(5000).optional().nullable(),
 
   // optional linkage
   salesOrderId: z.string().optional().nullable(),
+  purchaseOrderId: z.string().optional().nullable(),
   purchaseId: z.string().optional().nullable(),
   consumptionId: z.string().optional().nullable(),
 })
@@ -147,9 +155,12 @@ export async function POST(req: Request) {
         : competenceDate
       : null
 
+  const code = await nextFinancialEntryCode(wsId)
+
   const entry = await prisma.financialEntry.create({
     data: {
       workspaceId: wsId,
+      code,
       competenceDate,
       paidAt,
       status,
@@ -158,25 +169,32 @@ export async function POST(req: Request) {
       categoryId: parsed.data.categoryId ?? null,
       costCenterId: parsed.data.costCenterId ?? null,
       value: parsed.data.value,
+      name: parsed.data.name ?? null,
       observations: parsed.data.observations ?? null,
       salesOrderId: parsed.data.salesOrderId ?? null,
+      purchaseOrderId: parsed.data.purchaseOrderId ?? null,
       purchaseId: parsed.data.purchaseId ?? null,
       consumptionId: parsed.data.consumptionId ?? null,
     },
     select: {
       id: true,
+      code: true,
       competenceDate: true,
       paidAt: true,
       type: true,
       status: true,
       value: true,
+      name: true,
       observations: true,
       account: { select: { id: true, name: true } },
       category: { select: { id: true, name: true, type: true } },
       costCenter: { select: { id: true, name: true } },
       salesOrderId: true,
+      purchaseOrderId: true,
       purchaseId: true,
       consumptionId: true,
+      salesOrder: { select: { id: true, code: true, name: true } },
+      purchaseOrder: { select: { id: true, code: true } },
       createdAt: true,
       updatedAt: true,
     },

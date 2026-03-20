@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+// (icon actions moved back to buttons)
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { t } from '../i18n'
@@ -15,6 +16,8 @@ type CostCenter = { id: string; name: string }
 
 type Entry = {
   id: string
+  code?: string | null
+  name?: string | null
   competenceDate: string
   paidAt: string | null
   type: 'IN' | 'OUT'
@@ -24,9 +27,12 @@ type Entry = {
   account: { id: string; name: string }
   category: { id: string; name: string; type: 'IN' | 'OUT' } | null
   costCenter: { id: string; name: string } | null
-  orderId?: string | null
+  salesOrderId?: string | null
+  purchaseOrderId?: string | null
   purchaseId?: string | null
   consumptionId?: string | null
+  salesOrder?: { id: string; code?: string | null; name: string } | null
+  purchaseOrder?: { id: string; code?: string | null } | null
 }
 
 // (moved to api-client.ts)
@@ -50,8 +56,16 @@ function toDateTimeLocalValue(d: Date) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
+function formatFinanceId(code?: string | null, id?: string | null): string {
+  if (code && String(code).trim()) return String(code)
+  if (id && String(id).trim()) return String(id)
+  return ''
+}
+
 type Draft = {
   id?: string
+  code?: string | null
+  name?: string | null
   type: 'IN' | 'OUT'
   competenceDate: string
   status: 'PAID' | 'PLANNED'
@@ -68,6 +82,7 @@ export default function FinancePage() {
   const i = t(language)
 
   const [isOpen, setIsOpen] = useState(false)
+  const [readOnly, setReadOnly] = useState(false)
 
   const accountsQ = useQuery({
     queryKey: ['finance', 'accounts'],
@@ -116,6 +131,8 @@ export default function FinancePage() {
   })
 
   const [draft, setDraft] = useState<Draft>(() => ({
+    code: null,
+    name: null,
     type: 'OUT',
     competenceDate: toDateTimeLocalValue(new Date()),
     status: 'PAID',
@@ -191,16 +208,7 @@ export default function FinancePage() {
     },
   })
 
-  const markPaidM = useMutation({
-    mutationFn: (payload: { id: string }) =>
-      api<{ entry: Entry }>(`/api/finance/entries/${payload.id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ status: 'PAID' }),
-      }),
-    onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: ['finance', 'entries'] })
-    },
-  })
+  // (mark as paid action moved out for now)
 
   const accounts = accountsQ.data?.accounts ?? []
   const categories = categoriesQ.data?.categories ?? []
@@ -221,18 +229,24 @@ export default function FinancePage() {
 
   function openCreate() {
     const defaultAccountId = accounts[0]?.id ?? ''
+    setReadOnly(false)
     setDraft((d) => ({
       ...d,
       id: undefined,
+      code: null,
       competenceDate: toDateTimeLocalValue(new Date()),
       accountId: d.accountId || defaultAccountId,
     }))
     setIsOpen(true)
   }
 
-  function openEdit(entry: Entry) {
+  function openEntry(entry: Entry) {
+    const ro = !!entry.salesOrderId || !!entry.purchaseOrderId || !!entry.purchaseId || !!entry.consumptionId
+    setReadOnly(ro)
     setDraft({
       id: entry.id,
+      code: entry.code ?? null,
+      name: entry.name ?? null,
       type: entry.type,
       competenceDate: toDateTimeLocalValue(new Date(entry.competenceDate)),
       status: entry.status,
@@ -246,6 +260,8 @@ export default function FinancePage() {
   }
 
   async function save() {
+    if (readOnly) return
+
     const value = Number(String(draft.value).replace(',', '.'))
     if (!draft.accountId || !Number.isFinite(value) || value <= 0) return
 
@@ -257,6 +273,7 @@ export default function FinancePage() {
       accountId: draft.accountId,
       categoryId: draft.categoryId ? draft.categoryId : null,
       costCenterId: draft.costCenterId ? draft.costCenterId : null,
+      name: draft.name?.trim() ? draft.name.trim() : null,
       observations: draft.observations.trim() ? draft.observations.trim() : null,
     }
 
@@ -270,7 +287,7 @@ export default function FinancePage() {
       }
 
       setIsOpen(false)
-      setDraft((d) => ({ ...d, id: undefined, value: '', observations: '' }))
+      setDraft((d) => ({ ...d, id: undefined, code: null, name: null, value: '', observations: '' }))
     } catch (e: any) {
       toastFailedToSave(i, String(e?.message ?? ''))
     }
@@ -476,70 +493,43 @@ export default function FinancePage() {
           initialSort={{ key: 'competenceDate', dir: 'desc' }}
           columns={[
             {
-              key: 'actions',
-              header: language === 'pt' ? 'Ações' : language === 'es' ? 'Acciones' : 'Actions',
+              key: 'id',
+              header: 'ID',
+              sortValue: (r) => r.id,
+              searchValue: (r) => r.id,
               render: (r) => (
-                <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                  {r.status === 'PLANNED' ? (
-                    <button
-                      type="button"
-                      className="btn btn-success-soft btn-sm"
-                      onClick={() => {
-                        markPaidM
-                          .mutateAsync({ id: r.id })
-                          .then(() => toastUpdated(i, 'entry'))
-                          .catch((e: any) => toastFailedToSave(i, String(e?.message ?? '')))
-                      }}
-                    >
-                      {r.type === 'IN'
-                        ? language === 'pt'
-                          ? 'Marcar como recebido'
-                          : language === 'es'
-                            ? 'Marcar como cobrado'
-                            : 'Mark received'
-                        : language === 'pt'
-                          ? 'Marcar como pago'
-                          : language === 'es'
-                            ? 'Marcar como pagado'
-                            : 'Mark paid'}
-                    </button>
-                  ) : null}
-
-                  {/* Optional safety: block editing if the entry was generated/linked to another entity */}
-                  {!r.orderId && !r.purchaseId && !r.consumptionId ? (
-                    <button
-                      type="button"
-                      className="btn btn-secondary btn-sm"
-                      onClick={() => openEdit(r)}
-                    >
-                      {language === 'pt' ? 'Editar' : language === 'es' ? 'Editar' : 'Edit'}
-                    </button>
-                  ) : null}
-
-                  <button
-                    type="button"
-                    className="btn btn-danger-soft btn-sm"
-                    onClick={() => {
-                      if (
-                        !confirm(
-                          language === 'pt'
-                            ? 'Excluir este lançamento?'
-                            : language === 'es'
-                              ? '¿Eliminar este movimiento?'
-                              : 'Delete this entry?'
-                        )
-                      )
-                        return
-                      deleteEntryM
-                        .mutateAsync(r.id)
-                        .then(() => toastDeleted(i, 'entry'))
-                        .catch((e: any) => toastFailedToDelete(i, String(e?.message ?? '')))
-                    }}
-                  >
-                    {language === 'pt' ? 'Excluir' : language === 'es' ? 'Eliminar' : 'Delete'}
-                  </button>
+                <div className="font-mono text-xs text-[var(--muted-foreground)]" title={r.id}>
+                  {formatFinanceId(r.code, r.id)}
                 </div>
               ),
+            },
+            {
+              key: 'name',
+              header: language === 'pt' ? 'Nome' : language === 'es' ? 'Nombre' : 'Name',
+              sortValue: (r) => r.name ?? '',
+              searchValue: (r) => r.name ?? '',
+              render: (r) => {
+                const so = r.salesOrder
+                const po = r.purchaseOrder
+
+                if (so) {
+                  return (
+                    <a className="underline text-[var(--foreground)]" href={`/app/sales/orders?focus=${so.id}`} onClick={(e) => e.stopPropagation()}>
+                      {r.name ?? `REF: ${so.code ?? ''}${so.code ? ' - ' : ''}${so.name}`}
+                    </a>
+                  )
+                }
+
+                if (po) {
+                  return (
+                    <a className="underline text-[var(--foreground)]" href={`/app/purchases/orders?focus=${po.id}`} onClick={(e) => e.stopPropagation()}>
+                      {r.name ?? `REF: ${po.code ?? ''}`}
+                    </a>
+                  )
+                }
+
+                return <div className="text-[var(--muted-foreground)]">{r.name ?? '—'}</div>
+              },
             },
             {
               key: 'competenceDate',
@@ -607,6 +597,41 @@ export default function FinancePage() {
               searchValue: (r) => r.account.name,
               render: (r) => <div className="text-[var(--muted-foreground)]">{r.account.name}</div>,
             },
+            {
+              key: 'actions',
+              header: language === 'pt' ? 'Ações' : language === 'es' ? 'Acciones' : 'Actions',
+              className: 'text-right',
+              headerClassName: 'text-right',
+              render: (r) => (
+                <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={() => openEntry(r)}>
+                    {language === 'pt' ? 'Editar' : language === 'es' ? 'Editar' : 'Edit'}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-danger-soft btn-sm"
+                    onClick={() => {
+                      if (
+                        !confirm(
+                          language === 'pt'
+                            ? 'Excluir este lançamento?'
+                            : language === 'es'
+                              ? '¿Eliminar este movimiento?'
+                              : 'Delete this entry?'
+                        )
+                      )
+                        return
+                      deleteEntryM
+                        .mutateAsync(r.id)
+                        .then(() => toastDeleted(i, 'entry'))
+                        .catch((e: any) => toastFailedToDelete(i, String(e?.message ?? '')))
+                    }}
+                  >
+                    {language === 'pt' ? 'Excluir' : language === 'es' ? 'Eliminar' : 'Delete'}
+                  </button>
+                </div>
+              ),
+            },
           ]}
         />
       )}
@@ -639,6 +664,18 @@ export default function FinancePage() {
             </div>
 
             <div className="mt-4 grid gap-3">
+              {draft.id ? (
+                <div className="grid gap-1">
+                  <span className="text-xs font-medium text-[var(--foreground)]">ID</span>
+                  <input
+                    value={formatFinanceId(draft.code, draft.id)}
+                    readOnly
+                    className="w-full rounded-lg border border-theme bg-transparent px-3 py-2 font-mono text-xs"
+                    title={draft.id}
+                  />
+                </div>
+              ) : null}
+
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="grid gap-1">
                   <span className="text-xs font-medium text-[var(--foreground)]">{language === 'pt' ? 'Tipo' : language === 'es' ? 'Tipo' : 'Type'}</span>
@@ -660,6 +697,7 @@ export default function FinancePage() {
                   <select
                     value={draft.status}
                     onChange={(e) => setDraft((d) => ({ ...d, status: e.target.value as any }))}
+                    disabled={readOnly}
                     className="w-full rounded-lg border border-theme bg-transparent px-3 py-2"
                   >
                     <option value="PAID">{language === 'pt' ? 'Pago' : language === 'es' ? 'Pagado' : 'Paid'}</option>
@@ -675,6 +713,7 @@ export default function FinancePage() {
                     type="datetime-local"
                     value={draft.competenceDate}
                     onChange={(e) => setDraft((d) => ({ ...d, competenceDate: e.target.value }))}
+                    disabled={readOnly}
                     className="w-full rounded-lg border border-theme bg-transparent px-3 py-2"
                   />
                 </label>
@@ -685,6 +724,7 @@ export default function FinancePage() {
                     inputMode="decimal"
                     value={draft.value}
                     onChange={(e) => setDraft((d) => ({ ...d, value: e.target.value }))}
+                    disabled={readOnly}
                     placeholder={language === 'pt' ? '0,00' : '0.00'}
                     className="w-full rounded-lg border border-theme bg-transparent px-3 py-2"
                   />
@@ -696,6 +736,7 @@ export default function FinancePage() {
                 <select
                   value={draft.accountId}
                   onChange={(e) => setDraft((d) => ({ ...d, accountId: e.target.value }))}
+                  disabled={readOnly}
                   className="w-full rounded-lg border border-theme bg-transparent px-3 py-2"
                 >
                   <option value="">{language === 'pt' ? 'Selecione…' : language === 'es' ? 'Seleccione…' : 'Select…'}</option>
@@ -720,6 +761,7 @@ export default function FinancePage() {
                   <select
                     value={draft.categoryId}
                     onChange={(e) => setDraft((d) => ({ ...d, categoryId: e.target.value }))}
+                    disabled={readOnly}
                     className="w-full rounded-lg border border-theme bg-transparent px-3 py-2"
                   >
                     <option value="">—</option>
@@ -736,6 +778,7 @@ export default function FinancePage() {
                   <select
                     value={draft.costCenterId}
                     onChange={(e) => setDraft((d) => ({ ...d, costCenterId: e.target.value }))}
+                    disabled={readOnly}
                     className="w-full rounded-lg border border-theme bg-transparent px-3 py-2"
                   >
                     <option value="">—</option>
@@ -749,10 +792,21 @@ export default function FinancePage() {
               </div>
 
               <label className="grid gap-1">
+                <span className="text-xs font-medium text-[var(--foreground)]">{language === 'pt' ? 'Nome' : language === 'es' ? 'Nombre' : 'Name'}</span>
+                <input
+                  value={draft.name ?? ''}
+                  onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
+                  disabled={readOnly}
+                  className="w-full rounded-lg border border-theme bg-transparent px-3 py-2"
+                />
+              </label>
+
+              <label className="grid gap-1">
                 <span className="text-xs font-medium text-[var(--foreground)]">{language === 'pt' ? 'Observações' : language === 'es' ? 'Notas' : 'Notes'}</span>
                 <textarea
                   value={draft.observations}
                   onChange={(e) => setDraft((d) => ({ ...d, observations: e.target.value }))}
+                  disabled={readOnly}
                   className="min-h-24 w-full rounded-lg border border-theme bg-transparent px-3 py-2"
                 />
               </label>
@@ -770,9 +824,9 @@ export default function FinancePage() {
                 className="btn btn-primary"
                 onClick={save}
                 type="button"
-                disabled={!draft.accountId || !draft.value.trim() || createEntryM.isPending}
+                disabled={readOnly || !draft.accountId || !draft.value.trim() || createEntryM.isPending}
               >
-                {language === 'pt' ? 'Salvar' : language === 'es' ? 'Guardar' : 'Save'}
+                {readOnly ? (language === 'pt' ? 'Somente leitura' : language === 'es' ? 'Solo lectura' : 'Read-only') : language === 'pt' ? 'Salvar' : language === 'es' ? 'Guardar' : 'Save'}
               </button>
             </div>
           </div>

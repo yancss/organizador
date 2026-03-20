@@ -12,6 +12,7 @@ const PatchSchema = z.object({
   categoryId: z.string().optional().nullable(),
   costCenterId: z.string().optional().nullable(),
   value: z.coerce.number().positive().optional(),
+  name: z.string().max(200).optional().nullable(),
   observations: z.string().max(5000).optional().nullable(),
 })
 
@@ -94,17 +95,20 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
         ? { costCenterId: parsed.data.costCenterId ?? null }
         : {}),
       ...(parsed.data.value != null ? { value: parsed.data.value } : {}),
+      ...(Object.prototype.hasOwnProperty.call(parsed.data, 'name') ? { name: parsed.data.name ?? null } : {}),
       ...(Object.prototype.hasOwnProperty.call(parsed.data, 'observations')
         ? { observations: parsed.data.observations ?? null }
         : {}),
     },
     select: {
       id: true,
+      code: true,
       competenceDate: true,
       paidAt: true,
       type: true,
       status: true,
       value: true,
+      name: true,
       observations: true,
       account: { select: { id: true, name: true } },
       category: { select: { id: true, name: true, type: true } },
