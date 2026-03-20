@@ -13,7 +13,10 @@
     "prisma:studio": "prisma studio",
     "bootstrap": "node scripts/bootstrap-support.js",
     "provision:db": "node scripts/provision-db.js",
-    "seed:permissions": "node scripts/seed-permissions.mjs"
+    "seed:permissions": "node scripts/seed-permissions.mjs",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@fullcalendar/core": "^6.1.20",
@@ -46,14 +49,22 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "@types/node": "^20",
     "@types/nodemailer": "^7.0.11",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^6.0.1",
+    "@vitest/coverage-v8": "^4.1.0",
     "eslint": "^9",
     "eslint-config-next": "16.1.5",
+    "jsdom": "^29.0.1",
     "prisma": "^6.15.0",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vite-tsconfig-paths": "^6.1.1",
+    "vitest": "^4.1.0"
   }
 }

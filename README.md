@@ -38,3 +38,17 @@ Isso vai:
 - criar um workspace padrão ("Matriz") e o vínculo (ADMIN)
 - enviar (ou imprimir no console) um link de definição de senha inicial
 
+
+## Testes
+Unit tests com **Vitest + Testing Library**.
+
+Rodar em modo watch:
+`ash
+npm test
+`
+
+Rodar uma vez (CI):
+`ash
+npm run test:run
+`
+
