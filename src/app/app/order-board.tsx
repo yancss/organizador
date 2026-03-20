@@ -92,6 +92,8 @@ type OrderItem = {
   productId: string
   quantity: string // input
   unitPrice: string // money input
+  // input unit for quantity + unit price (user can type in kg even if product is gr)
+  unit?: string
   discountType?: DiscountType | null
   discountValue?: string // money input
   discountPercent?: string // percent input
@@ -444,6 +446,7 @@ export default function OrderBoard() {
         productId: it.product.id,
         quantity: String(it.quantity),
         unitPrice: it.unitPrice == null ? '' : formatMoneyFromNumber(Number(it.unitPrice), moneyLocale),
+        unit: it.product?.unit,
         discountType: (it.discountType as any) ?? null,
         discountValue: it.discountValue == null ? '' : formatMoneyFromNumber(Number(it.discountValue), moneyLocale),
         discountPercent: it.discountPercent == null ? '' : String(it.discountPercent),
@@ -455,8 +458,24 @@ export default function OrderBoard() {
   function addItemLine() {
     const products = productsQ.data?.products ?? []
     const used = new Set(draft.items.map((it) => it.productId))
-    const firstAvailable = products.find((p) => !used.has(p.id))?.id ?? products[0]?.id ?? ''
-    setDraft((d) => ({ ...d, items: [...d.items, { productId: firstAvailable, quantity: '1', unitPrice: '', discountType: null, discountValue: '', discountPercent: '' }] }))
+    const firstAvailableId = products.find((p) => !used.has(p.id))?.id ?? products[0]?.id ?? ''
+    const p0 = products.find((p) => p.id === firstAvailableId) ?? products[0]
+
+    setDraft((d) => ({
+      ...d,
+      items: [
+        ...d.items,
+        {
+          productId: firstAvailableId,
+          quantity: '1',
+          unitPrice: '',
+          unit: p0?.unit,
+          discountType: null,
+          discountValue: '',
+          discountPercent: '',
+        },
+      ],
+    }))
   }
 
   function updateItemLine(idx: number, patch: Partial<OrderItem>) {
@@ -499,6 +518,7 @@ export default function OrderBoard() {
           productId: it.productId,
           quantity: Number(it.quantity.replace(',', '.')),
           unitPrice: it.unitPrice.trim() ? parseMoneyToNumber(it.unitPrice, moneyLocale) : 0,
+          unit: it.unit ?? null,
           discountType: draft.discountMode === 'PER_ITEM' ? (it.discountType ?? 'VALUE') : null,
           discountValue:
             draft.discountMode === 'PER_ITEM' && (it.discountType ?? 'VALUE') === 'VALUE' && it.discountValue?.trim()
@@ -1265,12 +1285,31 @@ export default function OrderBoard() {
                           ))}
                         </select>
 
-                        <input
-                          value={it.quantity}
-                          onChange={(e) => updateItemLine(idx, { quantity: e.target.value })}
-                          className="w-full rounded-lg border border-theme bg-transparent px-3 py-2 text-sm"
-                          placeholder={i.modal.quantityPlaceholder}
-                        />
+                        <div className="grid grid-cols-[1fr_86px] gap-2">
+                          <input
+                            value={it.quantity}
+                            onChange={(e) => updateItemLine(idx, { quantity: e.target.value })}
+                            className="w-full rounded-lg border border-theme bg-transparent px-3 py-2 text-sm"
+                            placeholder={i.modal.quantityPlaceholder}
+                          />
+                          <select
+                            value={it.unit ?? ''}
+                            onChange={(e) => updateItemLine(idx, { unit: e.target.value })}
+                            className="w-full rounded-lg border border-theme bg-transparent px-3 py-2 text-sm"
+                            title="Unidade usada na quantidade e no preço unitário"
+                          >
+                            {(() => {
+                              const p = (productsQ.data?.products ?? []).find((p) => p.id === it.productId)
+                              const base = p?.unit
+                              const opts = base === 'gr' || base === 'g' ? ['gr', 'kg'] : base === 'kg' ? ['kg', 'gr'] : base === 'ml' ? ['ml', 'l'] : base === 'l' ? ['l', 'ml'] : base === 'un' ? ['un', 'dz'] : base === 'dz' ? ['dz', 'un'] : base ? [base] : []
+                              return opts.map((u) => (
+                                <option key={u} value={u}>
+                                  {u}
+                                </option>
+                              ))
+                            })()}
+                          </select>
+                        </div>
 
                         <input
                           value={it.unitPrice}

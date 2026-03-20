@@ -3,12 +3,15 @@ import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { requireWorkspace } from '@/lib/authz'
 import { calcOrderTotals } from '@/lib/sales-order-totals'
+import { convertQty, convertUnitPrice, isConvertible, normalizeUnit } from '@/lib/unit-conversion'
 // Finance hooks (recebíveis/pagamentos) serão adicionados no próximo passo.
 
 const OrderItemSchema = z.object({
   productId: z.string().min(1),
   quantity: z.coerce.number().positive(),
   unitPrice: z.coerce.number().nonnegative(),
+  // Optional input unit (when user types qty/price in a different unit than Product.unit)
+  unit: z.string().optional().nullable(),
   // Used when discountMode=PER_ITEM
   discountType: z.enum(['VALUE', 'PERCENT']).optional().nullable(),
   discountValue: z.coerce.number().optional().nullable(),
@@ -110,10 +113,50 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
 
     const discountMode = (parsed.data.discountMode ?? prev.discountMode) as any
 
+    // Normalize item units/prices to the product base unit.
+    const normalized = parsed.data.items.length
+      ? await Promise.all(
+          parsed.data.items.map(async (it) => {
+            const p = await prisma.product.findFirst({ where: { id: it.productId, workspaceId: wsId }, select: { unit: true } })
+            const baseUnit = p?.unit
+            if (!baseUnit) throw new Error('PRODUCT_NOT_FOUND')
+
+            const inputUnitRaw = it.unit ?? null
+            const inputUnit = inputUnitRaw ? normalizeUnit(inputUnitRaw) : null
+            const baseUnitN = normalizeUnit(baseUnit)
+            if (!baseUnitN) throw new Error('INVALID_PRODUCT_UNIT')
+
+            const u = inputUnit ?? baseUnitN
+            if (!isConvertible(u, baseUnitN)) {
+              return { ok: false as const, error: 'INCOMPATIBLE_UNITS', productId: it.productId, from: u, to: baseUnitN }
+            }
+
+            const qtyBase = convertQty(it.quantity, u, baseUnitN)
+            const unitPriceBase = convertUnitPrice(it.unitPrice, u, baseUnitN)
+
+            return {
+              ok: true as const,
+              item: {
+                ...it,
+                quantity: qtyBase,
+                unitPrice: unitPriceBase,
+              },
+            }
+          }),
+        )
+      : []
+
+    const bad = normalized.find((x: any) => x && x.ok === false)
+    if (bad) {
+      return Response.json({ error: 'INVALID_UNIT_CONVERSION', details: bad }, { status: 400 })
+    }
+
+    const itemsBase = normalized.map((x: any) => x.item)
+
     await prisma.salesOrderItem.deleteMany({ where: { salesOrderId: id } })
-    if (parsed.data.items.length) {
+    if (itemsBase.length) {
       await prisma.salesOrderItem.createMany({
-        data: parsed.data.items.map((it) => ({
+        data: itemsBase.map((it: any) => ({
           salesOrderId: id,
           productId: it.productId,
           quantity: it.quantity,

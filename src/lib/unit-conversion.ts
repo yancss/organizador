@@ -63,6 +63,19 @@ export function convertQty(qty: number, fromUnit: string, toUnit: string): numbe
   throw new Error('INCOMPATIBLE_UNITS')
 }
 
+/**
+ * Converts a unit price expressed in `fromUnit` to the equivalent unit price in `toUnit`.
+ * Example: 18 €/kg -> €/gr
+ *  - factor = convertQty(1, 'kg', 'gr') = 1000
+ *  - pricePerGr = 18 / 1000
+ */
+export function convertUnitPrice(price: number, fromUnit: string, toUnit: string): number {
+  if (!Number.isFinite(price)) throw new Error('INVALID_PRICE')
+  const factor = convertQty(1, fromUnit, toUnit)
+  if (!Number.isFinite(factor) || factor <= 0) throw new Error('INVALID_CONVERSION_FACTOR')
+  return price / factor
+}
+
 export function formatConvertedPreview(args: {
   qtyRaw: string
   fromUnit: string

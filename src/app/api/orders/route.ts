@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { requireWorkspace } from '@/lib/authz'
 import { makeDocCode } from '@/lib/codes'
+import { convertQty, convertUnitPrice, isConvertible, normalizeUnit } from '@/lib/unit-conversion'
 // Finance hooks (recebíveis/pagamentos) serão adicionados no próximo passo.
 
 import { buildSalesOrdersWhere } from '@/lib/orders-query'
@@ -62,6 +63,8 @@ const OrderItemSchema = z.object({
   productId: z.string().min(1),
   quantity: z.coerce.number().positive(),
   unitPrice: z.coerce.number().nonnegative(),
+  // Optional input unit (when user types qty/price in a different unit than Product.unit)
+  unit: z.string().optional().nullable(),
   // Used when discountMode=PER_ITEM
   discountType: z.enum(['VALUE', 'PERCENT']).optional().nullable(),
   discountValue: z.coerce.number().optional().nullable(),
@@ -116,8 +119,50 @@ export async function POST(req: Request) {
 
   const discountMode = parsed.data.discountMode ?? 'SUBTOTAL'
 
+  // Normalize item units/prices to the product base unit.
+  const normalizedItems = (parsed.data.items ?? []).length
+    ? await Promise.all(
+        (parsed.data.items ?? []).map(async (it) => {
+          const p = await prisma.product.findFirst({ where: { id: it.productId, workspaceId: wsId }, select: { unit: true } })
+          const baseUnit = p?.unit
+          if (!baseUnit) throw new Error('PRODUCT_NOT_FOUND')
+
+          const inputUnitRaw = it.unit ?? null
+          const inputUnit = inputUnitRaw ? normalizeUnit(inputUnitRaw) : null
+          const baseUnitN = normalizeUnit(baseUnit)
+          if (!baseUnitN) throw new Error('INVALID_PRODUCT_UNIT')
+
+          // If user did not send unit, assume base unit.
+          const u = inputUnit ?? baseUnitN
+
+          if (!isConvertible(u, baseUnitN)) {
+            return { ok: false as const, error: 'INCOMPATIBLE_UNITS', productId: it.productId, from: u, to: baseUnitN }
+          }
+
+          const qtyBase = convertQty(it.quantity, u, baseUnitN)
+          const unitPriceBase = convertUnitPrice(it.unitPrice, u, baseUnitN)
+
+          return {
+            ok: true as const,
+            item: {
+              ...it,
+              quantity: qtyBase,
+              unitPrice: unitPriceBase,
+            },
+          }
+        }),
+      )
+    : []
+
+  const bad = normalizedItems.find((x: any) => x && x.ok === false)
+  if (bad) {
+    return Response.json({ error: 'INVALID_UNIT_CONVERSION', details: bad }, { status: 400 })
+  }
+
+  const itemsForTotals = normalizedItems.map((x: any) => x.item)
+
   const totals = calcOrderTotals({
-    items: (parsed.data.items ?? []).map((it) => ({
+    items: itemsForTotals.map((it: any) => ({
       quantity: it.quantity,
       unitPrice: it.unitPrice,
       discountType: it.discountType as any,
@@ -151,9 +196,9 @@ export async function POST(req: Request) {
 
       value: totals.total,
       orderIndex: String(Date.now()),
-      items: parsed.data.items?.length
+      items: itemsForTotals.length
         ? {
-            create: parsed.data.items.map((it) => ({
+            create: itemsForTotals.map((it: any) => ({
               productId: it.productId,
               quantity: it.quantity,
               unitPrice: it.unitPrice,
