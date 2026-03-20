@@ -80,6 +80,8 @@ model Workspace {
   financialCategories FinancialCategory[]
   costCenters         CostCenter[]
 
+  sequences WorkspaceSequence[]
+
   // Admin
   userInviteTokens UserInviteToken[]
   roles            WorkspaceRoleModel[]
@@ -441,6 +443,7 @@ model Client {
 
 enum ProductKind {
   RAW
+  INTERMEDIATE
   FINISHED
 }
 
@@ -680,9 +683,26 @@ model CostCenter {
   @@index([workspaceId])
 }
 
+model WorkspaceSequence {
+  workspaceId String
+  key         String
+  next        Int
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@id([workspaceId, key])
+  @@index([workspaceId])
+}
+
 model FinancialEntry {
   id          String @id @default(cuid())
   workspaceId String
+
+  // Human-friendly sequential code (e.g. FIN-0000000001) unique per workspace
+  code String? @db.VarChar(16)
+
+  // Human-friendly name/title for the entry (used in UI)
+  name String? @db.VarChar(200)
 
   createdById String?
   updatedById String?
@@ -719,6 +739,7 @@ model FinancialEntry {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@unique([workspaceId, code])
   @@index([workspaceId])
   @@index([competenceDate])
   @@index([paidAt])
