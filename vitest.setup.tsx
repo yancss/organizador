@@ -51,5 +51,8 @@ class ResizeObserver {
   unobserve() {}
   disconnect() {}
 }
-// @ts-expect-error - attach to window
-window.ResizeObserver = ResizeObserver
+// Attach polyfill to window in tests
+Object.defineProperty(window, 'ResizeObserver', {
+  value: ResizeObserver,
+  writable: true,
+})
