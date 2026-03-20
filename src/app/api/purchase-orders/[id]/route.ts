@@ -5,11 +5,14 @@ import { prisma } from '@/lib/prisma'
 import { requireWorkspace } from '@/lib/authz'
 import { adjustInventory } from '@/lib/inventory-movements'
 import { deletePlannedPayableForPurchaseOrder, upsertPayableForPurchaseOrder } from '@/lib/finance-defaults'
+import { convertQty, convertUnitPrice, isConvertible, normalizeUnit } from '@/lib/unit-conversion'
 
 const ItemSchema = z.object({
   productId: z.string().min(1),
   quantity: z.coerce.number().positive(),
   unitCost: z.coerce.number().optional().nullable(),
+  // Optional input unit (user may type qty/cost in kg while product base is gr, etc.)
+  unit: z.string().optional().nullable(),
 })
 
 const PatchSchema = z.object({
@@ -67,16 +70,35 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
     const nextItems = new Map<string, { quantity: number; unitCost: number | null }>()
     if (parsed.data.items) {
-      for (const it of parsed.data.items) {
+      const items = parsed.data.items
+      const productIds = [...new Set(items.map((it) => it.productId))]
+      const products = productIds.length
+        ? await tx.product.findMany({ where: { workspaceId: wsId, id: { in: productIds } }, select: { id: true, unit: true } })
+        : []
+      const unitByProduct = new Map(products.map((p) => [p.id, p.unit]))
+
+      for (const it of items) {
+        const baseUnitRaw = unitByProduct.get(it.productId)
+        const baseUnit = baseUnitRaw ? normalizeUnit(baseUnitRaw) : null
+        if (!baseUnit) throw new Error('INVALID_PRODUCT_UNIT')
+
+        const inputUnitRaw = it.unit ?? null
+        const inputUnit = inputUnitRaw ? normalizeUnit(inputUnitRaw) : null
+        const u = inputUnit ?? baseUnit
+
+        if (!isConvertible(u, baseUnit)) throw new Error('INCOMPATIBLE_UNITS')
+
+        const qtyBase = convertQty(Number(it.quantity), u, baseUnit)
+        const unitCostBase = it.unitCost == null ? null : convertUnitPrice(Number(it.unitCost), u, baseUnit)
+
         const prevIt = nextItems.get(it.productId)
-        const unitCost = it.unitCost == null ? null : Number(it.unitCost)
         if (prevIt) {
-          if (prevIt.unitCost != null && unitCost != null && Math.abs(prevIt.unitCost - unitCost) > 0.0001) {
+          if (prevIt.unitCost != null && unitCostBase != null && Math.abs(prevIt.unitCost - unitCostBase) > 0.0001) {
             throw new Error('MIXED_UNIT_COST')
           }
-          nextItems.set(it.productId, { quantity: prevIt.quantity + Number(it.quantity), unitCost: prevIt.unitCost ?? unitCost })
+          nextItems.set(it.productId, { quantity: prevIt.quantity + qtyBase, unitCost: prevIt.unitCost ?? unitCostBase })
         } else {
-          nextItems.set(it.productId, { quantity: Number(it.quantity), unitCost })
+          nextItems.set(it.productId, { quantity: qtyBase, unitCost: unitCostBase })
         }
       }
     } else {

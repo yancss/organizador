@@ -18,7 +18,7 @@ type Supplier = { id: string; name: string }
 
 type Product = { id: string; name: string; unit: string }
 
-type PurchaseOrderItemDraft = { productId: string; quantity: string; unitCost: string }
+type PurchaseOrderItemDraft = { productId: string; quantity: string; unitCost: string; unit?: string }
 
 type PurchaseOrder = {
   id: string
@@ -159,7 +159,7 @@ export default function PurchaseOrdersPage() {
       status: po.status,
       estimatedCost: po.estimatedCost == null ? '' : formatMoneyFromNumber(Number(po.estimatedCost), moneyLocale),
       observations: po.observations ?? '',
-      items: (po.items ?? []).map((it) => ({ productId: it.product.id, quantity: String(it.quantity), unitCost: it.unitCost == null ? '' : formatMoneyFromNumber(Number(it.unitCost), moneyLocale) })), 
+      items: (po.items ?? []).map((it) => ({ productId: it.product.id, quantity: String(it.quantity), unitCost: it.unitCost == null ? '' : formatMoneyFromNumber(Number(it.unitCost), moneyLocale), unit: it.product.unit })), 
     })
     setIsOpen(true)
   }
@@ -168,7 +168,8 @@ export default function PurchaseOrdersPage() {
     const products = productsQ.data?.products ?? []
     const used = new Set(draft.items.map((it) => it.productId))
     const firstAvailable = products.find((p) => !used.has(p.id))?.id ?? products[0]?.id ?? ''
-    setDraft((d) => ({ ...d, items: [...d.items, { productId: firstAvailable, quantity: '1', unitCost: '' }] }))
+    const p0 = products.find((p) => p.id === firstAvailable) ?? products[0]
+    setDraft((d) => ({ ...d, items: [...d.items, { productId: firstAvailable, quantity: '1', unitCost: '', unit: p0?.unit }] }))
   }
 
   function updateItemLine(idx: number, patch: Partial<PurchaseOrderItemDraft>) {
@@ -195,6 +196,7 @@ export default function PurchaseOrdersPage() {
           productId: it.productId,
           quantity: Number(it.quantity.replace(',', '.')),
           unitCost: it.unitCost.trim() ? parseMoneyToNumber(it.unitCost, moneyLocale) : null,
+          unit: it.unit ?? null,
         }))
         .filter((it) => Number.isFinite(it.quantity) && it.quantity > 0),
     }
@@ -452,12 +454,31 @@ export default function PurchaseOrdersPage() {
                           ))}
                         </select>
 
-                        <input
-                          value={it.quantity}
-                          onChange={(e) => updateItemLine(idx, { quantity: e.target.value })}
-                          className="w-full rounded-lg border border-theme bg-transparent px-3 py-2 text-sm"
-                          placeholder={language === 'pt' ? 'Qtd' : language === 'es' ? 'Cant.' : 'Qty'}
-                        />
+                        <div className="grid grid-cols-[1fr_86px] gap-2">
+                          <input
+                            value={it.quantity}
+                            onChange={(e) => updateItemLine(idx, { quantity: e.target.value })}
+                            className="w-full rounded-lg border border-theme bg-transparent px-3 py-2 text-sm"
+                            placeholder={language === 'pt' ? 'Qtd' : language === 'es' ? 'Cant.' : 'Qty'}
+                          />
+                          <select
+                            value={it.unit ?? ''}
+                            onChange={(e) => updateItemLine(idx, { unit: e.target.value })}
+                            className="w-full rounded-lg border border-theme bg-transparent px-3 py-2 text-sm"
+                            title="Unidade usada na quantidade e no custo unitário"
+                          >
+                            {(() => {
+                              const p = (productsQ.data?.products ?? []).find((p) => p.id === it.productId)
+                              const base = p?.unit
+                              const opts = base === 'gr' || base === 'g' ? ['gr', 'kg'] : base === 'kg' ? ['kg', 'gr'] : base === 'ml' ? ['ml', 'l'] : base === 'l' ? ['l', 'ml'] : base === 'un' ? ['un', 'dz'] : base === 'dz' ? ['dz', 'un'] : base ? [base] : []
+                              return opts.map((u) => (
+                                <option key={u} value={u}>
+                                  {u}
+                                </option>
+                              ))
+                            })()}
+                          </select>
+                        </div>
 
                         <input
                           value={it.unitCost}

@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { requireWorkspace } from '@/lib/authz'
 import { makeDocCode } from '@/lib/codes'
+import { convertQty, convertUnitPrice, isConvertible, normalizeUnit } from '@/lib/unit-conversion'
 
 export async function GET() {
   const auth = await requireWorkspace()
@@ -44,6 +45,8 @@ const ItemSchema = z.object({
   productId: z.string().min(1),
   quantity: z.coerce.number().positive(),
   unitCost: z.coerce.number().optional().nullable(),
+  // Optional input unit (user may type qty/cost in kg while product base is gr, etc.)
+  unit: z.string().optional().nullable(),
 })
 
 const CreateSchema = z.object({
@@ -69,18 +72,39 @@ export async function POST(req: Request) {
   }
 
   // Consolidate items (respect @@unique([purchaseOrderId, productId]))
-  // If multiple lines for the same product include unitCost, it must match.
+  // If multiple lines for the same product include unitCost, it must match (after normalization to product base unit).
+  const items = parsed.data.items ?? []
+  const productIds = [...new Set(items.map((it) => it.productId))]
+  const products = productIds.length
+    ? await prisma.product.findMany({ where: { workspaceId: wsId, id: { in: productIds } }, select: { id: true, unit: true } })
+    : []
+  const unitByProduct = new Map(products.map((p) => [p.id, p.unit]))
+
   const consolidated = new Map<string, { quantity: number; unitCost: number | null }>()
-  for (const it of parsed.data.items ?? []) {
+  for (const it of items) {
+    const baseUnitRaw = unitByProduct.get(it.productId)
+    const baseUnit = baseUnitRaw ? normalizeUnit(baseUnitRaw) : null
+    if (!baseUnit) return Response.json({ error: 'INVALID_PRODUCT_UNIT', productId: it.productId }, { status: 400 })
+
+    const inputUnitRaw = it.unit ?? null
+    const inputUnit = inputUnitRaw ? normalizeUnit(inputUnitRaw) : null
+    const u = inputUnit ?? baseUnit
+
+    if (!isConvertible(u, baseUnit)) {
+      return Response.json({ error: 'INVALID_UNIT_CONVERSION', details: { productId: it.productId, from: u, to: baseUnit } }, { status: 400 })
+    }
+
+    const qtyBase = convertQty(Number(it.quantity), u, baseUnit)
+    const unitCostBase = it.unitCost == null ? null : convertUnitPrice(Number(it.unitCost), u, baseUnit)
+
     const prev = consolidated.get(it.productId)
-    const unitCost = it.unitCost == null ? null : Number(it.unitCost)
     if (prev) {
-      if (prev.unitCost != null && unitCost != null && Math.abs(prev.unitCost - unitCost) > 0.0001) {
+      if (prev.unitCost != null && unitCostBase != null && Math.abs(prev.unitCost - unitCostBase) > 0.0001) {
         return Response.json({ error: 'MIXED_UNIT_COST' }, { status: 400 })
       }
-      consolidated.set(it.productId, { quantity: prev.quantity + Number(it.quantity), unitCost: prev.unitCost ?? unitCost })
+      consolidated.set(it.productId, { quantity: prev.quantity + qtyBase, unitCost: prev.unitCost ?? unitCostBase })
     } else {
-      consolidated.set(it.productId, { quantity: Number(it.quantity), unitCost })
+      consolidated.set(it.productId, { quantity: qtyBase, unitCost: unitCostBase })
     }
   }
 

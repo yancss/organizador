@@ -27,13 +27,14 @@ type InventoryItem = {
 type Draft = {
   productId: string
   productName: string
-  unit: string
+  unit: string // base unit (Product.unit)
+  inputUnit: string // unit the user is typing in
   quantity: string
   minimum: string
 }
 
 function emptyDraft(): Draft {
-  return { productId: '', productName: '', unit: '', quantity: '', minimum: '' }
+  return { productId: '', productName: '', unit: '', inputUnit: '', quantity: '', minimum: '' }
 }
 
 export default function InventoryPage() {
@@ -80,6 +81,7 @@ export default function InventoryPage() {
       productId: it.product.id,
       productName: it.product.name,
       unit: it.product.unit,
+      inputUnit: it.product.unit,
       quantity: String(it.quantity ?? ''),
       minimum: it.minimum == null ? '' : String(it.minimum),
     })
@@ -92,6 +94,7 @@ export default function InventoryPage() {
     const payload: any = {
       quantity: draft.quantity.trim() ? Number(draft.quantity.replace(',', '.')) : undefined,
       minimum: draft.minimum.trim() ? Number(draft.minimum.replace(',', '.')) : null,
+      unit: draft.inputUnit || undefined,
     }
 
     try {
@@ -200,22 +203,60 @@ export default function InventoryPage() {
 
             <div className="mt-4 grid gap-3">
               <label className="grid gap-1">
-                <FieldLabel>{i.inventory.quantityLabel} ({draft.unit})</FieldLabel>
-                <input
-                  value={draft.quantity}
-                  onChange={(e) => setDraft((d) => ({ ...d, quantity: e.target.value }))}
-                  className="w-full rounded-lg border border-theme bg-transparent px-3 py-2"
-                />
+                <FieldLabel>
+                  {i.inventory.quantityLabel} ({draft.unit})
+                </FieldLabel>
+                <div className="grid grid-cols-[1fr_86px] gap-2">
+                  <input
+                    value={draft.quantity}
+                    onChange={(e) => setDraft((d) => ({ ...d, quantity: e.target.value }))}
+                    className="w-full rounded-lg border border-theme bg-transparent px-3 py-2"
+                  />
+                  <select
+                    value={draft.inputUnit}
+                    onChange={(e) => setDraft((d) => ({ ...d, inputUnit: e.target.value }))}
+                    className="w-full rounded-lg border border-theme bg-transparent px-3 py-2"
+                    title="Unidade em que você está digitando (será convertida para a unidade do produto)"
+                  >
+                    {(() => {
+                      const base = draft.unit
+                      const opts = base === 'gr' || base === 'g' ? ['gr', 'kg'] : base === 'kg' ? ['kg', 'gr'] : base === 'ml' ? ['ml', 'l'] : base === 'l' ? ['l', 'ml'] : base === 'un' ? ['un', 'dz'] : base === 'dz' ? ['dz', 'un'] : base ? [base] : []
+                      return opts.map((u) => (
+                        <option key={u} value={u}>
+                          {u}
+                        </option>
+                      ))
+                    })()}
+                  </select>
+                </div>
               </label>
 
               <label className="grid gap-1">
                 <span className="text-xs font-medium text-[var(--foreground)]">{i.inventory.minimumLabel} ({draft.unit})</span>
-                <input
-                  value={draft.minimum}
-                  onChange={(e) => setDraft((d) => ({ ...d, minimum: e.target.value }))}
-                  placeholder={i.modal.optional}
-                  className="w-full rounded-lg border border-theme bg-transparent px-3 py-2"
-                />
+                <div className="grid grid-cols-[1fr_86px] gap-2">
+                  <input
+                    value={draft.minimum}
+                    onChange={(e) => setDraft((d) => ({ ...d, minimum: e.target.value }))}
+                    placeholder={i.modal.optional}
+                    className="w-full rounded-lg border border-theme bg-transparent px-3 py-2"
+                  />
+                  <select
+                    value={draft.inputUnit}
+                    onChange={(e) => setDraft((d) => ({ ...d, inputUnit: e.target.value }))}
+                    className="w-full rounded-lg border border-theme bg-transparent px-3 py-2"
+                    title="Unidade em que você está digitando (será convertida para a unidade do produto)"
+                  >
+                    {(() => {
+                      const base = draft.unit
+                      const opts = base === 'gr' || base === 'g' ? ['gr', 'kg'] : base === 'kg' ? ['kg', 'gr'] : base === 'ml' ? ['ml', 'l'] : base === 'l' ? ['l', 'ml'] : base === 'un' ? ['un', 'dz'] : base === 'dz' ? ['dz', 'un'] : base ? [base] : []
+                      return opts.map((u) => (
+                        <option key={u} value={u}>
+                          {u}
+                        </option>
+                      ))
+                    })()}
+                  </select>
+                </div>
               </label>
             </div>
 
