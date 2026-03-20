@@ -16,8 +16,9 @@ type Product = {
   id: string
   name: string
   brand: string | null
-  kind?: 'RAW' | 'FINISHED'
+  kind?: 'RAW' | 'INTERMEDIATE' | 'FINISHED'
   unit: string
+  avgCost?: string | number | null
   active?: boolean
 }
 
@@ -30,7 +31,7 @@ type Draft = {
   id?: string
   name: string
   brand: string
-  kind: 'RAW' | 'FINISHED'
+  kind: 'RAW' | 'INTERMEDIATE' | 'FINISHED'
   unit: string
 }
 
@@ -190,6 +191,17 @@ export default function ProductsPage() {
               render: (r) => <div className="text-[var(--muted-foreground)]">{r.unit}</div>,
             },
             {
+              key: 'avgCost',
+              header: language === 'pt' ? 'Custo méd.' : language === 'es' ? 'Costo prom.' : 'Avg cost',
+              sortValue: (r) => Number(r.avgCost ?? 0),
+              searchValue: (r) => (r.avgCost == null ? '' : String(r.avgCost)),
+              render: (r) => {
+                const v = r.avgCost == null ? null : Number(r.avgCost)
+                if (!v || !Number.isFinite(v) || v <= 0) return <div className="text-[var(--muted-foreground)]">—</div>
+                return <div className="text-[var(--muted-foreground)]">€ {v.toFixed(4)} / {r.unit}</div>
+              },
+            },
+            {
               key: 'kind',
               header: language === 'pt' ? 'Tipo' : language === 'es' ? 'Tipo' : 'Type',
               sortValue: (r) => r.kind ?? '',
@@ -202,11 +214,17 @@ export default function ProductsPage() {
                       : language === 'es'
                         ? 'Final'
                         : 'Finished'
-                    : language === 'pt'
-                      ? 'Insumo'
-                      : language === 'es'
+                    : r.kind === 'INTERMEDIATE'
+                      ? language === 'pt'
+                        ? 'Intermediário'
+                        : language === 'es'
+                          ? 'Intermedio'
+                          : 'Intermediate'
+                      : language === 'pt'
                         ? 'Insumo'
-                        : 'Raw'}
+                        : language === 'es'
+                          ? 'Insumo'
+                          : 'Raw'}
                 </span>
               ),
             },
@@ -261,6 +279,7 @@ export default function ProductsPage() {
                   className="w-full rounded-lg border border-theme bg-transparent px-3 py-2"
                 >
                   <option value="RAW">{i.products.kindRaw}</option>
+                  <option value="INTERMEDIATE">{language === 'pt' ? 'Intermediário' : language === 'es' ? 'Intermedio' : 'Intermediate'}</option>
                   <option value="FINISHED">{i.products.kindFinished}</option>
                 </select>
               </label>

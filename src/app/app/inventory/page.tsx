@@ -18,7 +18,7 @@ type InventoryItem = {
   quantity: string | number
   minimum: string | number | null
   updatedAt: string
-  product: { id: string; name: string; unit: string }
+  product: { id: string; name: string; unit: string; kind?: string; avgCost?: string | number | null }
 }
 
 // (moved to api-client.ts)
@@ -167,6 +167,17 @@ export default function InventoryPage() {
                   {r.minimum == null ? '—' : `${String(r.minimum)} ${r.product.unit}`}
                 </div>
               ),
+            },
+            {
+              key: 'avgCost',
+              header: language === 'pt' ? 'Custo méd.' : language === 'es' ? 'Costo prom.' : 'Avg cost',
+              sortValue: (r) => Number(r.product.avgCost ?? 0),
+              searchValue: (r) => (r.product.avgCost == null ? '' : String(r.product.avgCost)),
+              render: (r) => {
+                const v = r.product.avgCost == null ? null : Number(r.product.avgCost)
+                if (!v || !Number.isFinite(v) || v <= 0) return <div className="text-[var(--muted-foreground)]">—</div>
+                return <div className="text-[var(--muted-foreground)]">€ {v.toFixed(4)} / {r.product.unit}</div>
+              },
             },
             {
               key: 'updated',
