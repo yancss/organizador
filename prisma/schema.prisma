@@ -810,6 +810,11 @@ model VerificationToken {
 // Deliveries + Receivables + Payments (Sales flow)
 // ============================
 
+enum DeliveryMethod {
+  DELIVERY
+  PICKUP
+}
+
 enum DeliveryStatus {
   PLANNED
   PICKING
@@ -831,6 +836,8 @@ model Delivery {
 
   status DeliveryStatus @default(PLANNED)
 
+  method DeliveryMethod @default(PICKUP)
+
   plannedAt   DateTime?
   shippedAt   DateTime?
   deliveredAt DateTime?
@@ -839,6 +846,17 @@ model Delivery {
   trackingCode String?
   trackingUrl  String?
   observations String?
+
+  // Snapshot do endereço de entrega (quando method=DELIVERY)
+  addressCountry    String? @db.VarChar(2)
+  addressPostalCode String? @db.VarChar(16)
+  addressState      String? @db.VarChar(80)
+  addressCity       String? @db.VarChar(120)
+  addressDistrict   String? @db.VarChar(120)
+  addressStreet     String? @db.VarChar(180)
+  addressNumber     String? @db.VarChar(40)
+  addressComplement String? @db.VarChar(120)
+  addressNotes      String? @db.VarChar(500)
 
   // Valor a faturar por esta expedição (MVP). Evita precisar de preço por item agora.
   value Decimal? @db.Decimal(12, 2)

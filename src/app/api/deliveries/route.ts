@@ -33,6 +33,18 @@ export async function GET(req: Request) {
       trackingUrl: true,
       observations: true,
       value: true,
+
+      method: true,
+      addressCountry: true,
+      addressPostalCode: true,
+      addressState: true,
+      addressCity: true,
+      addressDistrict: true,
+      addressStreet: true,
+      addressNumber: true,
+      addressComplement: true,
+      addressNotes: true,
+
       receivable: { select: { id: true, status: true, value: true } },
       items: {
         select: {
@@ -58,9 +70,24 @@ const DeliveryItemSchema = z.object({
 const CreateSchema = z.object({
   salesOrderId: z.string().min(1),
   clientId: z.string().optional().nullable(),
+
+  method: z.enum(['DELIVERY', 'PICKUP']).optional(),
+
   plannedAt: z.string().datetime().optional().nullable(),
   observations: z.string().max(5000).optional().nullable(),
   value: z.coerce.number().positive().optional().nullable(),
+
+  // Address snapshot (required only when method=DELIVERY)
+  addressCountry: z.string().max(2).optional().nullable(),
+  addressPostalCode: z.string().max(16).optional().nullable(),
+  addressState: z.string().max(80).optional().nullable(),
+  addressCity: z.string().max(120).optional().nullable(),
+  addressDistrict: z.string().max(120).optional().nullable(),
+  addressStreet: z.string().max(180).optional().nullable(),
+  addressNumber: z.string().max(40).optional().nullable(),
+  addressComplement: z.string().max(120).optional().nullable(),
+  addressNotes: z.string().max(500).optional().nullable(),
+
   items: z.array(DeliveryItemSchema).optional(),
 })
 
@@ -83,14 +110,37 @@ export async function POST(req: Request) {
   })
   if (!so) return Response.json({ error: 'SALES_ORDER_NOT_FOUND' }, { status: 404 })
 
+  const method = parsed.data.method ?? 'PICKUP'
+
+  if (method === 'DELIVERY') {
+    const ok = !!(parsed.data.addressCity?.trim() && parsed.data.addressStreet?.trim())
+    if (!ok) {
+      return Response.json({ error: 'DELIVERY_ADDRESS_REQUIRED' }, { status: 400 })
+    }
+  }
+
   const delivery = await prisma.delivery.create({
     data: {
       workspaceId: wsId,
       salesOrderId: so.id,
       clientId: parsed.data.clientId ?? so.clientId ?? null,
+
+      method: method as any,
+
       plannedAt: parsed.data.plannedAt ? new Date(parsed.data.plannedAt) : null,
       observations: parsed.data.observations ?? null,
       value: parsed.data.value ?? null,
+
+      addressCountry: method === 'DELIVERY' ? (parsed.data.addressCountry ?? null) : null,
+      addressPostalCode: method === 'DELIVERY' ? (parsed.data.addressPostalCode ?? null) : null,
+      addressState: method === 'DELIVERY' ? (parsed.data.addressState ?? null) : null,
+      addressCity: method === 'DELIVERY' ? (parsed.data.addressCity ?? null) : null,
+      addressDistrict: method === 'DELIVERY' ? (parsed.data.addressDistrict ?? null) : null,
+      addressStreet: method === 'DELIVERY' ? (parsed.data.addressStreet ?? null) : null,
+      addressNumber: method === 'DELIVERY' ? (parsed.data.addressNumber ?? null) : null,
+      addressComplement: method === 'DELIVERY' ? (parsed.data.addressComplement ?? null) : null,
+      addressNotes: method === 'DELIVERY' ? (parsed.data.addressNotes ?? null) : null,
+
       status: 'PLANNED',
       items: parsed.data.items?.length
         ? {
@@ -119,6 +169,18 @@ export async function POST(req: Request) {
       trackingUrl: true,
       observations: true,
       value: true,
+
+      method: true,
+      addressCountry: true,
+      addressPostalCode: true,
+      addressState: true,
+      addressCity: true,
+      addressDistrict: true,
+      addressStreet: true,
+      addressNumber: true,
+      addressComplement: true,
+      addressNotes: true,
+
       items: {
         select: { id: true, quantity: true, product: { select: { id: true, name: true, unit: true } } },
         orderBy: { createdAt: 'asc' },

@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 
 import DataTable, { type ColumnDef } from '../ui/data-table'
@@ -31,6 +32,8 @@ type Delivery = {
 
 
 export default function DeliveriesPage() {
+  const router = useRouter()
+
   const q = useQuery({
     queryKey: ['deliveries'],
     queryFn: () => api<{ deliveries: Delivery[] }>('/api/deliveries'),
@@ -93,6 +96,7 @@ export default function DeliveriesPage() {
         empty={q.isLoading ? 'Carregando…' : q.error ? 'Erro ao carregar.' : 'Sem entregas.'}
         initialSort={{ key: 'shippedAt', dir: 'desc' }}
         pageSize={15}
+        onRowClick={(r) => router.push(`/app/deliveries/${r.id}`)}
       />
     </div>
   )

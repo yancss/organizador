@@ -2,9 +2,10 @@
 
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { api } from '@/app/app/api-client'
+import { toastCreated, toastFailedToSave } from '@/app/app/toast'
 import { useSettings } from '@/app/app/settings-context'
 import { t } from '@/app/app/i18n'
 import { formatMoneyDisplay, localeFromLanguage } from '@/app/app/money'
@@ -51,6 +52,8 @@ type Receivable = {
 }
 
 export default function SalesOrderDetailsPage() {
+  const qc = useQueryClient()
+
   const params = useParams<{ id: string }>()
   const id = params?.id
 
@@ -70,6 +73,39 @@ export default function SalesOrderDetailsPage() {
     queryFn: () => api<{ deliveries: Delivery[] }>(`/api/deliveries?salesOrderId=${id}`),
   })
 
+  const createDeliveryM = useMutation({
+    mutationFn: async () => {
+      if (!order) throw new Error('ORDER_NOT_LOADED')
+      if (!order.client?.id) throw new Error('MISSING_CLIENT')
+      if (!order.items?.length) throw new Error('MISSING_ITEMS')
+
+      const payload = {
+        salesOrderId: order.id,
+        clientId: order.client.id,
+        method: 'PICKUP',
+        plannedAt: order.deliveryAt,
+        value: order.value == null ? null : Number(order.value),
+        items: order.items.map((it) => ({
+          productId: it.product.id,
+          quantity: Number(it.quantity),
+        })),
+      }
+
+      return api<{ delivery: { id: string } }>('/api/deliveries', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      })
+    },
+    onSuccess: async () => {
+      toastCreated(i, 'delivery')
+      await qc.invalidateQueries({ queryKey: ['deliveries'] })
+      if (id) await qc.invalidateQueries({ queryKey: ['deliveries', 'salesOrder', id] })
+    },
+    onError: (e: any) => {
+      toastFailedToSave(i, String(e?.message ?? e ?? ''))
+    },
+  })
+
   const receivablesQ = useQuery({
     queryKey: ['receivables', 'salesOrder', id],
     enabled: !!id,
@@ -80,23 +116,50 @@ export default function SalesOrderDetailsPage() {
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="space-y-1">
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="space-y-2">
           <div className="text-sm text-[var(--muted-foreground)]">
             <Link href="/app/sales/orders" className="underline">
               {language === 'pt' ? 'Voltar' : language === 'es' ? 'Volver' : 'Back'}
             </Link>
           </div>
-          <h1 className="text-xl font-semibold tracking-tight">
-            {order?.name ?? (language === 'pt' ? 'Pedido' : language === 'es' ? 'Pedido' : 'Order')}
-            {order?.code ? <span className="ml-2 badge badge-muted">{order.code}</span> : null}
-          </h1>
-          <p className="text-sm text-neutral-600">
-            {order?.client?.name ? `${i.orders.client}: ${order.client.name}` : `${i.orders.client}: ${i.orders.noClient}`}
-          </p>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-xl font-semibold tracking-tight">
+              {order?.name ?? (language === 'pt' ? 'Pedido' : language === 'es' ? 'Pedido' : 'Order')}
+            </h1>
+            {order?.code ? <span className="badge badge-muted">{order.code}</span> : null}
+            {order?.status ? <span className="badge badge-solid">{order.status}</span> : null}
+          </div>
+
+          <div className="grid gap-1 text-sm text-neutral-600">
+            <div>
+              {order?.client?.name
+                ? `${i.orders.client}: ${order.client.name}`
+                : `${i.orders.client}: ${i.orders.noClient}`}
+            </div>
+            <div>
+              {language === 'pt' ? 'Pedido em' : language === 'es' ? 'Pedido en' : 'Ordered at'}:{' '}
+              {order?.orderedAt ? new Date(order.orderedAt).toLocaleString() : '—'}
+            </div>
+            <div>
+              {language === 'pt' ? 'Entrega prevista' : language === 'es' ? 'Entrega prevista' : 'Delivery at'}:{' '}
+              {order?.deliveryAt ? new Date(order.deliveryAt).toLocaleString() : '—'}
+            </div>
+          </div>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2 sm:justify-end">
+          <button
+            className="btn btn-secondary"
+            type="button"
+            onClick={() => createDeliveryM.mutate()}
+            disabled={!order || createDeliveryM.isPending}
+            title={language === 'pt' ? 'Cria uma entrega com os itens do pedido' : language === 'es' ? 'Crea una entrega con los ítems del pedido' : 'Create a delivery from order items'}
+          >
+            {language === 'pt' ? 'Criar entrega' : language === 'es' ? 'Crear entrega' : 'Create delivery'}
+          </button>
+
           {id ? (
             <Link href={`/app/sales/orders?edit=${id}`} className="btn btn-secondary">
               {language === 'pt' ? 'Editar (modal)' : language === 'es' ? 'Editar (modal)' : 'Edit (modal)'}
@@ -160,7 +223,7 @@ export default function SalesOrderDetailsPage() {
                 (deliveriesQ.data?.deliveries ?? []).map((d) => (
                   <div key={d.id} className="flex items-center justify-between gap-3 rounded-lg border border-theme px-3 py-2">
                     <div className="min-w-0">
-                      <div className="truncate text-sm font-medium text-[var(--foreground)]">{d.id}</div>
+                      <Link className="truncate text-sm font-medium text-[var(--foreground)] underline" href={`/app/deliveries/${d.id}`}>{d.id}</Link>
                       <div className="text-xs text-[var(--muted-foreground)]">
                         {language === 'pt' ? 'Status' : language === 'es' ? 'Estado' : 'Status'}: {d.status}
                         {d.value != null ? ` • ${formatMoneyDisplay(d.value, moneyLocale, currency)}` : ''}
