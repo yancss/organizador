@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 import { prisma } from '@/lib/prisma'
 import { requireWorkspace } from '@/lib/authz'
-import { makeDocCode } from '@/lib/codes'
+import { nextSalesOrderCode } from '@/lib/sales/sales-order-codes'
 import { convertQty, convertUnitPrice, isConvertible, normalizeUnit } from '@/lib/unit-conversion'
 // Finance hooks (recebíveis/pagamentos) serão adicionados no próximo passo.
 
@@ -74,7 +74,7 @@ const OrderItemSchema = z.object({
 const CreateOrderSchema = z.object({
   name: z.string().min(1).max(140),
   observations: z.string().max(5000).optional().nullable(),
-  clientId: z.string().optional().nullable(),
+  clientId: z.string().min(1),
   orderedAt: z.string().datetime().optional().nullable(),
   deliveryAt: z.string().datetime().optional().nullable(),
 
@@ -83,7 +83,7 @@ const CreateOrderSchema = z.object({
   discountValue: z.coerce.number().optional().nullable(),
   discountPercent: z.coerce.number().optional().nullable(),
 
-  items: z.array(OrderItemSchema).optional(),
+  items: z.array(OrderItemSchema).min(1),
 })
 
 export async function POST(req: Request) {
@@ -99,22 +99,20 @@ export async function POST(req: Request) {
   }
 
   // Garantir que itens do pedido só podem ser produtos finais
-  if (parsed.data.items?.length) {
-    const productIds = [...new Set(parsed.data.items.map((it) => it.productId))]
-    const allowed = await prisma.product.findMany({
-      where: {
-        workspaceId: wsId,
-        id: { in: productIds },
-        active: true,
-        kind: 'FINISHED',
-      },
-      select: { id: true },
-    })
-    const allowedSet = new Set(allowed.map((p) => p.id))
-    const invalid = productIds.filter((id) => !allowedSet.has(id))
-    if (invalid.length) {
-      return Response.json({ error: 'INVALID_ITEM_PRODUCT', invalid }, { status: 400 })
-    }
+  const productIds = [...new Set(parsed.data.items.map((it) => it.productId))]
+  const allowed = await prisma.product.findMany({
+    where: {
+      workspaceId: wsId,
+      id: { in: productIds },
+      active: true,
+      kind: 'FINISHED',
+    },
+    select: { id: true },
+  })
+  const allowedSet = new Set(allowed.map((p) => p.id))
+  const invalid = productIds.filter((id) => !allowedSet.has(id))
+  if (invalid.length) {
+    return Response.json({ error: 'INVALID_ITEM_PRODUCT', invalid }, { status: 400 })
   }
 
   const discountMode = parsed.data.discountMode ?? 'SUBTOTAL'
@@ -175,17 +173,19 @@ export async function POST(req: Request) {
     discountPercent: parsed.data.discountPercent,
   })
 
+  const code = await nextSalesOrderCode(wsId)
+
   const order = await prisma.salesOrder.create({
     data: {
       workspaceId: wsId,
       ownerId: auth.user.id,
       createdById: auth.user.id,
       updatedById: auth.user.id,
-      code: makeDocCode('SO'),
+      code,
       name: parsed.data.name,
       observations: parsed.data.observations ?? null,
-      clientId: parsed.data.clientId ?? null,
-      orderedAt: parsed.data.orderedAt ? new Date(parsed.data.orderedAt) : null,
+      clientId: parsed.data.clientId,
+      orderedAt: parsed.data.orderedAt ? new Date(parsed.data.orderedAt) : new Date(),
       deliveryAt: parsed.data.deliveryAt ? new Date(parsed.data.deliveryAt) : null,
       status: 'DRAFT',
 
