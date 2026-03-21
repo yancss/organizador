@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 
 import DataTable, { type ColumnDef } from '../../ui/data-table'
@@ -33,6 +34,8 @@ function sumApplied(apps: Receivable['applications']) {
 }
 
 export default function FinanceReceivablesPage() {
+  const router = useRouter()
+
   const q = useQuery({
     queryKey: ['receivables'],
     queryFn: () => api<{ receivables: Receivable[] }>('/api/receivables'),
@@ -96,6 +99,7 @@ export default function FinanceReceivablesPage() {
         empty={q.isLoading ? 'Carregando…' : q.error ? 'Erro ao carregar.' : 'Sem recebíveis.'}
         initialSort={{ key: 'issuedAt', dir: 'desc' }}
         pageSize={20}
+        onRowClick={(r) => router.push(`/app/finance/receivables/${r.id}`)}
       />
     </div>
   )

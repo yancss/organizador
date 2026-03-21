@@ -6,9 +6,49 @@ import { applyAvailablePaymentsToReceivable } from '@/lib/sales/receivables'
 
 const PatchSchema = z.object({
   dueAt: z.string().datetime().optional().nullable(),
+  value: z.coerce.number().positive().optional(),
   status: z.enum(['OPEN', 'PAID', 'CANCELLED']).optional(),
   applyPayments: z.boolean().optional(),
 })
+
+export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const auth = await requireWorkspace()
+  if (!auth.ok) return Response.json({ error: auth.error }, { status: auth.status })
+
+  const wsId = auth.user.workspaceId
+  const { id } = await ctx.params
+
+  const receivable = await prisma.receivable.findFirst({
+    where: { id, workspaceId: wsId },
+    select: {
+      id: true,
+      salesOrderId: true,
+      deliveryId: true,
+      clientId: true,
+      status: true,
+      issuedAt: true,
+      dueAt: true,
+      value: true,
+      applications: {
+        select: {
+          id: true,
+          value: true,
+          appliedAt: true,
+          payment: { select: { id: true, method: true, status: true, receivedAt: true } },
+        },
+        orderBy: { appliedAt: 'asc' },
+      },
+      createdById: true,
+      updatedById: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+  })
+
+  if (!receivable) return Response.json({ error: 'NOT_FOUND' }, { status: 404 })
+
+  return Response.json({ receivable })
+}
 
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const auth = await requireWorkspace()
@@ -30,11 +70,13 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   })
   if (!rec) return Response.json({ error: 'NOT_FOUND' }, { status: 404 })
 
-  if (parsed.data.dueAt !== undefined || parsed.data.status !== undefined) {
+  if (parsed.data.dueAt !== undefined || parsed.data.value !== undefined || parsed.data.status !== undefined) {
     await prisma.receivable.update({
       where: { id, workspaceId: wsId },
       data: {
+        updatedById: auth.user.id,
         ...(parsed.data.dueAt !== undefined ? { dueAt: parsed.data.dueAt ? new Date(parsed.data.dueAt) : null } : {}),
+        ...(parsed.data.value !== undefined ? { value: parsed.data.value } : {}),
         ...(parsed.data.status !== undefined ? { status: parsed.data.status } : {}),
       },
       select: { id: true },
