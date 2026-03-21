@@ -50,15 +50,7 @@ export default function DataTable<T>({
   onRowClick,
   pageSize = 10,
   showSearch = true,
-  labels = {
-    showing: 'Mostrando {start}–{end} de {total}',
-    page: 'Página {page} / {pages}',
-    previous: 'Anterior',
-    next: 'Próxima',
-    searchPlaceholder: 'Buscar…',
-    clear: 'Limpar',
-    noResults: 'Nenhum registro encontrado para a busca.',
-  },
+  labels,
 }: {
   rows: T[]
   columns: ColumnDef<T>[]
@@ -67,7 +59,7 @@ export default function DataTable<T>({
   onRowClick?: (row: T) => void
   pageSize?: number
   showSearch?: boolean
-  labels?: DataTableLabels
+  labels: DataTableLabels
 }) {
   const [sortKey, setSortKey] = useState<string | null>(initialSort?.key ?? null)
   const [sortDir, setSortDir] = useState<SortDir>(initialSort?.dir ?? 'asc')

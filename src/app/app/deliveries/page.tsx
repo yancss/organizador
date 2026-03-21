@@ -6,6 +6,8 @@ import { useQuery } from '@tanstack/react-query'
 
 import DataTable, { type ColumnDef } from '../ui/data-table'
 import { api } from '../api-client'
+import { useSettings } from '../settings-context'
+import { t } from '../i18n'
 
 type DeliveryItem = { id: string; quantity: string | number; product: { id: string; name: string; unit: string } }
 
@@ -33,6 +35,8 @@ type Delivery = {
 
 export default function DeliveriesPage() {
   const router = useRouter()
+  const { language } = useSettings()
+  const i = t(language)
 
   const q = useQuery({
     queryKey: ['deliveries'],
@@ -94,6 +98,7 @@ export default function DeliveriesPage() {
         rows={rows}
         columns={columns}
         empty={q.isLoading ? 'Carregando…' : q.error ? 'Erro ao carregar.' : 'Sem entregas.'}
+        labels={i.table}
         initialSort={{ key: 'shippedAt', dir: 'desc' }}
         pageSize={15}
         onRowClick={(r) => router.push(`/app/deliveries/${r.id}`)}

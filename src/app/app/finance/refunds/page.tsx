@@ -5,6 +5,8 @@ import { useQuery } from '@tanstack/react-query'
 
 import DataTable, { type ColumnDef } from '../../ui/data-table'
 import { api } from '../../api-client'
+import { useSettings } from '../../settings-context'
+import { t } from '../../i18n'
 
 type Refund = {
   id: string
@@ -28,6 +30,9 @@ type Refund = {
 
 
 export default function FinanceRefundsPage() {
+  const { language } = useSettings()
+  const i = t(language)
+
   const q = useQuery({
     queryKey: ['refunds'],
     queryFn: () => api<{ refunds: Refund[] }>('/api/refunds'),
@@ -73,6 +78,7 @@ export default function FinanceRefundsPage() {
         rows={rows}
         columns={columns}
         empty={q.isLoading ? 'Carregando…' : q.error ? 'Erro ao carregar.' : 'Sem devoluções.'}
+        labels={i.table}
         initialSort={{ key: 'requestedAt', dir: 'desc' }}
         pageSize={20}
       />

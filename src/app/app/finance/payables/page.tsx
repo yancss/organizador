@@ -5,6 +5,8 @@ import { useQuery } from '@tanstack/react-query'
 
 import DataTable, { type ColumnDef } from '../../ui/data-table'
 import { api } from '../../api-client'
+import { useSettings } from '../../settings-context'
+import { t } from '../../i18n'
 
 type Entry = {
   id: string
@@ -28,6 +30,9 @@ type Entry = {
 
 
 export default function FinancePayablesPage() {
+  const { language } = useSettings()
+  const i = t(language)
+
   const q = useQuery({
     queryKey: ['financeEntries', 'payables'],
     queryFn: () => api<{ entries: Entry[] }>('/api/finance/entries?type=OUT&status=PLANNED'),
@@ -83,6 +88,7 @@ export default function FinancePayablesPage() {
         rows={rows}
         columns={columns}
         empty={q.isLoading ? 'Carregando…' : q.error ? 'Erro ao carregar.' : 'Sem pagáveis.'}
+        labels={i.table}
         initialSort={{ key: 'competenceDate', dir: 'desc' }}
         pageSize={20}
       />

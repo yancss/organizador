@@ -85,33 +85,18 @@ export default function AppNav({ onNavigate }: { onNavigate?: () => void }) {
         <NavItem href="/app/deliveries" label={i.nav.deliveries} icon={Package} onNavigate={onNavigate} />
       </Section>
 
-      <Section title={language === 'pt' ? 'Compras' : language === 'es' ? 'Compras' : 'Purchases'}>
+      <Section title={i.nav.purchases}>
         <NavItem
           href="/app/purchases/orders"
-          label={language === 'pt' ? 'Pedidos de compra' : language === 'es' ? 'Pedidos de compra' : 'Purchase orders'}
+          label={i.nav.purchaseOrders}
           icon={ShoppingCart}
           onNavigate={onNavigate}
         />
       </Section>
-      <NavItem
-        href="/app/products"
-        label={language === 'pt' ? 'Produtos' : language === 'es' ? 'Productos' : 'Products'}
-        icon={Package}
-        onNavigate={onNavigate}
-      />
-      <NavItem
-        href="/app/inventory"
-        label={language === 'pt' ? 'Estoque' : language === 'es' ? 'Inventario' : 'Inventory'}
-        icon={Boxes}
-        onNavigate={onNavigate}
-      />
+      <NavItem href="/app/products" label={i.nav.products} icon={Package} onNavigate={onNavigate} />
+      <NavItem href="/app/inventory" label={i.nav.inventory} icon={Boxes} onNavigate={onNavigate} />
       <NavItem href="/app/clients" label={i.clients.title} icon={Users} onNavigate={onNavigate} />
-      <NavItem
-        href="/app/recipes"
-        label={language === 'pt' ? 'Receitas' : language === 'es' ? 'Recetas' : 'Recipes'}
-        icon={BookOpen}
-        onNavigate={onNavigate}
-      />
+      <NavItem href="/app/recipes" label={i.nav.recipes} icon={BookOpen} onNavigate={onNavigate} />
 
       <Section title={i.nav.finance}>
         <NavItem href="/app/finance" label={i.nav.financeOverview} icon={Wallet} onNavigate={onNavigate} />
@@ -122,27 +107,12 @@ export default function AppNav({ onNavigate }: { onNavigate?: () => void }) {
         <NavItem href="/app/finance/categories" label={i.nav.categories} icon={Landmark} onNavigate={onNavigate} />
       </Section>
 
-      <NavItem
-        href="/app/costs"
-        label={language === 'pt' ? 'Custos' : language === 'es' ? 'Costos' : 'Costs'}
-        icon={Landmark}
-        onNavigate={onNavigate}
-      />
+      <NavItem href="/app/costs" label={i.nav.costs} icon={Landmark} onNavigate={onNavigate} />
 
       {canAdmin ? (
-        <Section title={language === 'pt' ? 'Admin' : language === 'es' ? 'Admin' : 'Admin'}>
-          <NavItem
-            href="/app/admin/users"
-            label={language === 'pt' ? 'Usuários' : language === 'es' ? 'Usuarios' : 'Users'}
-            icon={Users}
-            onNavigate={onNavigate}
-          />
-          <NavItem
-            href="/app/admin/roles"
-            label={language === 'pt' ? 'Roles & permissões' : language === 'es' ? 'Roles y permisos' : 'Roles & permissions'}
-            icon={Shield}
-            onNavigate={onNavigate}
-          />
+        <Section title={i.nav.admin}>
+          <NavItem href="/app/admin/users" label={i.nav.adminUsers} icon={Users} onNavigate={onNavigate} />
+          <NavItem href="/app/admin/roles" label={i.nav.adminRolesPermissions} icon={Shield} onNavigate={onNavigate} />
         </Section>
       ) : null}
     </nav>

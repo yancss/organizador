@@ -316,6 +316,7 @@ export default function PurchaseOrdersPage() {
         rows={rows}
         columns={columns}
         empty={q.isLoading ? 'Carregando…' : q.error ? 'Erro ao carregar.' : 'Sem pedidos de compra.'}
+        labels={i.table}
         initialSort={{ key: 'orderedAt', dir: 'desc' }}
         pageSize={25}
         onRowClick={openEdit}

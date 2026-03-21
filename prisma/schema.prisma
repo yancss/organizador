@@ -385,6 +385,11 @@ enum StakeholderRole {
   SUPPLIER
 }
 
+enum ClientEntityType {
+  PERSON  // PF
+  COMPANY // PJ
+}
+
 model Client {
   id          String @id @default(cuid())
   workspaceId String
@@ -394,6 +399,9 @@ model Client {
 
   name String
 
+  // PF/PJ
+  entityType ClientEntityType @default(PERSON)
+
   // Roles: allows using a single table for customers and suppliers (and both)
   roles StakeholderRole[] @default([CUSTOMER])
 
@@ -401,6 +409,7 @@ model Client {
   // NOTE: We are standardizing on E.164 in `phone` (e.g. +351912345678)
   phone        String?
   phoneCountry String? @db.VarChar(2) // ISO-2 (PT, BR, ...)
+  email        String? @db.VarChar(254)
 
   // Personal
   birthDate DateTime? @db.Date
@@ -439,6 +448,24 @@ model Client {
   @@unique([workspaceId, name])
   @@index([workspaceId])
   @@index([phone])
+}
+
+// Portugal postal code mapping (free/local dataset)
+model PostalPt {
+  cp4 String @db.VarChar(4)
+  cp3 String @db.VarChar(3)
+
+  distrito  String @db.VarChar(80)
+  concelho  String @db.VarChar(120)
+  localidade String? @db.VarChar(180)
+
+  // optional: keep original raw line/source if needed later
+  // source String?
+
+  @@id([cp4, cp3, distrito, concelho])
+  @@index([cp4, cp3])
+  @@index([distrito])
+  @@index([concelho])
 }
 
 enum ProductKind {

@@ -13,6 +13,18 @@ export type I18n = {
     deliveries: string
     payments: string
 
+    purchases: string
+    purchaseOrders: string
+
+    products: string
+    inventory: string
+    recipes: string
+    costs: string
+
+    admin: string
+    adminUsers: string
+    adminRolesPermissions: string
+
     finance: string
     financeOverview: string
     receivables: string
@@ -100,6 +112,16 @@ export type I18n = {
     phoneLabel: string
     phoneHelp: string
 
+    entityTypeLabel: string
+    entityTypePerson: string
+    entityTypeCompany: string
+
+    countryLabel: string
+    lookupPostalCode: string
+    selectPlaceholder: string
+
+    emailLabel: string
+
     birthDateLabel: string
 
     identificationTitle: string
@@ -119,9 +141,19 @@ export type I18n = {
     addressTitle: string
     addressCountryLabel: string
     addressPostalCodeLabel: string
+
     addressStateLabel: string
+    addressStateLabelBR: string
+    addressStateLabelPT: string
+
     addressCityLabel: string
+    addressCityLabelBR: string
+    addressCityLabelPT: string
+
     addressDistrictLabel: string
+    addressDistrictLabelBR: string
+    addressDistrictLabelPT: string
+
     addressStreetLabel: string
     addressNumberLabel: string
     addressComplementLabel: string
@@ -245,6 +277,8 @@ export type I18n = {
       costCenter: string
       event: string
       task: string
+      delivery: string
+      receivable: string
       generic: string
     }
     created: string // placeholder: {entity}
@@ -368,6 +402,141 @@ export type I18n = {
     light: string
     dark: string
   }
+
+  common: {
+    loading: string
+    loadError: string
+    close: string
+    closeMenu: string
+    lightTheme: string
+    darkTheme: string
+    all: string
+
+    menuProfile: string
+    menuSettings: string
+    menuLogout: string
+  }
+
+  costs: {
+    title: string
+    subtitle: string
+    newCostCenter: string
+    totalPaidLast30Days: string
+    reportByCenter30d: string
+    costCenters: string
+
+    emptyReport: string
+    emptyCostCenters: string
+
+    columns: {
+      center: string
+      total: string
+      entries: string
+      name: string
+      actions: string
+    }
+
+    renamePrompt: string
+    rename: string
+
+    disableConfirm: string
+    disable: string
+
+    modal: {
+      title: string
+      subtitleExample: string
+      nameLabel: string
+      cancel: string
+      save: string
+    }
+  }
+
+  financePage: {
+    title: string
+    subtitle: string
+    accounts: string
+    categories: string
+    newEntry: string
+
+    view: string
+    viewAll: string
+    viewReceivable: string
+    viewPayable: string
+
+    filters: {
+      from: string
+      to: string
+      account: string
+      category: string
+      clear: string
+    }
+
+    cards: {
+      income: string
+      expense: string
+      net: string
+    }
+
+    empty: string
+
+    columns: {
+      name: string
+      date: string
+      type: string
+      amount: string
+      category: string
+      costCenter: string
+      account: string
+      actions: string
+    }
+
+    types: {
+      income: string
+      expense: string
+    }
+
+    actions: {
+      edit: string
+      delete: string
+      deleteConfirm: string
+    }
+
+    modal: {
+      titleNew: string
+      subtitle: string
+      id: string
+      type: string
+      status: string
+      statusPaid: string
+      statusPlanned: string
+      date: string
+      amount: string
+      amountPlaceholder: string
+      account: string
+      accountPlaceholder: string
+      noAccountsTip: string
+      category: string
+      costCenter: string
+      name: string
+      observations: string
+      cancel: string
+      save: string
+      readOnly: string
+    }
+  }
+
+  homePage: {
+    loading: string
+    loadError: string
+    count: {
+      titleOne: string
+      titleMany: string
+      entryOne: string
+      entryMany: string
+      paymentOne: string
+      paymentMany: string
+    }
+  }
 }
 
 const dict: Record<AppLanguage, I18n> = {
@@ -383,6 +552,18 @@ const dict: Record<AppLanguage, I18n> = {
       salesOrders: 'Pedidos de venda',
       deliveries: 'Entregas',
       payments: 'Pagamentos',
+
+      purchases: 'Compras',
+      purchaseOrders: 'Pedidos de compra',
+
+      products: 'Produtos',
+      inventory: 'Estoque',
+      recipes: 'Receitas',
+      costs: 'Custos',
+
+      admin: 'Admin',
+      adminUsers: 'Usuários',
+      adminRolesPermissions: 'Roles & permissões',
 
       finance: 'Financeiro',
       financeOverview: 'Visão geral',
@@ -466,10 +647,20 @@ const dict: Record<AppLanguage, I18n> = {
 
       newTitle: 'Novo parceiro',
       editTitle: 'Editar parceiro',
-      modalSubtitle: 'Nome, tipo, telefone, identificação e endereço.',
+      modalSubtitle: '',
       nameLabel: 'Nome',
       phoneLabel: 'Telefone',
-      phoneHelp: 'Salvando em formato internacional (ex.: +351…, +55…)',
+      phoneHelp: '',
+
+      entityTypeLabel: 'Tipo de parceiro',
+      entityTypePerson: 'Pessoa Física',
+      entityTypeCompany: 'Pessoa Jurídica',
+
+      countryLabel: 'País',
+      lookupPostalCode: 'Buscar',
+      selectPlaceholder: 'Selecione…',
+
+      emailLabel: 'Email',
 
       birthDateLabel: 'Data de nascimento',
 
@@ -488,15 +679,25 @@ const dict: Record<AppLanguage, I18n> = {
       idTypeOther: 'Outro',
 
       addressTitle: 'Endereço',
-      addressCountryLabel: 'País (ISO-2)',
+      addressCountryLabel: 'País',
       addressPostalCodeLabel: 'CEP / Código postal',
+
       addressStateLabel: 'Estado/Região',
+      addressStateLabelBR: 'UF',
+      addressStateLabelPT: 'Distrito',
+
       addressCityLabel: 'Cidade',
+      addressCityLabelBR: 'Cidade',
+      addressCityLabelPT: 'Concelho',
+
       addressDistrictLabel: 'Bairro',
+      addressDistrictLabelBR: 'Bairro',
+      addressDistrictLabelPT: 'Localidade',
+
       addressStreetLabel: 'Rua',
       addressNumberLabel: 'Número',
       addressComplementLabel: 'Complemento',
-      addressLegacyLabel: 'Endereço (texto livre – legado)',
+      addressLegacyLabel: 'Endereço',
 
       observationsLabel: 'Observações',
 
@@ -609,6 +810,8 @@ const dict: Record<AppLanguage, I18n> = {
         costCenter: 'Centro de custo',
         event: 'Evento',
         task: 'Tarefa',
+        delivery: 'Entrega',
+        receivable: 'Recebível',
         generic: 'Registro',
       },
       created: '{entity} criado.',
@@ -734,6 +937,141 @@ const dict: Record<AppLanguage, I18n> = {
       light: 'Claro',
       dark: 'Escuro',
     },
+
+    common: {
+      loading: 'Carregando…',
+      loadError: 'Erro ao carregar.',
+      close: 'Fechar',
+      closeMenu: 'Fechar menu',
+      lightTheme: 'Tema claro',
+      darkTheme: 'Tema escuro',
+      all: 'Todas',
+
+      menuProfile: 'Perfil',
+      menuSettings: 'Configurações',
+      menuLogout: 'Sair',
+    },
+
+    costs: {
+      title: 'Custos',
+      subtitle: 'Centros de custo e relatório simples (últimos 30 dias).',
+      newCostCenter: 'Novo centro de custo',
+      totalPaidLast30Days: 'Total de saídas (pago) nos últimos 30 dias',
+      reportByCenter30d: 'Relatório por centro (30d)',
+      costCenters: 'Centros de custo',
+
+      emptyReport: 'Sem dados.',
+      emptyCostCenters: 'Nenhum centro de custo.',
+
+      columns: {
+        center: 'Centro',
+        total: 'Total',
+        entries: 'Lanç.',
+        name: 'Nome',
+        actions: 'Ações',
+      },
+
+      renamePrompt: 'Novo nome do centro:',
+      rename: 'Renomear',
+
+      disableConfirm: 'Desativar este centro de custo?',
+      disable: 'Desativar',
+
+      modal: {
+        title: 'Novo centro de custo',
+        subtitleExample: 'Ex.: Produção, Delivery, Administrativo, Loja…',
+        nameLabel: 'Nome',
+        cancel: 'Cancelar',
+        save: 'Salvar',
+      },
+    },
+
+    financePage: {
+      title: 'Financeiro',
+      subtitle: 'Lançamentos, contas e visão rápida do caixa.',
+      accounts: 'Contas',
+      categories: 'Categorias',
+      newEntry: 'Novo lançamento',
+
+      view: 'Visão',
+      viewAll: 'Tudo',
+      viewReceivable: 'A receber',
+      viewPayable: 'A pagar',
+
+      filters: {
+        from: 'De',
+        to: 'Até',
+        account: 'Conta',
+        category: 'Categoria',
+        clear: 'Limpar filtros',
+      },
+
+      cards: {
+        income: 'Entradas',
+        expense: 'Saídas',
+        net: 'Saldo',
+      },
+
+      empty: 'Nenhum lançamento ainda.',
+
+      columns: {
+        name: 'Nome',
+        date: 'Data',
+        type: 'Tipo',
+        amount: 'Valor',
+        category: 'Categoria',
+        costCenter: 'Centro de custo',
+        account: 'Conta',
+        actions: 'Ações',
+      },
+
+      types: {
+        income: 'Entrada',
+        expense: 'Saída',
+      },
+
+      actions: {
+        edit: 'Editar',
+        delete: 'Excluir',
+        deleteConfirm: 'Excluir este lançamento?',
+      },
+
+      modal: {
+        titleNew: 'Novo lançamento',
+        subtitle: 'Registre entradas/saídas e vincule a categoria e centro de custo.',
+        id: 'ID',
+        type: 'Tipo',
+        status: 'Status',
+        statusPaid: 'Pago',
+        statusPlanned: 'Previsto',
+        date: 'Data (competência)',
+        amount: 'Valor',
+        amountPlaceholder: '0,00',
+        account: 'Conta',
+        accountPlaceholder: 'Selecione…',
+        noAccountsTip: 'Dica: crie uma conta (ex.: Caixa) em /api/finance/accounts (vamos colocar UI disso depois).',
+        category: 'Categoria',
+        costCenter: 'Centro de custo',
+        name: 'Nome',
+        observations: 'Observações',
+        cancel: 'Cancelar',
+        save: 'Salvar',
+        readOnly: 'Somente leitura',
+      },
+    },
+
+    homePage: {
+      loading: 'Carregando…',
+      loadError: 'Erro ao carregar.',
+      count: {
+        titleOne: 'título',
+        titleMany: 'títulos',
+        entryOne: 'lançamento',
+        entryMany: 'lançamentos',
+        paymentOne: 'pagamento',
+        paymentMany: 'pagamentos',
+      },
+    },
   },
   en: {
     nav: {
@@ -747,6 +1085,18 @@ const dict: Record<AppLanguage, I18n> = {
       salesOrders: 'Sales orders',
       deliveries: 'Deliveries',
       payments: 'Payments',
+
+      purchases: 'Purchases',
+      purchaseOrders: 'Purchase orders',
+
+      products: 'Products',
+      inventory: 'Inventory',
+      recipes: 'Recipes',
+      costs: 'Costs',
+
+      admin: 'Admin',
+      adminUsers: 'Users',
+      adminRolesPermissions: 'Roles & permissions',
 
       finance: 'Finance',
       financeOverview: 'Overview',
@@ -830,10 +1180,20 @@ const dict: Record<AppLanguage, I18n> = {
 
       newTitle: 'New partner',
       editTitle: 'Edit partner',
-      modalSubtitle: 'Name, type, phone, identification and address.',
+      modalSubtitle: '',
       nameLabel: 'Name',
       phoneLabel: 'Phone',
-      phoneHelp: 'Saved in international format (e.g. +351…, +55…)',
+      phoneHelp: '',
+
+      entityTypeLabel: 'Partner type',
+      entityTypePerson: 'Individual',
+      entityTypeCompany: 'Company',
+
+      countryLabel: 'Country',
+      lookupPostalCode: 'Lookup',
+      selectPlaceholder: 'Select…',
+
+      emailLabel: 'Email',
 
       birthDateLabel: 'Birth date',
 
@@ -852,15 +1212,25 @@ const dict: Record<AppLanguage, I18n> = {
       idTypeOther: 'Other',
 
       addressTitle: 'Address',
-      addressCountryLabel: 'Country (ISO-2)',
-      addressPostalCodeLabel: 'Postal code',
+      addressCountryLabel: 'Country',
+      addressPostalCodeLabel: 'Postal code / ZIP',
+
       addressStateLabel: 'State/Region',
+      addressStateLabelBR: 'State',
+      addressStateLabelPT: 'District',
+
       addressCityLabel: 'City',
+      addressCityLabelBR: 'City',
+      addressCityLabelPT: 'Council',
+
       addressDistrictLabel: 'District',
+      addressDistrictLabelBR: 'District',
+      addressDistrictLabelPT: 'Locality',
+
       addressStreetLabel: 'Street',
       addressNumberLabel: 'Number',
       addressComplementLabel: 'Complement',
-      addressLegacyLabel: 'Address (free text – legacy)',
+      addressLegacyLabel: 'Address',
 
       observationsLabel: 'Observations',
 
@@ -973,6 +1343,8 @@ const dict: Record<AppLanguage, I18n> = {
         costCenter: 'Cost center',
         event: 'Event',
         task: 'Task',
+        delivery: 'Delivery',
+        receivable: 'Receivable',
         generic: 'Record',
       },
       created: '{entity} created.',
@@ -1098,6 +1470,141 @@ const dict: Record<AppLanguage, I18n> = {
       light: 'Light',
       dark: 'Dark',
     },
+
+    common: {
+      loading: 'Loading…',
+      loadError: 'Failed to load.',
+      close: 'Close',
+      closeMenu: 'Close menu',
+      lightTheme: 'Light theme',
+      darkTheme: 'Dark theme',
+      all: 'All',
+
+      menuProfile: 'Profile',
+      menuSettings: 'Settings',
+      menuLogout: 'Logout',
+    },
+
+    costs: {
+      title: 'Costs',
+      subtitle: 'Cost centers and simple report (last 30 days).',
+      newCostCenter: 'New cost center',
+      totalPaidLast30Days: 'Total expense (paid) last 30 days',
+      reportByCenter30d: 'By cost center (30d)',
+      costCenters: 'Cost centers',
+
+      emptyReport: 'No data.',
+      emptyCostCenters: 'No cost centers.',
+
+      columns: {
+        center: 'Center',
+        total: 'Total',
+        entries: 'Entries',
+        name: 'Name',
+        actions: 'Actions',
+      },
+
+      renamePrompt: 'New center name:',
+      rename: 'Rename',
+
+      disableConfirm: 'Disable this cost center?',
+      disable: 'Disable',
+
+      modal: {
+        title: 'New cost center',
+        subtitleExample: 'Example: Production, Delivery, Admin…',
+        nameLabel: 'Name',
+        cancel: 'Cancel',
+        save: 'Save',
+      },
+    },
+
+    financePage: {
+      title: 'Finance',
+      subtitle: 'Entries, accounts and quick view.',
+      accounts: 'Accounts',
+      categories: 'Categories',
+      newEntry: 'New entry',
+
+      view: 'View',
+      viewAll: 'All',
+      viewReceivable: 'Receivable',
+      viewPayable: 'Payable',
+
+      filters: {
+        from: 'From',
+        to: 'To',
+        account: 'Account',
+        category: 'Category',
+        clear: 'Clear filters',
+      },
+
+      cards: {
+        income: 'Income',
+        expense: 'Expense',
+        net: 'Net',
+      },
+
+      empty: 'No entries yet.',
+
+      columns: {
+        name: 'Name',
+        date: 'Date',
+        type: 'Type',
+        amount: 'Amount',
+        category: 'Category',
+        costCenter: 'Cost center',
+        account: 'Account',
+        actions: 'Actions',
+      },
+
+      types: {
+        income: 'Income',
+        expense: 'Expense',
+      },
+
+      actions: {
+        edit: 'Edit',
+        delete: 'Delete',
+        deleteConfirm: 'Delete this entry?',
+      },
+
+      modal: {
+        titleNew: 'New entry',
+        subtitle: 'Register income/expense and link category and cost center.',
+        id: 'ID',
+        type: 'Type',
+        status: 'Status',
+        statusPaid: 'Paid',
+        statusPlanned: 'Planned',
+        date: 'Date',
+        amount: 'Amount',
+        amountPlaceholder: '0.00',
+        account: 'Account',
+        accountPlaceholder: 'Select…',
+        noAccountsTip: 'Tip: create an account first.',
+        category: 'Category',
+        costCenter: 'Cost center',
+        name: 'Name',
+        observations: 'Notes',
+        cancel: 'Cancel',
+        save: 'Save',
+        readOnly: 'Read-only',
+      },
+    },
+
+    homePage: {
+      loading: 'Loading…',
+      loadError: 'Failed to load.',
+      count: {
+        titleOne: 'item',
+        titleMany: 'items',
+        entryOne: 'entry',
+        entryMany: 'entries',
+        paymentOne: 'payment',
+        paymentMany: 'payments',
+      },
+    },
   },
   es: {
     nav: {
@@ -1111,6 +1618,18 @@ const dict: Record<AppLanguage, I18n> = {
       salesOrders: 'Pedidos de venta',
       deliveries: 'Entregas',
       payments: 'Pagos',
+
+      purchases: 'Compras',
+      purchaseOrders: 'Pedidos de compra',
+
+      products: 'Productos',
+      inventory: 'Inventario',
+      recipes: 'Recetas',
+      costs: 'Costos',
+
+      admin: 'Admin',
+      adminUsers: 'Usuarios',
+      adminRolesPermissions: 'Roles y permisos',
 
       finance: 'Finanzas',
       financeOverview: 'Resumen',
@@ -1337,6 +1856,8 @@ const dict: Record<AppLanguage, I18n> = {
         costCenter: 'Centro de costo',
         event: 'Evento',
         task: 'Tarea',
+        delivery: 'Entrega',
+        receivable: 'Por cobrar',
         generic: 'Registro',
       },
       created: '{entity} creado.',
@@ -1461,6 +1982,141 @@ const dict: Record<AppLanguage, I18n> = {
       usd: 'Dólar (US$)',
       light: 'Claro',
       dark: 'Oscuro',
+    },
+
+    common: {
+      loading: 'Cargando…',
+      loadError: 'Error al cargar.',
+      close: 'Cerrar',
+      closeMenu: 'Cerrar menú',
+      lightTheme: 'Tema claro',
+      darkTheme: 'Tema oscuro',
+      all: 'Todas',
+
+      menuProfile: 'Perfil',
+      menuSettings: 'Configuración',
+      menuLogout: 'Salir',
+    },
+
+    costs: {
+      title: 'Costos',
+      subtitle: 'Centros de costo y reporte simple (últimos 30 días).',
+      newCostCenter: 'Nuevo centro',
+      totalPaidLast30Days: 'Total de gastos (pagado) últimos 30 días',
+      reportByCenter30d: 'Reporte por centro (30d)',
+      costCenters: 'Centros de costo',
+
+      emptyReport: 'Sin datos.',
+      emptyCostCenters: 'Sin centros.',
+
+      columns: {
+        center: 'Centro',
+        total: 'Total',
+        entries: 'Mov.',
+        name: 'Nombre',
+        actions: 'Acciones',
+      },
+
+      renamePrompt: 'Nuevo nombre del centro:',
+      rename: 'Renombrar',
+
+      disableConfirm: '¿Desactivar este centro?',
+      disable: 'Desactivar',
+
+      modal: {
+        title: 'Nuevo centro de costo',
+        subtitleExample: 'Ej.: Producción, Delivery, Administrativo…',
+        nameLabel: 'Nombre',
+        cancel: 'Cancelar',
+        save: 'Guardar',
+      },
+    },
+
+    financePage: {
+      title: 'Finanzas',
+      subtitle: 'Movimientos, cuentas y vista rápida.',
+      accounts: 'Cuentas',
+      categories: 'Categorías',
+      newEntry: 'Nuevo',
+
+      view: 'Vista',
+      viewAll: 'Todo',
+      viewReceivable: 'Por cobrar',
+      viewPayable: 'Por pagar',
+
+      filters: {
+        from: 'De',
+        to: 'Hasta',
+        account: 'Cuenta',
+        category: 'Categoría',
+        clear: 'Limpiar filtros',
+      },
+
+      cards: {
+        income: 'Ingresos',
+        expense: 'Gastos',
+        net: 'Balance',
+      },
+
+      empty: 'Sin movimientos.',
+
+      columns: {
+        name: 'Nombre',
+        date: 'Fecha',
+        type: 'Tipo',
+        amount: 'Importe',
+        category: 'Categoría',
+        costCenter: 'Centro de costo',
+        account: 'Cuenta',
+        actions: 'Acciones',
+      },
+
+      types: {
+        income: 'Ingreso',
+        expense: 'Gasto',
+      },
+
+      actions: {
+        edit: 'Editar',
+        delete: 'Eliminar',
+        deleteConfirm: '¿Eliminar este movimiento?',
+      },
+
+      modal: {
+        titleNew: 'Nuevo movimiento',
+        subtitle: 'Registra ingresos/gastos y vincula categoría y centro de costo.',
+        id: 'ID',
+        type: 'Tipo',
+        status: 'Estado',
+        statusPaid: 'Pagado',
+        statusPlanned: 'Previsto',
+        date: 'Fecha',
+        amount: 'Importe',
+        amountPlaceholder: '0.00',
+        account: 'Cuenta',
+        accountPlaceholder: 'Seleccione…',
+        noAccountsTip: 'Tip: crea una cuenta primero.',
+        category: 'Categoría',
+        costCenter: 'Centro de costo',
+        name: 'Nombre',
+        observations: 'Notas',
+        cancel: 'Cancelar',
+        save: 'Guardar',
+        readOnly: 'Solo lectura',
+      },
+    },
+
+    homePage: {
+      loading: 'Cargando…',
+      loadError: 'Error al cargar.',
+      count: {
+        titleOne: 'título',
+        titleMany: 'títulos',
+        entryOne: 'asiento',
+        entryMany: 'asientos',
+        paymentOne: 'pago',
+        paymentMany: 'pagos',
+      },
     },
   },
 }

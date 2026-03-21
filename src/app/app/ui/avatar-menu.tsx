@@ -4,10 +4,13 @@ import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 import { LogOut, Settings, User } from 'lucide-react'
 
+import { t } from '../i18n'
 import { useSettings } from '../settings-context'
 
 export default function AvatarMenu() {
   const { language } = useSettings()
+  const i = t(language)
+
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement | null>(null)
 
@@ -20,9 +23,9 @@ export default function AvatarMenu() {
     return () => document.removeEventListener('mousedown', onDocClick)
   }, [])
 
-  const profileLabel = language === 'pt' ? 'Perfil' : language === 'es' ? 'Perfil' : 'Profile'
-  const settingsLabel = language === 'pt' ? 'Configurações' : language === 'es' ? 'Configuración' : 'Settings'
-  const logoutLabel = language === 'pt' ? 'Sair' : language === 'es' ? 'Salir' : 'Logout'
+  const profileLabel = i.common.menuProfile
+  const settingsLabel = i.common.menuSettings
+  const logoutLabel = i.common.menuLogout
 
   return (
     <div className="relative" ref={ref}>

@@ -171,22 +171,9 @@ export default function HomePage() {
   const i = t(language)
 
   function countLabel(kind: 'title' | 'entry' | 'payment', count: number) {
-    if (language === 'pt') {
-      if (kind === 'title') return `${count} ${count === 1 ? 'título' : 'títulos'}`
-      if (kind === 'entry') return `${count} ${count === 1 ? 'lançamento' : 'lançamentos'}`
-      return `${count} ${count === 1 ? 'pagamento' : 'pagamentos'}`
-    }
-
-    if (language === 'es') {
-      if (kind === 'title') return `${count} ${count === 1 ? 'título' : 'títulos'}`
-      if (kind === 'entry') return `${count} ${count === 1 ? 'asiento' : 'asientos'}`
-      return `${count} ${count === 1 ? 'pago' : 'pagos'}`
-    }
-
-    // en
-    if (kind === 'title') return `${count} ${count === 1 ? 'item' : 'items'}`
-    if (kind === 'entry') return `${count} ${count === 1 ? 'entry' : 'entries'}`
-    return `${count} ${count === 1 ? 'payment' : 'payments'}`
+    if (kind === 'title') return `${count} ${count === 1 ? i.homePage.count.titleOne : i.homePage.count.titleMany}`
+    if (kind === 'entry') return `${count} ${count === 1 ? i.homePage.count.entryOne : i.homePage.count.entryMany}`
+    return `${count} ${count === 1 ? i.homePage.count.paymentOne : i.homePage.count.paymentMany}`
   }
 
   const q = useQuery({
@@ -203,8 +190,8 @@ export default function HomePage() {
         <p className="text-sm text-neutral-600">{i.home.subtitle}</p>
       </div>
 
-      {q.isLoading ? <div>{language === 'pt' ? 'Carregando…' : language === 'es' ? 'Cargando…' : 'Loading…'}</div> : null}
-      {q.error ? <div>{language === 'pt' ? 'Erro ao carregar.' : language === 'es' ? 'Error al cargar.' : 'Failed to load.'}</div> : null}
+      {q.isLoading ? <div>{i.homePage.loading}</div> : null}
+      {q.error ? <div>{i.homePage.loadError}</div> : null}
 
       <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
         <Card

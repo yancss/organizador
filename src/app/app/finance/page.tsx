@@ -297,16 +297,8 @@ export default function FinancePage() {
     <div className="space-y-6">
       <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">
-            {language === 'pt' ? 'Financeiro' : language === 'es' ? 'Finanzas' : 'Finance'}
-          </h1>
-          <p className="text-sm text-neutral-600">
-            {language === 'pt'
-              ? 'Lançamentos, contas e visão rápida do caixa.'
-              : language === 'es'
-                ? 'Movimientos, cuentas y vista rápida.'
-                : 'Entries, accounts and quick view.'}
-          </p>
+          <h1 className="text-xl font-semibold tracking-tight">{i.financePage.title}</h1>
+          <p className="text-sm text-neutral-600">{i.financePage.subtitle}</p>
         </div>
 
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -314,20 +306,20 @@ export default function FinancePage() {
             href="/app/finance/accounts"
             className="btn btn-secondary"
           >
-            {language === 'pt' ? 'Contas' : language === 'es' ? 'Cuentas' : 'Accounts'}
+            {i.financePage.accounts}
           </a>
           <a
             href="/app/finance/categories"
             className="btn btn-secondary"
           >
-            {language === 'pt' ? 'Categorias' : language === 'es' ? 'Categorías' : 'Categories'}
+            {i.financePage.categories}
           </a>
           <button
             className="btn btn-primary"
             onClick={openCreate}
             type="button"
           >
-            {language === 'pt' ? 'Novo lançamento' : language === 'es' ? 'Nuevo' : 'New entry'}
+            {i.financePage.newEntry}
           </button>
         </div>
       </header>
@@ -335,13 +327,7 @@ export default function FinancePage() {
       <section className="grid gap-3 sm:grid-cols-3">
         <div className="surface rounded-xl border border-theme p-4 sm:col-span-3">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div className="text-xs text-[var(--muted-foreground)]">
-              {language === 'pt'
-                ? 'Visão'
-                : language === 'es'
-                  ? 'Vista'
-                  : 'View'}
-            </div>
+            <div className="text-xs text-[var(--muted-foreground)]">{i.financePage.view}</div>
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
@@ -350,7 +336,7 @@ export default function FinancePage() {
                   'chip ' + (view === 'all' ? 'chip-on' : '')
                 }
               >
-                {language === 'pt' ? 'Tudo' : language === 'es' ? 'Todo' : 'All'}
+                {i.financePage.viewAll}
               </button>
               <button
                 type="button"
@@ -359,7 +345,7 @@ export default function FinancePage() {
                   'chip ' + (view === 'receivable' ? 'chip-on' : '')
                 }
               >
-                {language === 'pt' ? 'A receber' : language === 'es' ? 'Por cobrar' : 'Receivable'}
+                {i.financePage.viewReceivable}
               </button>
               <button
                 type="button"
@@ -368,14 +354,14 @@ export default function FinancePage() {
                   'chip ' + (view === 'payable' ? 'chip-on' : '')
                 }
               >
-                {language === 'pt' ? 'A pagar' : language === 'es' ? 'Por pagar' : 'Payable'}
+                {i.financePage.viewPayable}
               </button>
             </div>
           </div>
 
           <div className="mt-3 grid gap-2 sm:grid-cols-5">
             <label className="grid gap-1">
-              <span className="text-[10px] text-[var(--muted-foreground)]">{language === 'pt' ? 'De' : language === 'es' ? 'De' : 'From'}</span>
+              <span className="text-[10px] text-[var(--muted-foreground)]">{i.financePage.filters.from}</span>
               <input
                 type="date"
                 value={from}
@@ -385,7 +371,7 @@ export default function FinancePage() {
             </label>
 
             <label className="grid gap-1">
-              <span className="text-[10px] text-[var(--muted-foreground)]">{language === 'pt' ? 'Até' : language === 'es' ? 'Hasta' : 'To'}</span>
+              <span className="text-[10px] text-[var(--muted-foreground)]">{i.financePage.filters.to}</span>
               <input
                 type="date"
                 value={to}
@@ -395,13 +381,13 @@ export default function FinancePage() {
             </label>
 
             <label className="grid gap-1">
-              <span className="text-[10px] text-[var(--muted-foreground)]">{language === 'pt' ? 'Conta' : language === 'es' ? 'Cuenta' : 'Account'}</span>
+              <span className="text-[10px] text-[var(--muted-foreground)]">{i.financePage.filters.account}</span>
               <select
                 value={accountId}
                 onChange={(e) => setAccountId(e.target.value)}
                 className="w-full rounded-lg border border-theme bg-[var(--surface)] px-3 py-2 text-xs"
               >
-                <option value="">Todas</option>
+                <option value="">{i.common.all}</option>
                 {accounts.map((a) => (
                   <option key={a.id} value={a.id}>
                     {a.name}
@@ -411,13 +397,13 @@ export default function FinancePage() {
             </label>
 
             <label className="grid gap-1">
-              <span className="text-[10px] text-[var(--muted-foreground)]">{language === 'pt' ? 'Categoria' : language === 'es' ? 'Categoría' : 'Category'}</span>
+              <span className="text-[10px] text-[var(--muted-foreground)]">{i.financePage.filters.category}</span>
               <select
                 value={categoryId}
                 onChange={(e) => setCategoryId(e.target.value)}
                 className="w-full rounded-lg border border-theme bg-[var(--surface)] px-3 py-2 text-xs"
               >
-                <option value="">Todas</option>
+                <option value="">{i.common.all}</option>
                 {categoriesAll.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
@@ -437,59 +423,36 @@ export default function FinancePage() {
                   setCategoryId('')
                 }}
               >
-                {language === 'pt' ? 'Limpar filtros' : language === 'es' ? 'Limpiar filtros' : 'Clear filters'}
+                {i.financePage.filters.clear}
               </button>
             </div>
           </div>
         </div>
         <div className="surface rounded-xl border border-theme p-4">
-          <div className="text-xs text-[var(--muted-foreground)]">{language === 'pt' ? 'Entradas' : language === 'es' ? 'Ingresos' : 'Income'}</div>
+          <div className="text-xs text-[var(--muted-foreground)]">{i.financePage.cards.income}</div>
           <div className="mt-1 text-lg font-semibold">{fmtMoney(language, currency, moneyTotals.income)}</div>
         </div>
         <div className="surface rounded-xl border border-theme p-4">
-          <div className="text-xs text-[var(--muted-foreground)]">{language === 'pt' ? 'Saídas' : language === 'es' ? 'Gastos' : 'Expense'}</div>
+          <div className="text-xs text-[var(--muted-foreground)]">{i.financePage.cards.expense}</div>
           <div className="mt-1 text-lg font-semibold">{fmtMoney(language, currency, moneyTotals.expense)}</div>
         </div>
         <div className="surface rounded-xl border border-theme p-4">
-          <div className="text-xs text-[var(--muted-foreground)]">{language === 'pt' ? 'Saldo' : language === 'es' ? 'Balance' : 'Net'}</div>
+          <div className="text-xs text-[var(--muted-foreground)]">{i.financePage.cards.net}</div>
           <div className="mt-1 text-lg font-semibold">{fmtMoney(language, currency, moneyTotals.net)}</div>
         </div>
       </section>
 
       {entriesQ.isLoading ? (
-        <p className="text-sm text-neutral-600">Carregando…</p>
+        <p className="text-sm text-neutral-600">{i.common.loading}</p>
       ) : entriesQ.isError ? (
         <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-          Erro ao carregar: {String(entriesQ.error)}
+          {i.common.loadError} {String(entriesQ.error)}
         </div>
       ) : (
         <DataTable
           rows={entries}
-          empty={language === 'pt' ? 'Nenhum lançamento ainda.' : language === 'es' ? 'Sin movimientos.' : 'No entries yet.'}
-          labels={{
-            showing:
-              language === 'pt'
-                ? 'Mostrando {start}–{end} de {total}'
-                : language === 'es'
-                  ? 'Mostrando {start}–{end} de {total}'
-                  : 'Showing {start}–{end} of {total}',
-            page:
-              language === 'pt'
-                ? 'Página {page} / {pages}'
-                : language === 'es'
-                  ? 'Página {page} / {pages}'
-                  : 'Page {page} / {pages}',
-            previous: language === 'pt' ? 'Anterior' : language === 'es' ? 'Anterior' : 'Previous',
-            next: language === 'pt' ? 'Próxima' : language === 'es' ? 'Siguiente' : 'Next',
-            searchPlaceholder: language === 'pt' ? 'Buscar…' : language === 'es' ? 'Buscar…' : 'Search…',
-            clear: language === 'pt' ? 'Limpar' : language === 'es' ? 'Limpiar' : 'Clear',
-            noResults:
-              language === 'pt'
-                ? 'Nenhum registro encontrado para a busca.'
-                : language === 'es'
-                  ? 'No se encontraron registros.'
-                  : 'No results found.',
-          }}
+          empty={i.financePage.empty}
+          labels={i.table}
           initialSort={{ key: 'competenceDate', dir: 'desc' }}
           columns={[
             {
@@ -505,7 +468,7 @@ export default function FinancePage() {
             },
             {
               key: 'name',
-              header: language === 'pt' ? 'Nome' : language === 'es' ? 'Nombre' : 'Name',
+              header: i.financePage.columns.name,
               sortValue: (r) => r.name ?? '',
               searchValue: (r) => r.name ?? '',
               render: (r) => {
@@ -533,7 +496,7 @@ export default function FinancePage() {
             },
             {
               key: 'competenceDate',
-              header: language === 'pt' ? 'Data' : language === 'es' ? 'Fecha' : 'Date',
+              header: i.financePage.columns.date,
               sortValue: (r) => r.competenceDate,
               searchValue: (r) => r.competenceDate,
               render: (r) => {
@@ -543,7 +506,7 @@ export default function FinancePage() {
             },
             {
               key: 'type',
-              header: language === 'pt' ? 'Tipo' : language === 'es' ? 'Tipo' : 'Type',
+              header: i.financePage.columns.type,
               sortValue: (r) => r.type,
               searchValue: (r) => r.type,
               render: (r) => (
@@ -555,79 +518,60 @@ export default function FinancePage() {
                       : 'border-rose-300 bg-rose-50 text-rose-800')
                   }
                 >
-                  {r.type === 'IN'
-                    ? language === 'pt'
-                      ? 'Entrada'
-                      : language === 'es'
-                        ? 'Ingreso'
-                        : 'Income'
-                    : language === 'pt'
-                      ? 'Saída'
-                      : language === 'es'
-                        ? 'Gasto'
-                        : 'Expense'}
+                  {r.type === 'IN' ? i.financePage.types.income : i.financePage.types.expense}
                 </span>
               ),
             },
             {
               key: 'value',
-              header: language === 'pt' ? 'Valor' : language === 'es' ? 'Importe' : 'Amount',
+              header: i.financePage.columns.amount,
               sortValue: (r) => Number(r.value),
               searchValue: (r) => r.value,
               render: (r) => <div className="font-medium">{fmtMoney(language, currency, Number(r.value))}</div>,
             },
             {
               key: 'category',
-              header: language === 'pt' ? 'Categoria' : language === 'es' ? 'Categoría' : 'Category',
+              header: i.financePage.columns.category,
               sortValue: (r) => r.category?.name ?? '',
               searchValue: (r) => r.category?.name ?? '',
               render: (r) => <div className="text-[var(--muted-foreground)]">{r.category?.name ?? '—'}</div>,
             },
             {
               key: 'costCenter',
-              header: language === 'pt' ? 'Centro de custo' : language === 'es' ? 'Centro de costo' : 'Cost center',
+              header: i.financePage.columns.costCenter,
               sortValue: (r) => r.costCenter?.name ?? '',
               searchValue: (r) => r.costCenter?.name ?? '',
               render: (r) => <div className="text-[var(--muted-foreground)]">{r.costCenter?.name ?? '—'}</div>,
             },
             {
               key: 'account',
-              header: language === 'pt' ? 'Conta' : language === 'es' ? 'Cuenta' : 'Account',
+              header: i.financePage.columns.account,
               sortValue: (r) => r.account.name,
               searchValue: (r) => r.account.name,
               render: (r) => <div className="text-[var(--muted-foreground)]">{r.account.name}</div>,
             },
             {
               key: 'actions',
-              header: language === 'pt' ? 'Ações' : language === 'es' ? 'Acciones' : 'Actions',
+              header: i.financePage.columns.actions,
               className: 'text-right',
               headerClassName: 'text-right',
               render: (r) => (
                 <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
                   <button type="button" className="btn btn-secondary btn-sm" onClick={() => openEntry(r)}>
-                    {language === 'pt' ? 'Editar' : language === 'es' ? 'Editar' : 'Edit'}
+                    {i.financePage.actions.edit}
                   </button>
                   <button
                     type="button"
                     className="btn btn-danger-soft btn-sm"
                     onClick={() => {
-                      if (
-                        !confirm(
-                          language === 'pt'
-                            ? 'Excluir este lançamento?'
-                            : language === 'es'
-                              ? '¿Eliminar este movimiento?'
-                              : 'Delete this entry?'
-                        )
-                      )
-                        return
+                      if (!confirm(i.financePage.actions.deleteConfirm)) return
                       deleteEntryM
                         .mutateAsync(r.id)
                         .then(() => toastDeleted(i, 'entry'))
                         .catch((e: any) => toastFailedToDelete(i, String(e?.message ?? '')))
                     }}
                   >
-                    {language === 'pt' ? 'Excluir' : language === 'es' ? 'Eliminar' : 'Delete'}
+                    {i.financePage.actions.delete}
                   </button>
                 </div>
               ),
@@ -642,19 +586,11 @@ export default function FinancePage() {
           <div className="surface modal-safe absolute bottom-0 left-0 right-0 mx-auto w-full max-w-2xl rounded-t-2xl border border-theme p-5 shadow-xl sm:bottom-auto sm:top-20 sm:rounded-2xl">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h2 className="text-lg font-semibold">
-                  {language === 'pt' ? 'Novo lançamento' : language === 'es' ? 'Nuevo movimiento' : 'New entry'}
-                </h2>
-                <p className="text-sm text-[var(--text-muted)]">
-                  {language === 'pt'
-                    ? 'Registre entradas/saídas e vincule a categoria e centro de custo.'
-                    : language === 'es'
-                      ? 'Registra ingresos/gastos y vincula categoría y centro de costo.'
-                      : 'Register income/expense and link category and cost center.'}
-                </p>
+                <h2 className="text-lg font-semibold">{i.financePage.modal.titleNew}</h2>
+                <p className="text-sm text-[var(--text-muted)]">{i.financePage.modal.subtitle}</p>
               </div>
               <button
-                aria-label="Fechar"
+                aria-label={i.common.close}
                 className="btn btn-secondary btn-icon"
                 onClick={() => setIsOpen(false)}
                 type="button"
@@ -666,7 +602,7 @@ export default function FinancePage() {
             <div className="mt-4 grid gap-3">
               {draft.id ? (
                 <div className="grid gap-1">
-                  <span className="text-xs font-medium text-[var(--foreground)]">ID</span>
+                  <span className="text-xs font-medium text-[var(--foreground)]">{i.financePage.modal.id}</span>
                   <input
                     value={formatFinanceId(draft.code, draft.id)}
                     readOnly
@@ -678,7 +614,7 @@ export default function FinancePage() {
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="grid gap-1">
-                  <span className="text-xs font-medium text-[var(--foreground)]">{language === 'pt' ? 'Tipo' : language === 'es' ? 'Tipo' : 'Type'}</span>
+                  <span className="text-xs font-medium text-[var(--foreground)]">{i.financePage.modal.type}</span>
                   <select
                     value={draft.type}
                     onChange={(e) => {
@@ -687,28 +623,28 @@ export default function FinancePage() {
                     }}
                     className="w-full rounded-lg border border-theme bg-transparent px-3 py-2"
                   >
-                    <option value="IN">{language === 'pt' ? 'Entrada' : language === 'es' ? 'Ingreso' : 'Income'}</option>
-                    <option value="OUT">{language === 'pt' ? 'Saída' : language === 'es' ? 'Gasto' : 'Expense'}</option>
+                    <option value="IN">{i.financePage.types.income}</option>
+                    <option value="OUT">{i.financePage.types.expense}</option>
                   </select>
                 </label>
 
                 <label className="grid gap-1">
-                  <span className="text-xs font-medium text-[var(--foreground)]">{language === 'pt' ? 'Status' : language === 'es' ? 'Estado' : 'Status'}</span>
+                  <span className="text-xs font-medium text-[var(--foreground)]">{i.financePage.modal.status}</span>
                   <select
                     value={draft.status}
                     onChange={(e) => setDraft((d) => ({ ...d, status: e.target.value as any }))}
                     disabled={readOnly}
                     className="w-full rounded-lg border border-theme bg-transparent px-3 py-2"
                   >
-                    <option value="PAID">{language === 'pt' ? 'Pago' : language === 'es' ? 'Pagado' : 'Paid'}</option>
-                    <option value="PLANNED">{language === 'pt' ? 'Previsto' : language === 'es' ? 'Previsto' : 'Planned'}</option>
+                    <option value="PAID">{i.financePage.modal.statusPaid}</option>
+                    <option value="PLANNED">{i.financePage.modal.statusPlanned}</option>
                   </select>
                 </label>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="grid gap-1">
-                  <span className="text-xs font-medium text-[var(--foreground)]">{language === 'pt' ? 'Data (competência)' : language === 'es' ? 'Fecha' : 'Date'}</span>
+                  <span className="text-xs font-medium text-[var(--foreground)]">{i.financePage.modal.date}</span>
                   <input
                     type="datetime-local"
                     value={draft.competenceDate}
@@ -719,27 +655,27 @@ export default function FinancePage() {
                 </label>
 
                 <label className="grid gap-1">
-                  <span className="text-xs font-medium text-[var(--foreground)]">{language === 'pt' ? 'Valor' : language === 'es' ? 'Importe' : 'Amount'}</span>
+                  <span className="text-xs font-medium text-[var(--foreground)]">{i.financePage.modal.amount}</span>
                   <input
                     inputMode="decimal"
                     value={draft.value}
                     onChange={(e) => setDraft((d) => ({ ...d, value: e.target.value }))}
                     disabled={readOnly}
-                    placeholder={language === 'pt' ? '0,00' : '0.00'}
+                    placeholder={i.financePage.modal.amountPlaceholder}
                     className="w-full rounded-lg border border-theme bg-transparent px-3 py-2"
                   />
                 </label>
               </div>
 
               <label className="grid gap-1">
-                <span className="text-xs font-medium text-[var(--foreground)]">{language === 'pt' ? 'Conta' : language === 'es' ? 'Cuenta' : 'Account'}</span>
+                <span className="text-xs font-medium text-[var(--foreground)]">{i.financePage.modal.account}</span>
                 <select
                   value={draft.accountId}
                   onChange={(e) => setDraft((d) => ({ ...d, accountId: e.target.value }))}
                   disabled={readOnly}
                   className="w-full rounded-lg border border-theme bg-transparent px-3 py-2"
                 >
-                  <option value="">{language === 'pt' ? 'Selecione…' : language === 'es' ? 'Seleccione…' : 'Select…'}</option>
+                  <option value="">{i.financePage.modal.accountPlaceholder}</option>
                   {accounts.map((a) => (
                     <option key={a.id} value={a.id}>
                       {a.name}
@@ -747,17 +683,13 @@ export default function FinancePage() {
                   ))}
                 </select>
                 {!accounts.length ? (
-                  <p className="text-xs text-[var(--muted-foreground)]">
-                    {language === 'pt'
-                      ? 'Dica: crie uma conta (ex.: Caixa) em /api/finance/accounts (vamos colocar UI disso depois).'
-                      : 'Tip: create an account first.'}
-                  </p>
+                  <p className="text-xs text-[var(--muted-foreground)]">{i.financePage.modal.noAccountsTip}</p>
                 ) : null}
               </label>
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="grid gap-1">
-                  <span className="text-xs font-medium text-[var(--foreground)]">{language === 'pt' ? 'Categoria' : language === 'es' ? 'Categoría' : 'Category'}</span>
+                  <span className="text-xs font-medium text-[var(--foreground)]">{i.financePage.modal.category}</span>
                   <select
                     value={draft.categoryId}
                     onChange={(e) => setDraft((d) => ({ ...d, categoryId: e.target.value }))}
@@ -774,7 +706,7 @@ export default function FinancePage() {
                 </label>
 
                 <label className="grid gap-1">
-                  <span className="text-xs font-medium text-[var(--foreground)]">{language === 'pt' ? 'Centro de custo' : language === 'es' ? 'Centro de costo' : 'Cost center'}</span>
+                  <span className="text-xs font-medium text-[var(--foreground)]">{i.financePage.modal.costCenter}</span>
                   <select
                     value={draft.costCenterId}
                     onChange={(e) => setDraft((d) => ({ ...d, costCenterId: e.target.value }))}
@@ -792,7 +724,7 @@ export default function FinancePage() {
               </div>
 
               <label className="grid gap-1">
-                <span className="text-xs font-medium text-[var(--foreground)]">{language === 'pt' ? 'Nome' : language === 'es' ? 'Nombre' : 'Name'}</span>
+                <span className="text-xs font-medium text-[var(--foreground)]">{i.financePage.modal.name}</span>
                 <input
                   value={draft.name ?? ''}
                   onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
@@ -802,7 +734,7 @@ export default function FinancePage() {
               </label>
 
               <label className="grid gap-1">
-                <span className="text-xs font-medium text-[var(--foreground)]">{language === 'pt' ? 'Observações' : language === 'es' ? 'Notas' : 'Notes'}</span>
+                <span className="text-xs font-medium text-[var(--foreground)]">{i.financePage.modal.observations}</span>
                 <textarea
                   value={draft.observations}
                   onChange={(e) => setDraft((d) => ({ ...d, observations: e.target.value }))}
@@ -818,7 +750,7 @@ export default function FinancePage() {
                 onClick={() => setIsOpen(false)}
                 type="button"
               >
-                {language === 'pt' ? 'Cancelar' : language === 'es' ? 'Cancelar' : 'Cancel'}
+                {i.financePage.modal.cancel}
               </button>
               <button
                 className="btn btn-primary"
@@ -826,7 +758,7 @@ export default function FinancePage() {
                 type="button"
                 disabled={readOnly || !draft.accountId || !draft.value.trim() || createEntryM.isPending}
               >
-                {readOnly ? (language === 'pt' ? 'Somente leitura' : language === 'es' ? 'Solo lectura' : 'Read-only') : language === 'pt' ? 'Salvar' : language === 'es' ? 'Guardar' : 'Save'}
+                {readOnly ? i.financePage.modal.readOnly : i.financePage.modal.save}
               </button>
             </div>
           </div>

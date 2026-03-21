@@ -19,10 +19,13 @@ const E164Like = z
 const UpdateClientSchema = z.object({
   name: z.string().min(1).max(140).optional(),
 
+  entityType: z.enum(['PERSON', 'COMPANY']).optional(),
+
   roles: z.array(z.enum(['CUSTOMER', 'SUPPLIER'])).optional().nullable(),
 
   phone: E164Like.optional().nullable(),
   phoneCountry: z.string().length(2).optional().nullable(),
+  email: z.string().email().max(254).optional().nullable(),
 
   birthDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
 
@@ -61,10 +64,12 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     where: { id, workspaceId: wsId },
     data: {
       ...(parsed.data.name !== undefined ? { name: parsed.data.name } : {}),
+      ...(parsed.data.entityType !== undefined ? { entityType: parsed.data.entityType } : {}),
       ...(parsed.data.roles !== undefined ? { roles: parsed.data.roles?.length ? parsed.data.roles : ['CUSTOMER'] } : {}),
 
       ...(parsed.data.phone !== undefined ? { phone: parsed.data.phone ?? null } : {}),
       ...(parsed.data.phoneCountry !== undefined ? { phoneCountry: parsed.data.phoneCountry ?? null } : {}),
+      ...(parsed.data.email !== undefined ? { email: parsed.data.email ?? null } : {}),
 
       ...(parsed.data.birthDate !== undefined
         ? { birthDate: parsed.data.birthDate ? new Date(parsed.data.birthDate) : null }
@@ -99,9 +104,11 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     select: {
       id: true,
       name: true,
+      entityType: true,
       roles: true,
       phone: true,
       phoneCountry: true,
+      email: true,
       birthDate: true,
       idType: true,
       idNumber: true,

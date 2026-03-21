@@ -6,6 +6,7 @@ import { Menu, Moon, Sun, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 import { useSettings } from './settings-context'
+import { t } from './i18n'
 
 // Quick font switch for the brand name (test options)
 const BRAND_FONT: 'bebas' | 'montserrat' | 'rajdhani' = 'montserrat'
@@ -29,6 +30,7 @@ import AvatarMenu from './ui/avatar-menu'
 export default function AppHeader() {
   const [open, setOpen] = useState(false)
   const { theme, setTheme, language } = useSettings()
+  const i = t(language)
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -74,8 +76,8 @@ export default function AppHeader() {
             <button
               type="button"
               className={"btn btn-secondary btn-icon " + (theme === 'light' ? 'ring-2 ring-[var(--primary)] ring-offset-2 ring-offset-[var(--surface)]' : '')}
-              aria-label={language === 'pt' ? 'Tema claro' : language === 'es' ? 'Tema claro' : 'Light theme'}
-              title={language === 'pt' ? 'Tema claro' : language === 'es' ? 'Tema claro' : 'Light theme'}
+              aria-label={i.common.lightTheme}
+              title={i.common.lightTheme}
               onClick={() => setTheme('light')}
             >
               <Sun className="size-4" />
@@ -83,8 +85,8 @@ export default function AppHeader() {
             <button
               type="button"
               className={"btn btn-secondary btn-icon " + (theme === 'dark' ? 'ring-2 ring-[var(--primary)] ring-offset-2 ring-offset-[var(--surface)]' : '')}
-              aria-label={language === 'pt' ? 'Tema escuro' : language === 'es' ? 'Tema oscuro' : 'Dark theme'}
-              title={language === 'pt' ? 'Tema escuro' : language === 'es' ? 'Tema oscuro' : 'Dark theme'}
+              aria-label={i.common.darkTheme}
+              title={i.common.darkTheme}
               onClick={() => setTheme('dark')}
             >
               <Moon className="size-4" />
@@ -99,7 +101,7 @@ export default function AppHeader() {
           <button
             type="button"
             className="fixed inset-0 z-40 bg-black/40"
-            aria-label="Fechar menu"
+            aria-label={i.common.closeMenu}
             onClick={() => setOpen(false)}
           />
 
@@ -116,7 +118,7 @@ export default function AppHeader() {
               <button
                 type="button"
                 className="inline-flex size-10 items-center justify-center rounded-xl text-[var(--foreground)] hover:bg-[var(--muted)]"
-                aria-label="Fechar menu"
+                aria-label={i.common.closeMenu}
                 onClick={() => setOpen(false)}
               >
                 <X className="size-5" />

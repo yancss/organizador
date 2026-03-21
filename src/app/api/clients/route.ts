@@ -29,9 +29,11 @@ export async function GET(req: Request) {
     select: {
       id: true,
       name: true,
+      entityType: true,
       roles: true,
       phone: true,
       phoneCountry: true,
+      email: true,
       birthDate: true,
       idType: true,
       idNumber: true,
@@ -66,38 +68,50 @@ const E164Like = z
   .transform((v) => normalizeE164(v))
   .refine((v) => /^\+[1-9]\d{6,14}$/.test(v), 'INVALID_PHONE_E164')
 
-const CreateClientSchema = z.object({
-  name: z.string().min(1).max(140),
+const CreateClientSchema = z
+  .object({
+    name: z.string().min(1).max(140),
 
-  roles: z.array(z.enum(['CUSTOMER', 'SUPPLIER'])).optional().nullable(),
+    entityType: z.enum(['PERSON', 'COMPANY']).optional(),
 
-  // Contact
-  phone: E164Like.optional().nullable(),
-  phoneCountry: z.string().length(2).optional().nullable(),
+    roles: z.array(z.enum(['CUSTOMER', 'SUPPLIER'])).optional().nullable(),
 
-  // Personal
-  birthDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(), // YYYY-MM-DD
+    // Contact (at least one: phone OR email)
+    phone: E164Like.optional().nullable(),
+    phoneCountry: z.string().length(2).optional().nullable(),
+    email: z.string().email().max(254).optional().nullable(),
 
-  // Identification
-  idType: z.string().max(32).optional().nullable(),
-  idNumber: z.string().max(64).optional().nullable(),
-  idCountry: z.string().length(2).optional().nullable(),
+    // Personal
+    birthDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(), // YYYY-MM-DD
 
-  // Address (structured)
-  addressCountry: z.string().length(2).optional().nullable(),
-  addressPostalCode: z.string().max(16).optional().nullable(),
-  addressState: z.string().max(80).optional().nullable(),
-  addressCity: z.string().max(120).optional().nullable(),
-  addressDistrict: z.string().max(120).optional().nullable(),
-  addressStreet: z.string().max(180).optional().nullable(),
-  addressNumber: z.string().max(32).optional().nullable(),
-  addressComplement: z.string().max(180).optional().nullable(),
+    // Identification (required)
+    idType: z.string().max(32),
+    idNumber: z.string().max(64),
+    idCountry: z.string().length(2),
 
-  // Legacy
-  address: z.string().max(500).optional().nullable(),
+    // Address (required)
+    addressCountry: z.string().length(2),
+    addressPostalCode: z.string().max(16),
+    addressState: z.string().max(80).optional().nullable(),
+    addressCity: z.string().max(120).optional().nullable(),
+    addressDistrict: z.string().max(120).optional().nullable(),
+    addressStreet: z.string().max(180).optional().nullable(),
+    addressNumber: z.string().max(32).optional().nullable(),
+    addressComplement: z.string().max(180).optional().nullable(),
 
-  observations: z.string().max(5000).optional().nullable(),
-})
+    // Legacy
+    address: z.string().max(500).optional().nullable(),
+
+    observations: z.string().max(5000).optional().nullable(),
+  })
+  .superRefine((v, ctx) => {
+    const hasPhone = !!(v.phone && String(v.phone).trim())
+    const hasEmail = !!(v.email && String(v.email).trim())
+    if (!hasPhone && !hasEmail) {
+      ctx.addIssue({ code: 'custom', message: 'MISSING_CONTACT', path: ['phone'] })
+      ctx.addIssue({ code: 'custom', message: 'MISSING_CONTACT', path: ['email'] })
+    }
+  })
 
 export async function POST(req: Request) {
   const auth = await requireWorkspace()
@@ -115,19 +129,21 @@ export async function POST(req: Request) {
     data: {
       workspaceId: wsId,
       name: parsed.data.name,
+      entityType: parsed.data.entityType ?? 'PERSON',
       roles: parsed.data.roles?.length ? parsed.data.roles : ['CUSTOMER'],
 
       phone: parsed.data.phone ?? null,
       phoneCountry: parsed.data.phoneCountry ?? null,
+      email: parsed.data.email ?? null,
 
       birthDate: parsed.data.birthDate ? new Date(parsed.data.birthDate) : null,
 
-      idType: parsed.data.idType ?? null,
-      idNumber: parsed.data.idNumber ?? null,
-      idCountry: parsed.data.idCountry ?? null,
+      idType: parsed.data.idType,
+      idNumber: parsed.data.idNumber,
+      idCountry: parsed.data.idCountry,
 
-      addressCountry: parsed.data.addressCountry ?? null,
-      addressPostalCode: parsed.data.addressPostalCode ?? null,
+      addressCountry: parsed.data.addressCountry,
+      addressPostalCode: parsed.data.addressPostalCode,
       addressState: parsed.data.addressState ?? null,
       addressCity: parsed.data.addressCity ?? null,
       addressDistrict: parsed.data.addressDistrict ?? null,
@@ -141,9 +157,11 @@ export async function POST(req: Request) {
     select: {
       id: true,
       name: true,
+      entityType: true,
       roles: true,
       phone: true,
       phoneCountry: true,
+      email: true,
       birthDate: true,
       idType: true,
       idNumber: true,
