@@ -1711,12 +1711,22 @@ const dict: Record<AppLanguage, I18n> = {
       roleCustomer: 'Cliente',
       roleSupplier: 'Proveedor',
 
-      newTitle: 'Nuevo cliente',
-      editTitle: 'Editar cliente',
-      modalSubtitle: 'Nombre, teléfono, identificación y dirección.',
+      newTitle: 'Nuevo socio',
+      editTitle: 'Editar socio',
+      modalSubtitle: '',
       nameLabel: 'Nombre',
       phoneLabel: 'Teléfono',
-      phoneHelp: 'Guardado en formato internacional (p. ej. +351…, +55…)',
+      phoneHelp: '',
+
+      entityTypeLabel: 'Tipo de socio',
+      entityTypePerson: 'Persona física',
+      entityTypeCompany: 'Persona jurídica',
+
+      countryLabel: 'País',
+      lookupPostalCode: 'Buscar',
+      selectPlaceholder: 'Seleccione…',
+
+      emailLabel: 'Email',
 
       birthDateLabel: 'Fecha de nacimiento',
 
@@ -1735,15 +1745,25 @@ const dict: Record<AppLanguage, I18n> = {
       idTypeOther: 'Otro',
 
       addressTitle: 'Dirección',
-      addressCountryLabel: 'País (ISO-2)',
-      addressPostalCodeLabel: 'Código postal',
+      addressCountryLabel: 'País',
+      addressPostalCodeLabel: 'Código postal / CEP',
+
       addressStateLabel: 'Estado/Región',
+      addressStateLabelBR: 'UF',
+      addressStateLabelPT: 'Distrito',
+
       addressCityLabel: 'Ciudad',
-      addressDistrictLabel: 'Barrio/Distrito',
+      addressCityLabelBR: 'Ciudad',
+      addressCityLabelPT: 'Municipio',
+
+      addressDistrictLabel: 'Distrito',
+      addressDistrictLabelBR: 'Barrio',
+      addressDistrictLabelPT: 'Localidad',
+
       addressStreetLabel: 'Calle',
       addressNumberLabel: 'Número',
       addressComplementLabel: 'Complemento',
-      addressLegacyLabel: 'Dirección (texto libre – legado)',
+      addressLegacyLabel: 'Dirección',
 
       observationsLabel: 'Observaciones',
 
