@@ -493,10 +493,39 @@ export default function OrderBoard() {
     const name = draft.name.trim()
     if (!name) return
 
+    if (!draft.clientId) {
+      toastFailedToSave(i, language === 'pt' ? 'Selecione um cliente.' : language === 'es' ? 'Selecciona un cliente.' : 'Select a client.')
+      return
+    }
+
+    const items = draft.items
+      .filter((it) => it.productId && it.quantity.trim())
+      .map((it) => ({
+        productId: it.productId,
+        quantity: Number(it.quantity.replace(',', '.')),
+        unitPrice: it.unitPrice.trim() ? parseMoneyToNumber(it.unitPrice, moneyLocale) : 0,
+        unit: it.unit ?? null,
+        discountType: draft.discountMode === 'PER_ITEM' ? (it.discountType ?? 'VALUE') : null,
+        discountValue:
+          draft.discountMode === 'PER_ITEM' && (it.discountType ?? 'VALUE') === 'VALUE' && it.discountValue?.trim()
+            ? parseMoneyToNumber(it.discountValue, moneyLocale)
+            : null,
+        discountPercent:
+          draft.discountMode === 'PER_ITEM' && (it.discountType ?? 'VALUE') === 'PERCENT' && it.discountPercent?.trim()
+            ? Number(it.discountPercent.replace(',', '.'))
+            : null,
+      }))
+      .filter((it) => Number.isFinite(it.quantity) && it.quantity > 0)
+
+    if (!items.length) {
+      toastFailedToSave(i, language === 'pt' ? 'Adicione pelo menos 1 item.' : language === 'es' ? 'Agrega al menos 1 ítem.' : 'Add at least 1 item.')
+      return
+    }
+
     const payload = {
       name,
       observations: draft.observations.trim() ? draft.observations : null,
-      clientId: draft.clientId || null,
+      clientId: draft.clientId,
       orderedAt: fromLocalInputValue(draft.orderedAt),
       deliveryAt: fromLocalInputValue(draft.deliveryAt),
       status: draft.status,
@@ -512,24 +541,7 @@ export default function OrderBoard() {
           ? Number(draft.discountPercent.replace(',', '.'))
           : null,
 
-      items: draft.items
-        .filter((it) => it.productId && it.quantity.trim())
-        .map((it) => ({
-          productId: it.productId,
-          quantity: Number(it.quantity.replace(',', '.')),
-          unitPrice: it.unitPrice.trim() ? parseMoneyToNumber(it.unitPrice, moneyLocale) : 0,
-          unit: it.unit ?? null,
-          discountType: draft.discountMode === 'PER_ITEM' ? (it.discountType ?? 'VALUE') : null,
-          discountValue:
-            draft.discountMode === 'PER_ITEM' && (it.discountType ?? 'VALUE') === 'VALUE' && it.discountValue?.trim()
-              ? parseMoneyToNumber(it.discountValue, moneyLocale)
-              : null,
-          discountPercent:
-            draft.discountMode === 'PER_ITEM' && (it.discountType ?? 'VALUE') === 'PERCENT' && it.discountPercent?.trim()
-              ? Number(it.discountPercent.replace(',', '.'))
-              : null,
-        }))
-        .filter((it) => Number.isFinite(it.quantity) && it.quantity > 0),
+      items,
     }
 
     try {
@@ -1503,7 +1515,13 @@ export default function OrderBoard() {
                   className="btn btn-primary"
                   onClick={save}
                   type="button"
-                  disabled={!draft.name.trim() || createM.isPending || updateM.isPending}
+                  disabled={
+                    !draft.name.trim() ||
+                    !draft.clientId ||
+                    !draft.items.some((it) => it.productId && Number(it.quantity.replace(',', '.')) > 0) ||
+                    createM.isPending ||
+                    updateM.isPending
+                  }
                 >
                   {i.modal.save}
                 </button>
