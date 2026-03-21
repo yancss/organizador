@@ -35,6 +35,55 @@ const UpdateOrderSchema = z.object({
   items: z.array(OrderItemSchema).optional(),
 })
 
+export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
+  const auth = await requireWorkspace()
+  if (!auth.ok) return Response.json({ error: auth.error }, { status: auth.status })
+
+  const wsId = auth.user.workspaceId
+  const { id } = await ctx.params
+
+  const order = await prisma.salesOrder.findFirst({
+    where: { id, workspaceId: wsId },
+    select: {
+      id: true,
+      code: true,
+      name: true,
+      observations: true,
+      orderedAt: true,
+      deliveryAt: true,
+      status: true,
+      value: true,
+
+      discountMode: true,
+      discountType: true,
+      discountValue: true,
+      discountPercent: true,
+
+      client: { select: { id: true, name: true } },
+      items: {
+        select: {
+          id: true,
+          quantity: true,
+          unitPrice: true,
+          discountType: true,
+          discountValue: true,
+          discountPercent: true,
+          product: { select: { id: true, name: true, unit: true } },
+        },
+        orderBy: { createdAt: 'asc' },
+      },
+      createdById: true,
+      updatedById: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+  })
+
+  if (!order) return Response.json({ error: 'NOT_FOUND' }, { status: 404 })
+
+  return Response.json({ order })
+}
+
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const auth = await requireWorkspace()
   if (!auth.ok) return Response.json({ error: auth.error }, { status: auth.status })
@@ -223,6 +272,8 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
         },
         orderBy: { createdAt: 'asc' },
       },
+      createdById: true,
+      updatedById: true,
       createdAt: true,
       updatedAt: true,
     },

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { ChevronLeft, ChevronRight, Maximize2, Minimize2, Settings, X } from 'lucide-react'
 
 import DataTable from './ui/data-table'
@@ -203,6 +204,7 @@ const STATUS_ORDER: Order['status'][] = ['DRAFT', 'CONFIRMED', 'IN_PRODUCTION', 
 const COLUMNS_STORAGE_KEY = 'orders:kanban:visibleStatuses:v1'
 
 export default function OrderBoard() {
+  const router = useRouter()
   const qc = useQueryClient()
   const { language, currency } = useSettings()
   const i = t(language)
@@ -305,6 +307,7 @@ export default function OrderBoard() {
 
   const calRef = useRef<FullCalendar | null>(null)
   const calModalRef = useRef<FullCalendar | null>(null)
+  const didAutoOpenEditRef = useRef(false)
   const [calTitle, setCalTitle] = useState('')
   const [calModalTitle, setCalModalTitle] = useState('')
 
@@ -376,6 +379,27 @@ export default function OrderBoard() {
   })
 
   const orders = ordersQ.data?.orders ?? []
+
+  // If user comes from the details page clicking "Editar", open the modal automatically.
+  useEffect(() => {
+    if (didAutoOpenEditRef.current) return
+    if (!orders.length) return
+
+    const p = new URLSearchParams(window.location.search)
+    const editId = p.get('edit')
+    if (!editId) return
+
+    const found = orders.find((o) => o.id === editId)
+    if (!found) return
+
+    didAutoOpenEditRef.current = true
+    openEdit(found)
+
+    // cleanup param to avoid reopening on refresh
+    p.delete('edit')
+    const next = window.location.pathname + (p.toString() ? `?${p.toString()}` : '')
+    window.history.replaceState({}, '', next)
+  }, [orders])
 
   useEffect(() => {
     try {
@@ -453,6 +477,10 @@ export default function OrderBoard() {
       })),
     })
     setIsOpen(true)
+  }
+
+  function openDetails(o: Order) {
+    router.push(`/app/sales/orders/${o.id}`)
   }
 
   function addItemLine() {
@@ -959,7 +987,7 @@ export default function OrderBoard() {
               labels={i.table}
               showSearch={false}
               initialSort={{ key: 'deliveryAt', dir: 'asc' }}
-              onRowClick={openEdit}
+              onRowClick={openDetails}
               columns={[
                 {
                   key: 'name',
@@ -970,16 +998,20 @@ export default function OrderBoard() {
                     <div className="font-medium text-[var(--foreground)]">
                       <div className="flex flex-wrap items-center gap-2">
                         <span>{r.name}</span>
-                        {r.code ? (
-                          <span className="badge badge-muted">
-                            {r.code}
-                          </span>
-                        ) : null}
-                        <span className={'rounded-full px-2 py-0.5 text-xs ' + statusBadgeClass(r.status)}>
-                          {statusLabel(r.status)}
-                        </span>
+                        {r.code ? <span className="badge badge-muted">{r.code}</span> : null}
                       </div>
                     </div>
+                  ),
+                },
+                {
+                  key: 'status',
+                  header: i.orders.status,
+                  sortValue: (r) => r.status,
+                  searchValue: (r) => r.status,
+                  render: (r) => (
+                    <span className={'rounded-full px-2 py-0.5 text-xs ' + statusBadgeClass(r.status)}>
+                      {statusLabel(r.status)}
+                    </span>
                   ),
                 },
                 {
@@ -1010,6 +1042,25 @@ export default function OrderBoard() {
                   render: (r) => (
                     <div className="text-[var(--muted-foreground)]">
                       {r.deliveryAt ? new Date(r.deliveryAt).toLocaleDateString() : i.orders.noDeliveryAt}
+                    </div>
+                  ),
+                },
+                {
+                  key: 'actions',
+                  header: '',
+                  sortValue: () => 0,
+                  render: (r) => (
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-xs"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          openEdit(r)
+                        }}
+                      >
+                        {language === 'pt' ? 'Editar' : language === 'es' ? 'Editar' : 'Edit'}
+                      </button>
                     </div>
                   ),
                 },
