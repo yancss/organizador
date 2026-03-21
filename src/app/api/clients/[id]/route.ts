@@ -63,6 +63,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   const updated = await prisma.client.updateMany({
     where: { id, workspaceId: wsId },
     data: {
+      updatedById: auth.user.id,
       ...(parsed.data.name !== undefined ? { name: parsed.data.name } : {}),
       ...(parsed.data.entityType !== undefined ? { entityType: parsed.data.entityType } : {}),
       ...(parsed.data.roles !== undefined ? { roles: parsed.data.roles?.length ? parsed.data.roles : ['CUSTOMER'] } : {}),
@@ -103,6 +104,10 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     where: { id, workspaceId: wsId },
     select: {
       id: true,
+      createdAt: true,
+      updatedAt: true,
+      createdById: true,
+      updatedById: true,
       name: true,
       entityType: true,
       roles: true,

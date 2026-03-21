@@ -28,6 +28,10 @@ export async function GET(req: Request) {
     take: q.length >= 2 ? 25 : 500,
     select: {
       id: true,
+      createdAt: true,
+      updatedAt: true,
+      createdById: true,
+      updatedById: true,
       name: true,
       entityType: true,
       roles: true,
@@ -128,6 +132,8 @@ export async function POST(req: Request) {
   const client = await prisma.client.create({
     data: {
       workspaceId: wsId,
+      createdById: auth.user.id,
+      updatedById: auth.user.id,
       name: parsed.data.name,
       entityType: parsed.data.entityType ?? 'PERSON',
       roles: parsed.data.roles?.length ? parsed.data.roles : ['CUSTOMER'],
@@ -156,6 +162,10 @@ export async function POST(req: Request) {
     },
     select: {
       id: true,
+      createdAt: true,
+      updatedAt: true,
+      createdById: true,
+      updatedById: true,
       name: true,
       entityType: true,
       roles: true,
