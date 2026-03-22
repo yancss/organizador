@@ -34,6 +34,17 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
 
   const permIds = perms.map((p) => p.id)
 
+  const before = await prisma.workspaceRolePermission.findMany({
+    where: { workspaceId: wsId, roleId },
+    select: { permission: { select: { key: true } } },
+  })
+  const beforeKeys = new Set(before.map((r) => r.permission.key))
+
+  const afterKeys = new Set(perms.map((p) => p.key))
+
+  const granted = [...afterKeys].filter((k) => !beforeKeys.has(k))
+  const revoked = [...beforeKeys].filter((k) => !afterKeys.has(k))
+
   await prisma.$transaction(async (tx) => {
     await tx.workspaceRolePermission.deleteMany({ where: { workspaceId: wsId, roleId } })
     if (permIds.length) {
@@ -48,6 +59,24 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
     }
 
     await tx.workspaceRoleModel.update({ where: { id: roleId }, data: { updatedById: auth.user.id } })
+
+    // Audit log
+    await tx.auditEvent.create({
+      data: {
+        workspaceId: wsId,
+        category: 'PERMISSIONS',
+        action: 'UPDATE',
+        actorUserId: auth.user.id,
+        entityType: 'WorkspaceRoleModel',
+        entityId: roleId,
+        summary: `UPDATE role permissions#${roleId}`,
+        changes: {
+          granted,
+          revoked,
+        },
+      },
+      select: { id: true },
+    })
   })
 
   // Force logout of non-admin users that might be affected? (optional)

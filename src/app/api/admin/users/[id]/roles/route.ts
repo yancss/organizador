@@ -39,6 +39,11 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
     if (!role) return Response.json({ error: 'INVALID_ROLE' }, { status: 400 })
   }
 
+  const before = await prisma.workspaceUserRole.findFirst({
+    where: { workspaceId: wsId, userId },
+    select: { roleId: true },
+  })
+
   await prisma.$transaction(async (tx) => {
     // One role per user: upsert when roleId is provided, otherwise delete
     if (parsed.data.roleId) {
@@ -60,6 +65,26 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
     if (parsed.data.forceLogout) {
       await tx.user.update({ where: { id: userId }, data: { sessionPolicyVersion: { increment: 1 } } })
     }
+
+    // Audit log
+    await tx.auditEvent.create({
+      data: {
+        workspaceId: wsId,
+        category: 'PERMISSIONS',
+        action: 'UPDATE',
+        actorUserId: auth.user.id,
+        targetUserId: userId,
+        entityType: 'WorkspaceUserRole',
+        entityId: userId,
+        summary: `UPDATE user role#${userId}`,
+        changes: {
+          fromRoleId: before?.roleId ?? null,
+          toRoleId: parsed.data.roleId,
+          forceLogout: parsed.data.forceLogout,
+        },
+      },
+      select: { id: true },
+    })
   })
 
   return Response.json({ ok: true })

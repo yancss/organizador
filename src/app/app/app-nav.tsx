@@ -2,7 +2,19 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Boxes, BookOpen, CalendarDays, Home as HomeIcon, Package, Users, Wallet, Landmark, ShoppingCart, Shield } from 'lucide-react'
+import {
+  Boxes,
+  BookOpen,
+  CalendarDays,
+  ClipboardList,
+  Home as HomeIcon,
+  Package,
+  Users,
+  Wallet,
+  Landmark,
+  ShoppingCart,
+  Shield,
+} from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 
 import { useSettings } from './settings-context'
@@ -113,6 +125,7 @@ export default function AppNav({ onNavigate }: { onNavigate?: () => void }) {
         <Section title={i.nav.admin}>
           <NavItem href="/app/admin/users" label={i.nav.adminUsers} icon={Users} onNavigate={onNavigate} />
           <NavItem href="/app/admin/roles" label={i.nav.adminRolesPermissions} icon={Shield} onNavigate={onNavigate} />
+          <NavItem href="/app/admin/audit" label={i.nav.adminAudits} icon={ClipboardList} onNavigate={onNavigate} />
         </Section>
       ) : null}
     </nav>

@@ -88,8 +88,10 @@ model Workspace {
   userRoles        WorkspaceUserRole[]
   rolePermissions  WorkspaceRolePermission[]
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  workspaceSettings WorkspaceSetting[]
+  auditEvents       AuditEvent[]
 }
 
 model WorkspaceMember {
@@ -386,7 +388,7 @@ enum StakeholderRole {
 }
 
 enum ClientEntityType {
-  PERSON  // PF
+  PERSON // PF
   COMPANY // PJ
 }
 
@@ -455,8 +457,8 @@ model PostalPt {
   cp4 String @db.VarChar(4)
   cp3 String @db.VarChar(3)
 
-  distrito  String @db.VarChar(80)
-  concelho  String @db.VarChar(120)
+  distrito   String  @db.VarChar(80)
+  concelho   String  @db.VarChar(120)
   localidade String? @db.VarChar(180)
 
   // optional: keep original raw line/source if needed later
@@ -719,6 +721,70 @@ model WorkspaceSequence {
 
   @@id([workspaceId, key])
   @@index([workspaceId])
+}
+
+enum AuditCategory {
+  CRUD
+  PERMISSIONS
+  AUTH
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  GRANT
+  REVOKE
+}
+
+model WorkspaceSetting {
+  workspaceId String
+  key         String
+  value       Json
+
+  updatedById String?
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@id([workspaceId, key])
+  @@index([workspaceId])
+}
+
+model AuditEvent {
+  id          String @id @default(cuid())
+  workspaceId String
+
+  category AuditCategory
+  action   AuditAction
+
+  // Actor (who performed the action)
+  actorUserId String?
+
+  // Optional target user (e.g. permission changes)
+  targetUserId String?
+
+  // Optional target entity (CRUD)
+  entityType String?
+  entityId   String?
+
+  // A short message used in lists
+  summary String?
+
+  // Only store changed fields (or full snapshot on create/delete if desired)
+  changes Json?
+
+  meta Json?
+
+  createdAt DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([workspaceId, createdAt])
+  @@index([workspaceId, category, createdAt])
+  @@index([workspaceId, actorUserId, createdAt])
+  @@index([workspaceId, entityType, entityId, createdAt])
 }
 
 model FinancialEntry {
