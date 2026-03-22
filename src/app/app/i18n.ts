@@ -415,6 +415,14 @@ export type I18n = {
     menuProfile: string
     menuSettings: string
     menuLogout: string
+
+    audit: {
+      createdAt: string
+      updatedAt: string
+      createdBy: string
+      updatedBy: string
+      unknownUser: string
+    }
   }
 
   costs: {
@@ -950,6 +958,14 @@ const dict: Record<AppLanguage, I18n> = {
       menuProfile: 'Perfil',
       menuSettings: 'Configurações',
       menuLogout: 'Sair',
+
+      audit: {
+        createdAt: 'Criado em',
+        updatedAt: 'Atualizado em',
+        createdBy: 'Criado por',
+        updatedBy: 'Atualizado por',
+        unknownUser: '(usuário desconhecido)',
+      },
     },
 
     costs: {
@@ -1483,6 +1499,14 @@ const dict: Record<AppLanguage, I18n> = {
       menuProfile: 'Profile',
       menuSettings: 'Settings',
       menuLogout: 'Logout',
+
+      audit: {
+        createdAt: 'Created at',
+        updatedAt: 'Updated at',
+        createdBy: 'Created by',
+        updatedBy: 'Updated by',
+        unknownUser: '(unknown user)',
+      },
     },
 
     costs: {
@@ -2016,6 +2040,14 @@ const dict: Record<AppLanguage, I18n> = {
       menuProfile: 'Perfil',
       menuSettings: 'Configuración',
       menuLogout: 'Salir',
+
+      audit: {
+        createdAt: 'Creado el',
+        updatedAt: 'Actualizado el',
+        createdBy: 'Creado por',
+        updatedBy: 'Actualizado por',
+        unknownUser: '(usuario desconocido)',
+      },
     },
 
     costs: {

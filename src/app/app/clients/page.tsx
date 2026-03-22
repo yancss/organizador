@@ -16,6 +16,11 @@ import { api } from '../api-client'
 
 type Client = {
   id: string
+  createdAt?: string
+  updatedAt?: string
+  createdById?: string | null
+  updatedById?: string | null
+
   name: string
 
   entityType: 'PERSON' | 'COMPANY'
@@ -151,6 +156,13 @@ export default function ClientsPage() {
   const [ptFound, setPtFound] = useState(false)
   const [ptOptions, setPtOptions] = useState<Array<{ distrito: string; concelho: string }>>([])
 
+  const [audit, setAudit] = useState<{
+    createdAt?: string
+    updatedAt?: string
+    createdById?: string | null
+    updatedById?: string | null
+  } | null>(null)
+
   const draftStore = useDraftStorage<Draft>('draft:clients', emptyDraft)
   const draft = draftStore.value
   const setDraft = draftStore.setValue
@@ -193,6 +205,35 @@ export default function ClientsPage() {
 
   const clients = clientsQ.data?.clients ?? []
 
+  const auditUserIds = useMemo(() => {
+    const ids = new Set<string>()
+    if (audit?.createdById) ids.add(audit.createdById)
+    if (audit?.updatedById) ids.add(audit.updatedById)
+    return [...ids]
+  }, [audit])
+
+  const auditUsersQ = useQuery({
+    queryKey: ['users-lookup', auditUserIds.join(',')],
+    enabled: auditUserIds.length > 0,
+    queryFn: () => api<{ users: Array<{ id: string; name: string | null; email: string | null }> }>(`/api/users/lookup?ids=${encodeURIComponent(auditUserIds.join(','))}`),
+  })
+
+  const auditUsers = useMemo(() => {
+    const rows = auditUsersQ.data?.users ?? []
+    const map = new Map<string, { name: string | null; email: string | null }>()
+    for (const u of rows) map.set(u.id, { name: u.name ?? null, email: u.email ?? null })
+    return map
+  }, [auditUsersQ.data])
+
+  function renderUserLabel(id?: string | null) {
+    if (!id) return '—'
+    const u = auditUsers.get(id)
+    if (!u) return id
+    const label = u.name || u.email || id
+    const extra = u.email && u.name ? ` (${u.email})` : ''
+    return label + extra
+  }
+
   const addressCountry = useMemo(() => normalizeIso2(draft.addressCountry), [draft.addressCountry])
   const dm = useMemo(() => docMeta(addressCountry, draft.entityType), [addressCountry, draft.entityType])
 
@@ -217,6 +258,7 @@ export default function ClientsPage() {
     draftStore.clear()
     setPtFound(false)
     setPtOptions([])
+    setAudit(null)
     setIsOpen(true)
   }
 
@@ -225,6 +267,13 @@ export default function ClientsPage() {
 
     const entityType = c.entityType ?? 'PERSON'
     const country = normalizeIso2(c.addressCountry ?? c.idCountry ?? 'PT')
+
+    setAudit({
+      createdAt: c.createdAt,
+      updatedAt: c.updatedAt,
+      createdById: c.createdById ?? null,
+      updatedById: c.updatedById ?? null,
+    })
 
     setDraft({
       id: c.id,
@@ -558,6 +607,30 @@ export default function ClientsPage() {
             </div>
 
             <div className="mt-4 grid gap-3">
+              {draft.id ? (
+                <div className="grid gap-2 rounded-lg border border-theme p-3">
+                  <div className="text-xs font-medium text-[var(--foreground)]">Controle</div>
+                  <div className="grid grid-cols-1 gap-2 text-xs text-[var(--muted-foreground)] sm:grid-cols-2">
+                    <div>
+                      <span className="text-[var(--foreground)]">{i.common.audit.createdAt}:</span>{' '}
+                      {audit?.createdAt ? new Date(audit.createdAt).toLocaleString() : '—'}
+                    </div>
+                    <div>
+                      <span className="text-[var(--foreground)]">{i.common.audit.updatedAt}:</span>{' '}
+                      {audit?.updatedAt ? new Date(audit.updatedAt).toLocaleString() : '—'}
+                    </div>
+                    <div className="sm:col-span-2">
+                      <span className="text-[var(--foreground)]">{i.common.audit.createdBy}:</span>{' '}
+                      {renderUserLabel(audit?.createdById)}
+                    </div>
+                    <div className="sm:col-span-2">
+                      <span className="text-[var(--foreground)]">{i.common.audit.updatedBy}:</span>{' '}
+                      {renderUserLabel(audit?.updatedById)}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <label className="grid gap-1">
                   <FieldLabel required>{i.clients.entityTypeLabel}</FieldLabel>
