@@ -11,6 +11,7 @@
     "prisma:generate": "prisma generate",
     "prisma:generate:fix": "powershell -ExecutionPolicy Bypass -File scripts\\fix-prisma-eperm.ps1",
     "prisma:migrate": "prisma migrate dev",
+    "prisma:migrate:uat": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\run-prisma-migrate-with-envfile.ps1 -EnvFile .env.uat",
     "prisma:studio": "prisma studio",
     "bootstrap": "node scripts/bootstrap-support.js",
     "provision:db": "node scripts/provision-db.js",
