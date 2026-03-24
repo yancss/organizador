@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { Prisma } from '@prisma/client'
 
 import { prisma } from '@/lib/prisma'
 import { requireAdmin } from '@/lib/authz'
@@ -72,8 +73,8 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
         summary: `UPDATE role permissions#${roleId}`,
         changes: {
           create: [
-            ...(granted.length ? [{ field: 'granted', from: null, to: granted }] : []),
-            ...(revoked.length ? [{ field: 'revoked', from: null, to: revoked }] : []),
+            ...(granted.length ? [{ field: 'granted', from: Prisma.JsonNull, to: granted }] : []),
+            ...(revoked.length ? [{ field: 'revoked', from: Prisma.JsonNull, to: revoked }] : []),
           ],
         },
       },
