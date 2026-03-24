@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { Prisma } from '@prisma/client'
 
 import { prisma } from '@/lib/prisma'
 import { requireAdmin } from '@/lib/authz'
@@ -54,7 +55,7 @@ export async function PATCH(req: Request) {
       entityType: 'WorkspaceSetting',
       entityId: KEY,
       summary: 'UPDATE audit retention',
-      changes: { create: [{ field: 'months', from: null, to: parsed.data.months }] },
+      changes: { create: [{ field: 'months', from: Prisma.JsonNull, to: parsed.data.months }] },
     },
     select: { id: true },
   })
