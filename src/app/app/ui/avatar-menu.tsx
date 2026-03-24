@@ -1,15 +1,27 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useRef, useState } from 'react'
-import { LogOut, Settings, User } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { Briefcase, CircleUser, LogOut, Settings, Shield, Star, User } from 'lucide-react'
 
+import { api } from '../api-client'
 import { t } from '../i18n'
 import { useSettings } from '../settings-context'
 
 export default function AvatarMenu() {
   const { language } = useSettings()
   const i = t(language)
+
+  const meQ = useQuery({
+    queryKey: ['me'],
+    queryFn: () => api<{ ok: true; user: { name: string | null; email: string | null; avatarIcon: string | null } | null }>(
+      '/api/me',
+    ),
+    staleTime: 30_000,
+  })
+
+  const user = meQ.data?.user
 
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement | null>(null)
@@ -27,6 +39,17 @@ export default function AvatarMenu() {
   const settingsLabel = i.common.menuSettings
   const logoutLabel = i.common.menuLogout
 
+  const AvatarIcon = useMemo(() => {
+    const key = user?.avatarIcon
+    if (key === 'star') return Star
+    if (key === 'briefcase') return Briefcase
+    if (key === 'shield') return Shield
+    if (key === 'user') return CircleUser
+    return null
+  }, [user?.avatarIcon])
+
+  const fallbackLetter = (user?.name || user?.email || 'G').slice(0, 1).toUpperCase()
+
   return (
     <div className="relative" ref={ref}>
       <button
@@ -38,7 +61,7 @@ export default function AvatarMenu() {
         aria-label={profileLabel}
         title={profileLabel}
       >
-        <span>G</span>
+        {AvatarIcon ? <AvatarIcon className="size-5" /> : <span>{fallbackLetter}</span>}
       </button>
 
       {open ? (

@@ -9,7 +9,7 @@ Fonte: `prisma/schema.prisma`
   - workspaceId, ownerId, clientId?
   - name, observations?
   - orderedAt?, deliveryAt?
-  - status: DRAFT|CONFIRMED|CANCELLED
+  - status: DRAFT | CONFIRMED | IN_PRODUCTION | READY | SHIPPED | DONE | CANCELLED
   - value?
 - **SalesOrderItem**
   - salesOrderId, productId, quantity
@@ -19,7 +19,7 @@ Fonte: `prisma/schema.prisma`
   - workspaceId
   - supplier? (texto)
   - orderedAt?
-  - status: DRAFT|CONFIRMED|CANCELLED
+  - status: DRAFT | CONFIRMED | RECEIVED | CANCELLED
   - estimatedCost?
   - observations?
 - **PurchaseOrderItem**
@@ -30,4 +30,5 @@ Fonte: `prisma/schema.prisma`
 - **Consumption** agora referencia **salesOrderId** (em vez de orderId)
 
 ## Observação
-- Ainda não estão implementadas as tabelas do pacote novo: Delivery/Receivable/Payment/PaymentApplication/Refund.
+- As tabelas do fluxo de vendas já existem no schema atual: Delivery/Receivable/Payment/PaymentApplication/Refund.
+- Ver também: `docs/data-model-sales-flow-v1.md`

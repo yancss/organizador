@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 
 import { useDraftStorage } from '../use-draft-storage'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -11,6 +12,7 @@ import DataTable from '../ui/data-table'
 import FieldLabel from '../ui/field-label'
 import { toast, toastCreated, toastUpdated, toastDeleted, toastFailedToSave, toastFailedToDelete } from '../toast'
 import { api } from '../api-client'
+import { AuditHistory } from '../audit-history'
 
 type Product = {
   id: string
@@ -41,6 +43,7 @@ function emptyDraft(): Draft {
 
 export default function ProductsPage() {
   const qc = useQueryClient()
+  const router = useRouter()
   const { language } = useSettings()
   const i = t(language)
 
@@ -86,6 +89,26 @@ export default function ProductsPage() {
   })
 
   const products = productsQ.data?.products ?? []
+
+  // If user comes from the details page clicking "Editar", open the modal automatically.
+  useEffect(() => {
+    if (!products.length) return
+
+    const p = new URLSearchParams(window.location.search)
+    const editId = p.get('edit')
+    if (!editId) return
+
+    const found = products.find((x) => x.id === editId)
+    if (!found) return
+
+    openEdit(found)
+
+    // cleanup param to avoid reopening on refresh
+    p.delete('edit')
+    const next = window.location.pathname + (p.toString() ? `?${p.toString()}` : '')
+    window.history.replaceState({}, '', next)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [products])
 
   function openCreate() {
     draftStore.clear()
@@ -167,14 +190,29 @@ export default function ProductsPage() {
           empty={i.products.empty}
           labels={i.table}
           initialSort={{ key: 'name', dir: 'asc' }}
-          onRowClick={openEdit}
+          onRowClick={(r) => router.push(`/app/products/${r.id}`)}
           columns={[
             {
               key: 'name',
               header: language === 'pt' ? 'Produto' : language === 'es' ? 'Producto' : 'Product',
               sortValue: (r) => r.name,
               searchValue: (r) => r.name,
-              render: (r) => <div className="font-medium text-[var(--foreground)]">{r.name}</div>,
+              render: (r) => (
+                <div className="flex items-center justify-between gap-2">
+                  <div className="font-medium text-[var(--foreground)]">{r.name}</div>
+                  <button
+                    type="button"
+                    className="text-xs underline text-[var(--muted-foreground)]"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      openEdit(r)
+                    }}
+                    title={language === 'pt' ? 'Editar' : language === 'es' ? 'Editar' : 'Edit'}
+                  >
+                    {language === 'pt' ? 'Editar' : language === 'es' ? 'Editar' : 'Edit'}
+                  </button>
+                </div>
+              ),
             },
             {
               key: 'brand',
@@ -252,6 +290,8 @@ export default function ProductsPage() {
             </div>
 
             <div className="mt-4 grid gap-3">
+              {draft.id ? <AuditHistory entityType="Product" entityId={draft.id} /> : null}
+
               <label className="grid gap-1">
                 <FieldLabel required>{i.products.nameLabel}</FieldLabel>
                 <input

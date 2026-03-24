@@ -49,10 +49,14 @@ export function calcOrderTotals(args: {
   const lines = args.items.map((it) => calcLineTotals(it))
   const subtotal = lines.reduce((a, b) => a + b.subtotal, 0)
 
+  // Money in this app is stored/displayed with 2 decimals.
+  // Use rounding to avoid audit noise caused by floating-point artifacts.
+  const round2 = (n: number) => Math.round((Number(n) + Number.EPSILON) * 100) / 100
+
   if (args.discountMode === 'PER_ITEM') {
     const discount = lines.reduce((a, b) => a + b.discount, 0)
     const total = Math.max(0, subtotal - discount)
-    return { subtotal, discount, total }
+    return { subtotal: round2(subtotal), discount: round2(discount), total: round2(total) }
   }
 
   const discount = Math.min(
@@ -60,5 +64,5 @@ export function calcOrderTotals(args: {
     calcDiscountAmount({ base: subtotal, type: args.discountType ?? null, value: args.discountValue, percent: args.discountPercent }),
   )
   const total = Math.max(0, subtotal - discount)
-  return { subtotal, discount, total }
+  return { subtotal: round2(subtotal), discount: round2(discount), total: round2(total) }
 }

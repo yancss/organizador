@@ -4,6 +4,7 @@ Aplicação Next.js + Prisma + PostgreSQL (Neon) com autenticação via NextAuth
 
 ## Documentação do projeto
 - **Doc principal (robusta, arquivo único):** `docs/PROJECT.md`
+- Padrão de IDs (dev/seed): `docs/ID-PREFIXES.md`
 - Modelos de dados (referência): `docs/data-model-*.md`
 
 ## Comandos principais
@@ -43,12 +44,12 @@ Isso vai:
 Unit tests com **Vitest + Testing Library**.
 
 Rodar em modo watch:
-`ash
+```bash
 npm test
-`
+```
 
 Rodar uma vez (CI):
-`ash
+```bash
 npm run test:run
-`
+```
 

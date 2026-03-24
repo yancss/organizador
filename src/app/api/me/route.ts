@@ -9,7 +9,7 @@ export async function GET() {
 
   const user = await prisma.user.findUnique({
     where: { id: auth.user.id },
-    select: { id: true, name: true, email: true, birthDate: true, role: true, active: true },
+    select: { id: true, name: true, email: true, birthDate: true, avatarIcon: true, role: true, active: true },
   })
 
   return Response.json({
@@ -26,6 +26,7 @@ export async function GET() {
 const PatchSchema = z.object({
   name: z.string().max(140).optional(),
   birthDate: z.string().nullable().optional(),
+  avatarIcon: z.string().max(40).nullable().optional(),
 })
 
 export async function PATCH(req: Request) {
@@ -53,13 +54,21 @@ export async function PATCH(req: Request) {
     }
   }
 
+  // avatarIcon
+  let avatarIcon: string | null | undefined = undefined
+  if (Object.prototype.hasOwnProperty.call(parsed.data, 'avatarIcon')) {
+    const v = parsed.data.avatarIcon
+    avatarIcon = v == null || String(v).trim() === '' ? null : String(v).trim()
+  }
+
   const user = await prisma.user.update({
     where: { id: auth.user.id },
     data: {
       ...(name !== undefined ? { name } : {}),
       ...(birthDate !== undefined ? { birthDate } : {}),
+      ...(avatarIcon !== undefined ? { avatarIcon } : {}),
     },
-    select: { id: true, name: true, email: true, birthDate: true },
+    select: { id: true, name: true, email: true, birthDate: true, avatarIcon: true },
   })
 
   return Response.json({ ok: true, user })

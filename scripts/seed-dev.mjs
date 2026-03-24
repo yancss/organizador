@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client'
 import { config as loadEnv } from 'dotenv'
+import { makeId, resetIdSeq } from './idgen.mjs'
 
 // Load local dev env first, then fallback to .env
 // NOTE: override=true so an old terminal/session DATABASE_URL doesn't accidentally point to cloud.
@@ -35,6 +36,9 @@ async function main() {
     process.exit(1)
   }
 
+  // Ensure sequences restart on every seed run (deterministic IDs)
+  resetIdSeq()
+
   console.log('[seed] start', { wsName })
 
   // Seed into the Support user's first workspace so the UI shows the data.
@@ -45,6 +49,7 @@ async function main() {
     where: { email: supportEmail },
     update: { active: true, role: 'SUPERADMIN' },
     create: {
+      id: makeId('USR'),
       email: supportEmail,
       name: 'Support Guardian',
       active: true,
@@ -102,12 +107,25 @@ async function main() {
   if (existing) {
     console.log('[seed] wiping workspace data', { id: existing.id, name: existing.name })
     await wipeWorkspace(existing.id)
-    wsFinal = existing
+
+    // DEV-only: drop + recreate the workspace so the ID also follows the new prefix standard.
+    await prisma.workspaceMember.deleteMany({ where: { workspaceId: existing.id } }).catch(() => {})
+    await prisma.workspace.delete({ where: { id: existing.id } }).catch(() => {})
+
+    wsFinal = await prisma.workspace.create({
+      data: {
+        id: makeId('WKS'),
+        name: wsNameFixed,
+        members: { create: [{ id: makeId('WMB'), userId: u1.id, role: 'ADMIN' }] },
+      },
+      select: { id: true, name: true },
+    })
   } else {
     wsFinal = await prisma.workspace.create({
       data: {
+        id: makeId('WKS'),
         name: wsNameFixed,
-        members: { create: [{ userId: u1.id, role: 'ADMIN' }] },
+        members: { create: [{ id: makeId('WMB'), userId: u1.id, role: 'ADMIN' }] },
       },
       select: { id: true, name: true },
     })
@@ -117,7 +135,7 @@ async function main() {
   await prisma.workspaceMember.upsert({
     where: { workspaceId_userId: { workspaceId: wsFinal.id, userId: u1.id } },
     update: { role: 'ADMIN' },
-    create: { workspaceId: wsFinal.id, userId: u1.id, role: 'ADMIN' },
+    create: { id: makeId('WMB'), workspaceId: wsFinal.id, userId: u1.id, role: 'ADMIN' },
     select: { id: true },
   })
 
@@ -127,16 +145,16 @@ async function main() {
 
   // Finance setup
   const accountCash = await prisma.financialAccount.create({
-    data: { workspaceId: wsTarget.id, name: 'Caixa', kind: 'CASH', openingBalance: 1000 },
+    data: { id: makeId('FAC'), workspaceId: wsTarget.id, name: 'Caixa', kind: 'CASH', openingBalance: 1000 },
     select: { id: true },
   })
 
   const catSales = await prisma.financialCategory.create({
-    data: { workspaceId: wsTarget.id, name: 'Vendas', type: 'IN' },
+    data: { id: makeId('FCA'), workspaceId: wsTarget.id, name: 'Vendas', type: 'IN' },
     select: { id: true },
   })
   const catPurch = await prisma.financialCategory.create({
-    data: { workspaceId: wsTarget.id, name: 'Compras', type: 'OUT' },
+    data: { id: makeId('FCA'), workspaceId: wsTarget.id, name: 'Compras', type: 'OUT' },
     select: { id: true },
   })
 
@@ -147,6 +165,7 @@ async function main() {
     customers.push(
       await prisma.client.create({
         data: {
+          id: makeId('CLT'),
           workspaceId: wsTarget.id,
           name: `Cliente ${i}`,
           roles: ['CUSTOMER'],
@@ -161,6 +180,7 @@ async function main() {
     suppliers.push(
       await prisma.client.create({
         data: {
+          id: makeId('CLT'),
           workspaceId: wsTarget.id,
           name: `Fornecedor ${i}`,
           roles: ['SUPPLIER'],
@@ -183,12 +203,13 @@ async function main() {
     rawProducts.push(
       await prisma.product.create({
         data: {
+          id: makeId('PRD'),
           workspaceId: wsTarget.id,
           name: rawNames[i],
           kind: 'RAW',
           unit: 'kg',
           active: true,
-          inventory: { create: { workspaceId: wsTarget.id, quantity: 0 } },
+          inventory: { create: { id: makeId('INV'), workspaceId: wsTarget.id, quantity: 0 } },
         },
         select: { id: true, name: true, unit: true, kind: true },
       }),
@@ -202,12 +223,13 @@ async function main() {
     intermediateProducts.push(
       await prisma.product.create({
         data: {
+          id: makeId('PRD'),
           workspaceId: wsTarget.id,
           name: intermediateNames[i],
           kind: 'INTERMEDIATE',
           unit: 'un',
           active: true,
-          inventory: { create: { workspaceId: wsTarget.id, quantity: 0 } },
+          inventory: { create: { id: makeId('INV'), workspaceId: wsTarget.id, quantity: 0 } },
         },
         select: { id: true, name: true, unit: true, kind: true },
       }),
@@ -219,12 +241,13 @@ async function main() {
     finishedProducts.push(
       await prisma.product.create({
         data: {
+          id: makeId('PRD'),
           workspaceId: wsTarget.id,
           name: finishedNames[i],
           kind: 'FINISHED',
           unit: 'un',
           active: true,
-          inventory: { create: { workspaceId: wsTarget.id, quantity: 0 } },
+          inventory: { create: { id: makeId('INV'), workspaceId: wsTarget.id, quantity: 0 } },
         },
         select: { id: true, name: true, unit: true, kind: true },
       }),
@@ -245,10 +268,11 @@ async function main() {
   for (const ip of intermediateProducts) {
     const ins = new Set()
     while (ins.size < 3) ins.add(pick(rawProducts).id)
-    const items = [...ins].map((pid) => ({ productId: pid, quantity: Number(rnd(0.5, 3).toFixed(3)) }))
+    const items = [...ins].map((pid) => ({ id: makeId('RCI'), productId: pid, quantity: Number(rnd(0.5, 3).toFixed(3)) }))
 
     const r = await prisma.recipe.create({
       data: {
+        id: makeId('RCP'),
         workspaceId: wsTarget.id,
         productId: ip.id,
         yieldQty: 10,
@@ -268,12 +292,13 @@ async function main() {
     while (insInter.size < 1) insInter.add(pick(intermediateProducts).id)
 
     const items = [
-      ...[...insRaw].map((pid) => ({ productId: pid, quantity: Number(rnd(0.5, 3).toFixed(3)) })),
-      ...[...insInter].map((pid) => ({ productId: pid, quantity: Number(rnd(0.5, 2).toFixed(3)) })),
+      ...[...insRaw].map((pid) => ({ id: makeId('RCI'), productId: pid, quantity: Number(rnd(0.5, 3).toFixed(3)) })),
+      ...[...insInter].map((pid) => ({ id: makeId('RCI'), productId: pid, quantity: Number(rnd(0.5, 2).toFixed(3)) })),
     ]
 
     const r = await prisma.recipe.create({
       data: {
+        id: makeId('RCP'),
         workspaceId: wsTarget.id,
         productId: fp.id,
         yieldQty: 10,
@@ -299,6 +324,7 @@ async function main() {
     const ins = new Set()
     while (ins.size < 3) ins.add(pick(rawProducts).id)
     const items = [...ins].map((pid) => ({
+      id: makeId('POI'),
       productId: pid,
       quantity: Number(rnd(5, 35).toFixed(3)),
       unitCost: Number(rnd(0.5, 30).toFixed(2)),
@@ -306,6 +332,7 @@ async function main() {
 
     const po = await prisma.purchaseOrder.create({
       data: {
+        id: makeId('POR'),
         workspaceId: wsTarget.id,
         supplierId: supplier.id,
         supplier: null,
@@ -326,6 +353,7 @@ async function main() {
     if (status === 'CONFIRMED') {
       await prisma.financialEntry.create({
         data: {
+          id: makeId('FEN'),
           workspaceId: wsTarget.id,
           competenceDate: daysFromNow(-i),
           type: 'OUT',
@@ -417,6 +445,7 @@ async function main() {
 
         await tx.consumption.create({
           data: {
+            id: makeId('CNS'),
             workspaceId: wsTarget.id,
             date: at,
             productId: c.productId,
@@ -470,6 +499,7 @@ async function main() {
 
     const so = await prisma.salesOrder.create({
       data: {
+        id: makeId('SOR'),
         workspaceId: wsTarget.id,
         ownerId: u1.id,
         clientId: customer.id,
@@ -481,6 +511,7 @@ async function main() {
         orderIndex: String(Date.now() - i * 1000),
         items: {
           create: [...picked].map((pid) => ({
+            id: makeId('SOI'),
             productId: pid,
             quantity: Number(rnd(1, 15).toFixed(3)),
             unitPrice: Number(rnd(5, 120).toFixed(2)),
@@ -495,6 +526,7 @@ async function main() {
       const delStatus = Math.random() < 0.6 ? 'SHIPPED' : 'PLANNED'
       const delivery = await prisma.delivery.create({
         data: {
+          id: makeId('DLV'),
           workspaceId: wsTarget.id,
           salesOrderId: so.id,
           clientId: so.clientId,
@@ -502,7 +534,7 @@ async function main() {
           plannedAt: deliveryAt,
           shippedAt: delStatus === 'SHIPPED' ? daysFromNow(-Math.floor(rnd(0, 5))) : null,
           value: so.value,
-          items: { create: so.items.map((it) => ({ productId: it.productId, quantity: it.quantity })) },
+          items: { create: so.items.map((it) => ({ id: makeId('DLI'), productId: it.productId, quantity: it.quantity })) },
         },
         select: { id: true, status: true, items: { select: { productId: true, quantity: true } } },
       })
@@ -515,6 +547,7 @@ async function main() {
 
         const receivable = await prisma.receivable.create({
           data: {
+            id: makeId('RCV'),
             workspaceId: wsTarget.id,
             salesOrderId: so.id,
             deliveryId: delivery.id,
@@ -536,6 +569,7 @@ async function main() {
           const payValue = Number((Number(receivable.value) * rnd(0.1, 0.8)).toFixed(2))
           const payment = await prisma.payment.create({
             data: {
+              id: makeId('PAY'),
               workspaceId: wsTarget.id,
               salesOrderId: so.id,
               clientId: so.clientId,
@@ -551,6 +585,7 @@ async function main() {
           if (Math.random() < 0.7) {
             await prisma.paymentApplication.create({
               data: {
+                id: makeId('PAP'),
                 workspaceId: wsTarget.id,
                 paymentId: payment.id,
                 receivableId: receivable.id,
@@ -566,6 +601,7 @@ async function main() {
         const plannedIn = Math.random() < 0.25
         await prisma.financialEntry.create({
           data: {
+            id: makeId('FEN'),
             workspaceId: wsTarget.id,
             competenceDate: new Date(),
             type: 'IN',
@@ -589,6 +625,7 @@ async function main() {
     const p = pick(rawProducts)
     const pur = await prisma.purchase.create({
       data: {
+        id: makeId('PUR'),
         workspaceId: wsTarget.id,
         productId: p.id,
         date: daysFromNow(-Math.floor(rnd(0, 60))),
@@ -603,6 +640,7 @@ async function main() {
     const plannedOut = Math.random() < 0.35
     await prisma.financialEntry.create({
       data: {
+        id: makeId('FEN'),
         workspaceId: wsTarget.id,
         competenceDate: daysFromNow(-Math.floor(rnd(0, 25))),
         type: 'OUT',

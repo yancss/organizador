@@ -14,7 +14,7 @@ Implementar o fluxo que combinamos:
 ## Entidades
 
 ### SalesOrder (Pedido de Venda)
-- status: DRAFT | CONFIRMED | CANCELLED
+- status: DRAFT | CONFIRMED | IN_PRODUCTION | READY | SHIPPED | DONE | CANCELLED
 - value: valor combinado (opcional)
 
 ### Delivery (Entrega/Expedição)

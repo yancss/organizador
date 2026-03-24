@@ -1,27 +1,22 @@
 import { z } from 'zod'
 
 import { prisma } from '@/lib/prisma'
-import { requireAdmin } from '@/lib/authz'
+import { requireWorkspace } from '@/lib/authz'
 
 const QuerySchema = z.object({
-  category: z.enum(['CRUD', 'PERMISSIONS']).optional().default('CRUD'),
   take: z.coerce.number().int().min(1).max(200).optional().default(50),
   cursor: z.string().min(1).optional(),
 
-  // Filters
-  entityType: z.string().min(1).optional(),
-  entityId: z.string().min(1).optional(),
-  actorUserId: z.string().min(1).optional(),
+  entityType: z.string().min(1),
+  entityId: z.string().min(1),
+
   field: z.string().min(1).optional(),
   from: z.string().datetime().optional(),
   to: z.string().datetime().optional(),
-
-  // debug=1 includes technical summaries (UPDATE_MANY, etc.)
-  debug: z.union([z.literal('1'), z.literal('0')]).optional().default('0'),
 })
 
 export async function GET(req: Request) {
-  const auth = await requireAdmin()
+  const auth = await requireWorkspace()
   if (!auth.ok) return Response.json({ error: auth.error }, { status: auth.status })
 
   const wsId = auth.user.workspaceId
@@ -32,26 +27,18 @@ export async function GET(req: Request) {
     return Response.json({ error: 'INVALID_QUERY', details: parsed.error.flatten() }, { status: 400 })
   }
 
-  const { category, take, cursor, entityType, entityId, actorUserId, field, from, to, debug } = parsed.data
+  const { take, cursor, entityType, entityId, field, from, to } = parsed.data
 
-  const where: any = { workspaceId: wsId, category }
-  if (entityType) where.entityType = entityType
-  if (entityId) where.entityId = entityId
-  if (actorUserId) where.actorUserId = actorUserId
+  const where: any = { workspaceId: wsId, category: 'CRUD', entityType, entityId }
   if (from || to) {
     where.createdAt = {}
     if (from) where.createdAt.gte = new Date(from)
     if (to) where.createdAt.lte = new Date(to)
   }
+  if (field) where.changes = { some: { field } }
 
-  // Hide technical/noisy summaries unless debug=1
-  if (debug !== '1') {
-    where.NOT = [{ summary: { startsWith: 'UPDATE_MANY ' } }, { summary: { startsWith: 'CREATE_MANY ' } }, { summary: { startsWith: 'DELETE_MANY ' } }, { summary: { startsWith: 'UPSERT ' } }]
-  }
-
-  if (field) {
-    where.changes = { some: { field } }
-  }
+  // Always hide technical summaries for non-admin endpoint
+  where.NOT = [{ summary: { startsWith: 'UPDATE_MANY ' } }, { summary: { startsWith: 'CREATE_MANY ' } }, { summary: { startsWith: 'DELETE_MANY ' } }, { summary: { startsWith: 'UPSERT ' } }]
 
   const rows = await prisma.auditEvent.findMany({
     where,
@@ -66,10 +53,8 @@ export async function GET(req: Request) {
     select: {
       id: true,
       createdAt: true,
-      category: true,
       action: true,
       actorUserId: true,
-      targetUserId: true,
       entityType: true,
       entityId: true,
       summary: true,

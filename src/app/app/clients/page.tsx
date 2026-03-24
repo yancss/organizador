@@ -13,6 +13,7 @@ import DataTable from '../ui/data-table'
 import FieldLabel from '../ui/field-label'
 import { toastCreated, toastUpdated, toastDeleted, toastFailedToSave, toastFailedToDelete, toast } from '../toast'
 import { api } from '../api-client'
+import { AuditHistory } from '../audit-history'
 
 type Client = {
   id: string
@@ -608,27 +609,31 @@ export default function ClientsPage() {
 
             <div className="mt-4 grid gap-3">
               {draft.id ? (
-                <div className="grid gap-2 rounded-lg border border-theme p-3">
-                  <div className="text-xs font-medium text-[var(--foreground)]">Controle</div>
-                  <div className="grid grid-cols-1 gap-2 text-xs text-[var(--muted-foreground)] sm:grid-cols-2">
-                    <div>
-                      <span className="text-[var(--foreground)]">{i.common.audit.createdAt}:</span>{' '}
-                      {audit?.createdAt ? new Date(audit.createdAt).toLocaleString() : '—'}
-                    </div>
-                    <div>
-                      <span className="text-[var(--foreground)]">{i.common.audit.updatedAt}:</span>{' '}
-                      {audit?.updatedAt ? new Date(audit.updatedAt).toLocaleString() : '—'}
-                    </div>
-                    <div className="sm:col-span-2">
-                      <span className="text-[var(--foreground)]">{i.common.audit.createdBy}:</span>{' '}
-                      {renderUserLabel(audit?.createdById)}
-                    </div>
-                    <div className="sm:col-span-2">
-                      <span className="text-[var(--foreground)]">{i.common.audit.updatedBy}:</span>{' '}
-                      {renderUserLabel(audit?.updatedById)}
+                <>
+                  <div className="grid gap-2 rounded-lg border border-theme p-3">
+                    <div className="text-xs font-medium text-[var(--foreground)]">Controle</div>
+                    <div className="grid grid-cols-1 gap-2 text-xs text-[var(--muted-foreground)] sm:grid-cols-2">
+                      <div>
+                        <span className="text-[var(--foreground)]">{i.common.audit.createdAt}:</span>{' '}
+                        {audit?.createdAt ? new Date(audit.createdAt).toLocaleString() : '—'}
+                      </div>
+                      <div>
+                        <span className="text-[var(--foreground)]">{i.common.audit.updatedAt}:</span>{' '}
+                        {audit?.updatedAt ? new Date(audit.updatedAt).toLocaleString() : '—'}
+                      </div>
+                      <div className="sm:col-span-2">
+                        <span className="text-[var(--foreground)]">{i.common.audit.createdBy}:</span>{' '}
+                        {renderUserLabel(audit?.createdById)}
+                      </div>
+                      <div className="sm:col-span-2">
+                        <span className="text-[var(--foreground)]">{i.common.audit.updatedBy}:</span>{' '}
+                        {renderUserLabel(audit?.updatedById)}
+                      </div>
                     </div>
                   </div>
-                </div>
+
+                  <AuditHistory entityType="Client" entityId={draft.id} />
+                </>
               ) : null}
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

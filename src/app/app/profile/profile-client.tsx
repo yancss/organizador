@@ -1,7 +1,8 @@
 'use client'
 
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
+import { Briefcase, CircleUser, Shield, Star } from 'lucide-react'
 
 import { t } from '../i18n'
 import { useSettings } from '../settings-context'
@@ -15,6 +16,7 @@ type User = {
   name: string | null
   email: string | null
   birthDate: string | null
+  avatarIcon: string | null
 }
 
 function toDateInputValue(iso: string | null) {
@@ -27,6 +29,7 @@ function toDateInputValue(iso: string | null) {
 }
 
 export default function ProfileClient() {
+  const qc = useQueryClient()
   const { language } = useSettings()
   const i = t(language)
 
@@ -39,6 +42,7 @@ export default function ProfileClient() {
 
   const [name, setName] = useState('')
   const [birthDate, setBirthDate] = useState('')
+  const [avatarIcon, setAvatarIcon] = useState<string>('')
   const [saved, setSaved] = useState(false)
   const [resetSent, setResetSent] = useState(false)
 
@@ -47,13 +51,15 @@ export default function ProfileClient() {
     if (!user) return
     setName(user.name ?? '')
     setBirthDate(toDateInputValue(user.birthDate))
+    setAvatarIcon(user.avatarIcon ?? '')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id])
 
   const saveM = useMutation({
-    mutationFn: (payload: { name?: string; birthDate?: string | null }) =>
+    mutationFn: (payload: { name?: string; birthDate?: string | null; avatarIcon?: string | null }) =>
       api<{ ok: true; user: User }>('/api/me', { method: 'PATCH', body: JSON.stringify(payload) }),
     onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['me'] })
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
     },
@@ -76,6 +82,7 @@ export default function ProfileClient() {
     const payload: any = {
       name: name.trim(),
       birthDate: birthDate.trim() ? birthDate : null,
+      avatarIcon: avatarIcon.trim() ? avatarIcon.trim() : null,
     }
     await saveM.mutateAsync(payload)
   }
@@ -132,6 +139,76 @@ export default function ProfileClient() {
                 className="w-full rounded-md border border-theme bg-transparent px-3 py-2 text-sm"
               />
             </label>
+
+            <div className="grid gap-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-medium text-[var(--foreground)]">Avatar</span>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <span className="inline-flex size-10 items-center justify-center rounded-full border border-theme">
+                  {avatarIcon === 'star' ? (
+                    <Star className="size-5" />
+                  ) : avatarIcon === 'briefcase' ? (
+                    <Briefcase className="size-5" />
+                  ) : avatarIcon === 'shield' ? (
+                    <Shield className="size-5" />
+                  ) : avatarIcon === 'user' ? (
+                    <CircleUser className="size-5" />
+                  ) : (
+                    <span className="text-sm font-semibold">
+                      {(user.name || user.email || 'G').slice(0, 1).toUpperCase()}
+                    </span>
+                  )}
+                </span>
+                <div className="text-xs text-[var(--muted-foreground)]">
+                  Escolha um ícone (ou deixe padrão com a inicial do seu nome).
+                </div>
+              </div>
+
+              <div className="grid grid-cols-5 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setAvatarIcon('')}
+                  className={
+                    'grid place-items-center rounded-xl border p-2 text-xs transition-colors ' +
+                    (!avatarIcon ? 'bg-[var(--muted)] ring-2 ring-[var(--primary)]' : 'hover:bg-[var(--muted)]')
+                  }
+                  aria-label="Sem ícone"
+                  title="Sem ícone"
+                >
+                  <span className="text-sm font-semibold">
+                    {(user.name || user.email || 'G').slice(0, 1).toUpperCase()}
+                  </span>
+                </button>
+
+                {(
+                  [
+                    { key: 'user', label: 'Usuário', Icon: CircleUser },
+                    { key: 'star', label: 'Estrela', Icon: Star },
+                    { key: 'briefcase', label: 'Maleta', Icon: Briefcase },
+                    { key: 'shield', label: 'Escudo', Icon: Shield },
+                  ] as const
+                ).map(({ key, label, Icon }) => {
+                  const active = avatarIcon === key
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setAvatarIcon(key)}
+                      className={
+                        'grid place-items-center rounded-xl border p-2 transition-colors ' +
+                        (active ? 'bg-[var(--muted)] ring-2 ring-[var(--primary)]' : 'hover:bg-[var(--muted)]')
+                      }
+                      aria-label={label}
+                      title={label}
+                    >
+                      <Icon className="size-5" />
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
           </div>
 
           <div className="mt-5 flex flex-wrap items-center gap-2">

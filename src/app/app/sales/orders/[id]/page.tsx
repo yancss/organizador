@@ -9,6 +9,7 @@ import { toastCreated, toastFailedToSave } from '@/app/app/toast'
 import { useSettings } from '@/app/app/settings-context'
 import { t } from '@/app/app/i18n'
 import { formatMoneyDisplay, localeFromLanguage } from '@/app/app/money'
+import { AuditHistory } from '@/app/app/audit-history'
 
 type Order = {
   id: string
@@ -50,6 +51,8 @@ type Receivable = {
   value: string | number
   deliveryId: string | null
 }
+
+// (audit user formatting moved to AuditHistory component)
 
 export default function SalesOrderDetailsPage() {
   const qc = useQueryClient()
@@ -111,6 +114,7 @@ export default function SalesOrderDetailsPage() {
     enabled: !!id,
     queryFn: () => api<{ receivables: Receivable[] }>(`/api/receivables?salesOrderId=${id}`),
   })
+
 
   const order = orderQ.data?.order
 
@@ -278,6 +282,8 @@ export default function SalesOrderDetailsPage() {
               )}
             </div>
           </section>
+
+          <AuditHistory entityType="SalesOrder" entityId={id ?? ''} />
 
           <section className="surface rounded-xl border border-theme p-4">
             <h2 className="text-sm font-semibold text-[var(--foreground)]">{language === 'pt' ? 'Controle' : language === 'es' ? 'Control' : 'Control'}</h2>

@@ -71,8 +71,10 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
         entityId: roleId,
         summary: `UPDATE role permissions#${roleId}`,
         changes: {
-          granted,
-          revoked,
+          create: [
+            ...(granted.length ? [{ field: 'granted', from: null, to: granted }] : []),
+            ...(revoked.length ? [{ field: 'revoked', from: null, to: revoked }] : []),
+          ],
         },
       },
       select: { id: true },

@@ -78,9 +78,10 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
         entityId: userId,
         summary: `UPDATE user role#${userId}`,
         changes: {
-          fromRoleId: before?.roleId ?? null,
-          toRoleId: parsed.data.roleId,
-          forceLogout: parsed.data.forceLogout,
+          create: [
+            { field: 'roleId', from: before?.roleId ?? null, to: parsed.data.roleId },
+            { field: 'forceLogout', from: null, to: parsed.data.forceLogout },
+          ],
         },
       },
       select: { id: true },

@@ -54,7 +54,7 @@ export async function PATCH(req: Request) {
       entityType: 'WorkspaceSetting',
       entityId: KEY,
       summary: 'UPDATE audit retention',
-      changes: { months: parsed.data.months },
+      changes: { create: [{ field: 'months', from: null, to: parsed.data.months }] },
     },
     select: { id: true },
   })

@@ -31,6 +31,9 @@ Scripts relevantes (`package.json`):
 ---
 
 ## 3) Setup local
+
+### 3.0) Padrão de IDs (dev/seed)
+Ver: `docs/ID-PREFIXES.md`
 ### 3.1) Instalação
 ```bash
 npm i
@@ -188,23 +191,36 @@ Ao criar um `WorkspaceMember`, enviar e-mail para o Support:
 ---
 
 ## 9) Rotas da aplicação (App Router)
-### 9.1) Páginas principais
+### 9.1) Páginas principais (estado atual)
 - `/app` (área logada)
 - `/app/home`
 - `/app/clients`
 - `/app/products`
 - `/app/inventory`
-- `/app/sales/orders`
-- `/app/purchases`
-- `/app/purchases/orders`
-- `/app/deliveries`
+- `/app/recipes`
+- `/app/sales/orders` e `/app/sales/orders/[id]`
+- `/app/purchases/orders` (UI de pedidos de compra)
+- `/app/deliveries` e `/app/deliveries/[id]`
 - `/app/receivables`
 - `/app/payments`
 - `/app/refunds`
-- `/app/finance/*` (accounts, categories, payables, receivables, refunds)
-- `/app/settings` (candidato ideal para Gestão de Usuários/Perfis)
+- `/app/finance` (hub)
+  - `/app/finance/accounts`
+  - `/app/finance/categories`
+  - `/app/finance/payables`
+  - `/app/finance/receivables` e `/app/finance/receivables/[id]`
+  - `/app/finance/refunds`
+- `/app/costs`
+- `/app/history`
+- `/app/profile`
+- `/app/settings`
+- Admin:
+  - `/app/admin/users`
+  - `/app/admin/roles`
+  - `/app/admin/security`
+  - `/app/admin/audit`
 
-### 9.2) APIs (Route Handlers)
+### 9.2) APIs (Route Handlers) (estado atual)
 Auth:
 - `POST /api/auth/forgot-password`
 - `POST /api/auth/reset-password`
@@ -215,27 +231,48 @@ Dados (principais):
 - `/api/clients` + `/api/clients/[id]`
 - `/api/products` + `/api/products/[id]`
 - `/api/inventory` + `/api/inventory/[productId]`
+- `/api/recipes` + `/api/recipes/[id]`
 - `/api/orders` + `/api/orders/search` + `/api/orders/[id]`
+  - exports: `/api/orders/export/csv`, `/api/orders/export/pdf`
 - `/api/purchase-orders` + `/api/purchase-orders/[id]`
 - `/api/purchases` + `/api/purchases/[id]`
 - `/api/deliveries` + `/api/deliveries/[id]`
 - `/api/receivables` + `/api/receivables/[id]`
 - `/api/payments` + `/api/payments/[id]`
 - `/api/refunds` + `/api/refunds/[id]`
-- Finance:
-  - `/api/finance/accounts` + `/[id]`
-  - `/api/finance/categories` + `/[id]`
-  - `/api/finance/cost-centers` + `/[id]`
-  - `/api/finance/entries` + `/[id]`
-  - `/api/finance/reports/costs`
+- `/api/recipes` + `/api/recipes/[id]`
+  - items: `/api/recipes/[id]/items`, `/api/recipes/[id]/items/[itemId]`
 
-Util:
+Finance:
+- `/api/finance/accounts` + `/api/finance/accounts/[id]`
+- `/api/finance/categories` + `/api/finance/categories/[id]`
+- `/api/finance/cost-centers` + `/api/finance/cost-centers/[id]`
+- `/api/finance/entries` + `/api/finance/entries/[id]`
+- `/api/finance/reports/costs`
+
+Admin/Util/Cron/Lookup:
 - `/api/me`
 - `/api/users`
+- `/api/users/lookup`
 - `/api/dashboard`
 - `/api/production`
 - `/api/tasks`
 - `/api/debug/me`
+- `/api/address/pt`, `/api/address/br`
+- `/api/cron/audit-cleanup`
+- Admin:
+  - `/api/admin/users` + `/api/admin/users/[id]`
+  - `/api/admin/users/[id]/password-reset`
+  - `/api/admin/users/[id]/roles`
+  - `/api/admin/users/[id]/session-policy`
+  - `/api/admin/roles` + `/api/admin/roles/[id]`
+  - `/api/admin/roles/[id]/permissions`
+  - `/api/admin/invites`
+  - `/api/admin/audit/events`
+  - `/api/admin/settings/audit-retention`
+
+Legado (evitar usar em novos fluxos):
+- `/api/events` + `/api/events/[id]`
 
 > Observação: a lista acima é baseada na árvore de pastas. A semântica de cada endpoint deve ser revisada caso a caso.
 

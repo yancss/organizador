@@ -9,6 +9,7 @@ import { useSettings } from '../settings-context'
 import DataTable from '../ui/data-table'
 import { toastCreated, toastUpdated, toastDeleted, toastFailedToSave, toastFailedToDelete } from '../toast'
 import { api } from '../api-client'
+import { AuditHistory } from '../audit-history'
 
 type Account = { id: string; name: string; kind: string }
 type Category = { id: string; name: string; type: 'IN' | 'OUT' }
@@ -600,6 +601,8 @@ export default function FinancePage() {
             </div>
 
             <div className="mt-4 grid gap-3">
+              {draft.id ? <AuditHistory entityType="FinancialEntry" entityId={draft.id} /> : null}
+
               {draft.id ? (
                 <div className="grid gap-1">
                   <span className="text-xs font-medium text-[var(--foreground)]">{i.financePage.modal.id}</span>

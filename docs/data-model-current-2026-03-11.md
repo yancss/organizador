@@ -1,4 +1,10 @@
-# Modelo de dados atual (antes de PV/Entrega/Recebíveis) — 2026-03-11
+# Modelo de dados (snapshot histórico) — 2026-03-11
+
+> **Atenção:** este arquivo é um retrato do schema na data acima e está **desatualizado** em relação ao `prisma/schema.prisma` atual.
+> Para o estado atual, use:
+> - `docs/PROJECT.md`
+> - `docs/data-model-sales-flow-v1.md`
+> - `prisma/schema.prisma`
 
 Fonte: `prisma/schema.prisma` (PostgreSQL + Prisma)
 

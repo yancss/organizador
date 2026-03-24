@@ -137,6 +137,24 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
 
   if (updated.count === 0) return Response.json({ error: 'NOT_FOUND' }, { status: 404 })
 
+  // Explicit audit for status changes.
+  // Rationale: status changes are high-signal and should be visible even if the Prisma audit extension skips/noises.
+  if (parsed.data.status !== undefined && parsed.data.status !== prev.status) {
+    await prisma.auditEvent.create({
+      data: {
+        workspaceId: wsId,
+        category: 'CRUD',
+        action: 'UPDATE',
+        actorUserId: auth.user.id,
+        entityType: 'SalesOrder',
+        entityId: id,
+        summary: `STATUS SalesOrder#${id}`,
+        changes: { create: [{ field: 'status', from: prev.status, to: parsed.data.status }] },
+        meta: { via: 'api/orders/[id] PATCH' },
+      },
+    })
+  }
+
   // NOTE: Recebível real por expedição + pagamentos antecipados serão implementados no módulo novo.
 
   // Itens: estratégia simples (MVP) = substituir tudo.
@@ -202,6 +220,72 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
 
     const itemsBase = normalized.map((x: any) => x.item)
 
+    // Explicit audit for item changes (high-signal)
+    // Compare prev.items (DB) vs itemsBase (normalized input)
+    const prevByPid = new Map(prev.items.map((it: any) => [it.productId, it]))
+    const nextByPid = new Map(itemsBase.map((it: any) => [it.productId, it]))
+
+    const changeRows: Array<{ field: string; from: any; to: any }> = []
+    const allPids = new Set<string>([...prevByPid.keys(), ...nextByPid.keys()])
+    for (const pid of allPids) {
+      const a: any = prevByPid.get(pid)
+      const b: any = nextByPid.get(pid)
+
+      if (!a && b) {
+        changeRows.push({ field: `items.${pid}.added`, from: null, to: true })
+        changeRows.push({ field: `items.${pid}.quantity`, from: null, to: b.quantity })
+        changeRows.push({ field: `items.${pid}.unitPrice`, from: null, to: b.unitPrice })
+        continue
+      }
+      if (a && !b) {
+        changeRows.push({ field: `items.${pid}.removed`, from: true, to: null })
+        continue
+      }
+      if (!a || !b) continue
+
+      const eqMoney = (x: any, y: any) => {
+        const ax = Number(x)
+        const by = Number(y)
+        if (!Number.isFinite(ax) || !Number.isFinite(by)) return x === y
+        return Math.abs(ax - by) < 0.005
+      }
+
+      if (Number(a.quantity) !== Number(b.quantity)) {
+        changeRows.push({ field: `items.${pid}.quantity`, from: a.quantity, to: b.quantity })
+      }
+      if (!eqMoney(a.unitPrice, b.unitPrice)) {
+        changeRows.push({ field: `items.${pid}.unitPrice`, from: a.unitPrice, to: b.unitPrice })
+      }
+
+      const aDt = a.discountType ?? null
+      const bDt = discountMode === 'PER_ITEM' ? (b.discountType ?? null) : null
+      if (aDt !== bDt) changeRows.push({ field: `items.${pid}.discountType`, from: aDt, to: bDt })
+
+      const aDv = a.discountValue ?? null
+      const bDv = discountMode === 'PER_ITEM' ? (b.discountValue ?? null) : null
+      if (Number(aDv ?? 0) !== Number(bDv ?? 0)) changeRows.push({ field: `items.${pid}.discountValue`, from: aDv, to: bDv })
+
+      const aDp = a.discountPercent ?? null
+      const bDp = discountMode === 'PER_ITEM' ? (b.discountPercent ?? null) : null
+      if (Number(aDp ?? 0) !== Number(bDp ?? 0)) changeRows.push({ field: `items.${pid}.discountPercent`, from: aDp, to: bDp })
+    }
+
+    if (changeRows.length) {
+      await prisma.auditEvent.create({
+        data: {
+          workspaceId: wsId,
+          category: 'CRUD',
+          action: 'UPDATE',
+          actorUserId: auth.user.id,
+          entityType: 'SalesOrder',
+          entityId: id,
+          summary: `ITEMS SalesOrder#${id}`,
+          changes: { create: changeRows },
+          meta: { via: 'api/orders/[id] PATCH' },
+        },
+      })
+    }
+
     await prisma.salesOrderItem.deleteMany({ where: { salesOrderId: id } })
     if (itemsBase.length) {
       await prisma.salesOrderItem.createMany({
@@ -223,6 +307,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     where: { id, workspaceId: wsId },
     select: {
       id: true,
+      value: true,
       discountMode: true,
       discountType: true,
       discountValue: true,
@@ -239,7 +324,12 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       discountValue: next.discountValue,
       discountPercent: next.discountPercent,
     })
-    await prisma.salesOrder.updateMany({ where: { id, workspaceId: wsId }, data: { value: totals.total } })
+    // Only persist value when it actually changes (avoid extra UPDATE_MANY + noisy audits)
+    const prevValue = next.value == null ? null : Number(next.value)
+    const nextValue = totals.total
+    if (prevValue == null || Math.abs(prevValue - nextValue) >= 0.005) {
+      await prisma.salesOrder.updateMany({ where: { id, workspaceId: wsId }, data: { value: nextValue, updatedById: auth.user.id } })
+    }
   }
 
   const order = await prisma.salesOrder.findFirst({
