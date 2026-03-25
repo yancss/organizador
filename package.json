@@ -6,6 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "build:ci": "prisma generate && next build",
+    "seed:demo": "node scripts/seed-demo.mjs",
+    "seed:demo:uat": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\run-seed-demo-with-envfile.ps1 -EnvFile .env.uat",
     "start": "next start",
     "lint": "eslint",
     "postinstall": "prisma generate",
