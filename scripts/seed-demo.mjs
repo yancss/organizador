@@ -14,20 +14,7 @@ function nowMinus(days) {
   return d
 }
 
-async function pickWorkspace() {
-  const wsId = process.env.WORKSPACE_ID
-  if (wsId) {
-    const ws = await prisma.workspace.findUnique({ where: { id: wsId }, select: { id: true, name: true } })
-    if (!ws) throw new Error(`WORKSPACE_ID not found: ${wsId}`)
-    return ws
-  }
-
-  const ws = await prisma.workspace.findFirst({ select: { id: true, name: true }, orderBy: { createdAt: 'asc' } })
-  if (!ws) throw new Error('No workspace found. Create one first (login and create workspace), then re-run seed.')
-  return ws
-}
-
-async function pickUser(wsId) {
+async function pickAnyUser() {
   const userId = process.env.USER_ID
   if (userId) {
     const u = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, email: true } })
@@ -35,9 +22,65 @@ async function pickUser(wsId) {
     return u
   }
 
-  const member = await prisma.workspaceMember.findFirst({ where: { workspaceId: wsId }, select: { user: { select: { id: true, email: true } } } })
-  if (!member?.user) throw new Error('No workspace member found. Invite/add a user to the workspace first.')
-  return member.user
+  const u = await prisma.user.findFirst({ select: { id: true, email: true }, orderBy: { createdAt: 'asc' } })
+  if (u) return u
+
+  // Minimal bootstrap: create a demo user so we can create workspace + process records.
+  // (No permissions/roles seeding.)
+  const created = await prisma.user.create({
+    data: {
+      name: '[DEMO] Seed User',
+      email: 'seed.demo@example.com',
+      role: 'USER',
+      active: true,
+    },
+    select: { id: true, email: true },
+  })
+  return created
+}
+
+async function ensureWorkspaceAndMember(userId) {
+  const wsId = process.env.WORKSPACE_ID
+  if (wsId) {
+    const ws = await prisma.workspace.findUnique({ where: { id: wsId }, select: { id: true, name: true } })
+    if (!ws) throw new Error(`WORKSPACE_ID not found: ${wsId}`)
+
+    // ensure membership
+    await prisma.workspaceMember.upsert({
+      where: { workspaceId_userId: { workspaceId: ws.id, userId } },
+      create: { workspaceId: ws.id, userId, role: 'ADMIN', createdById: userId },
+      update: {},
+      select: { id: true },
+    })
+
+    return ws
+  }
+
+  const ws = await prisma.workspace.findFirst({ select: { id: true, name: true }, orderBy: { createdAt: 'asc' } })
+  if (ws) {
+    await prisma.workspaceMember.upsert({
+      where: { workspaceId_userId: { workspaceId: ws.id, userId } },
+      create: { workspaceId: ws.id, userId, role: 'ADMIN', createdById: userId },
+      update: {},
+      select: { id: true },
+    })
+    return ws
+  }
+
+  // Minimal bootstrap: create a demo workspace + membership. No permissions/roles seeding.
+  const created = await prisma.workspace.create({
+    data: {
+      name: '[DEMO] Workspace',
+      createdById: userId,
+      updatedById: userId,
+      members: {
+        create: [{ userId, role: 'ADMIN', createdById: userId }],
+      },
+    },
+    select: { id: true, name: true },
+  })
+
+  return created
 }
 
 async function upsertSupplierAndCustomer(wsId, userId) {
@@ -427,8 +470,8 @@ async function createSalesFlow(wsId, userId, customerId, rawProducts, finProduct
 }
 
 async function main() {
-  const ws = await pickWorkspace()
-  const user = await pickUser(ws.id)
+  const user = await pickAnyUser()
+  const ws = await ensureWorkspaceAndMember(user.id)
 
   // Diagnostics: confirm which DB we are connected to
   try {
