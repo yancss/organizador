@@ -4,8 +4,8 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-Write-Host "[fix-prisma-eperm] Killing node processes (best-effort)..."
-try { taskkill /IM node.exe /F | Out-Null } catch { }
+Write-Host "[fix-prisma-eperm] NOTE: Not killing node.exe automatically (it can kill the running app/gateway)."
+Write-Host "[fix-prisma-eperm] If generate fails with EPERM, stop any running 'next dev/build' that is using Prisma, then retry."
 
 for($i=1; $i -le $Retries; $i++){
   Write-Host "[fix-prisma-eperm] Attempt ${i}/${Retries} - prisma generate"

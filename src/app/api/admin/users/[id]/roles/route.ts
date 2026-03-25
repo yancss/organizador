@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { Prisma } from '@prisma/client'
 
 import { prisma } from '@/lib/prisma'
 import { requireAdmin } from '@/lib/authz'
@@ -79,8 +80,12 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
         summary: `UPDATE user role#${userId}`,
         changes: {
           create: [
-            { field: 'roleId', from: before?.roleId ?? null, to: parsed.data.roleId },
-            { field: 'forceLogout', from: null, to: parsed.data.forceLogout },
+            {
+              field: 'roleId',
+              from: before?.roleId ?? Prisma.JsonNull,
+              to: parsed.data.roleId ?? Prisma.JsonNull,
+            },
+            { field: 'forceLogout', from: Prisma.JsonNull, to: parsed.data.forceLogout },
           ],
         },
       },
