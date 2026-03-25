@@ -15,6 +15,8 @@ function nowMinus(days) {
 }
 
 async function pickAnyUser() {
+  const strict = process.env.SEED_STRICT === '1'
+
   const userId = process.env.USER_ID
   if (userId) {
     const u = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, email: true } })
@@ -22,8 +24,16 @@ async function pickAnyUser() {
     return u
   }
 
+  const supportEmail = (process.env.SUPPORT_GUARDIAN_EMAIL || 'support.guardian.app@gmail.com').trim().toLowerCase()
+  const support = await prisma.user.findUnique({ where: { email: supportEmail }, select: { id: true, email: true } })
+  if (support) return support
+
   const u = await prisma.user.findFirst({ select: { id: true, email: true }, orderBy: { createdAt: 'asc' } })
   if (u) return u
+
+  if (strict) {
+    throw new Error('No user found (SEED_STRICT=1). Create a user first (login) or set USER_ID.')
+  }
 
   // Minimal bootstrap: create a demo user so we can create workspace + process records.
   // (No permissions/roles seeding.)
@@ -40,10 +50,14 @@ async function pickAnyUser() {
 }
 
 async function ensureWorkspaceAndMember(userId) {
+  const strict = process.env.SEED_STRICT === '1'
+
   const wsId = process.env.WORKSPACE_ID
   if (wsId) {
     const ws = await prisma.workspace.findUnique({ where: { id: wsId }, select: { id: true, name: true } })
     if (!ws) throw new Error(`WORKSPACE_ID not found: ${wsId}`)
+
+    if (strict) return ws
 
     // ensure membership
     await prisma.workspaceMember.upsert({
@@ -58,13 +72,19 @@ async function ensureWorkspaceAndMember(userId) {
 
   const ws = await prisma.workspace.findFirst({ select: { id: true, name: true }, orderBy: { createdAt: 'asc' } })
   if (ws) {
-    await prisma.workspaceMember.upsert({
-      where: { workspaceId_userId: { workspaceId: ws.id, userId } },
-      create: { workspaceId: ws.id, userId, role: 'ADMIN', createdById: userId },
-      update: {},
-      select: { id: true },
-    })
+    if (!strict) {
+      await prisma.workspaceMember.upsert({
+        where: { workspaceId_userId: { workspaceId: ws.id, userId } },
+        create: { workspaceId: ws.id, userId, role: 'ADMIN', createdById: userId },
+        update: {},
+        select: { id: true },
+      })
+    }
     return ws
+  }
+
+  if (strict) {
+    throw new Error('No workspace found (SEED_STRICT=1). Create a workspace first or set WORKSPACE_ID.')
   }
 
   // Minimal bootstrap: create a demo workspace + membership. No permissions/roles seeding.
