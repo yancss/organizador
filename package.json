@@ -9,6 +9,8 @@
     "seed:demo": "node scripts/seed-demo.mjs",
     "seed:demo:uat": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\run-seed-demo-with-envfile.ps1 -EnvFile .env.uat",
     "ensure:support-user:uat": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\run-ensure-support-user-with-envfile.ps1 -EnvFile .env.uat",
+    "provision:uat": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\provision-uat.ps1",
+    "provision:uat:demo": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\provision-uat.ps1 -WithDemo",
     "start": "next start",
     "lint": "eslint",
     "postinstall": "prisma generate",
