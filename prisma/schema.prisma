@@ -65,6 +65,7 @@ model Workspace {
   purchaseOrders PurchaseOrder[]
   clients        Client[]
   products       Product[]
+  productBarcodes ProductBarcode[]
   inventories    Inventory[]
   purchases      Purchase[]
   consumptions   Consumption[]
@@ -479,6 +480,11 @@ enum ProductKind {
   FINISHED
 }
 
+enum BarcodeSource {
+  INTERNAL
+  OPEN_FOOD_FACTS
+}
+
 model Product {
   id          String @id @default(cuid())
   workspaceId String
@@ -508,9 +514,31 @@ model Product {
   updatedAt          DateTime            @updatedAt
   purchaseOrderItems PurchaseOrderItem[]
   deliveryItems      DeliveryItem[]
+  barcodes           ProductBarcode[]
 
   @@unique([workspaceId, name])
   @@index([workspaceId])
+}
+
+model ProductBarcode {
+  id          String        @id @default(cuid())
+  workspaceId String
+  productId   String
+
+  code        String
+  source      BarcodeSource @default(INTERNAL)
+  externalRef String?
+
+  createdById String?
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([workspaceId, code])
+  @@index([workspaceId])
+  @@index([productId])
 }
 
 model Inventory {

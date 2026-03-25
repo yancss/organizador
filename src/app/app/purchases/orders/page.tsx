@@ -72,6 +72,229 @@ function fromLocalInputValue(v: string): string | null {
   return d.toISOString()
 }
 
+function supportsBarcodeDetector() {
+  return typeof window !== 'undefined' && 'BarcodeDetector' in window
+}
+
+function BarcodeScanModal({
+  language,
+  onClose,
+  onScanned,
+}: {
+  language: string
+  onClose: () => void
+  onScanned: (payload: { code: string; qty: number }) => void
+}) {
+  const [code, setCode] = useState('')
+  const [qty, setQty] = useState(1)
+  const [err, setErr] = useState<string | null>(null)
+
+  // Camera scan (best-effort; falls back to manual input)
+  const [cameraOn, setCameraOn] = useState(false)
+  const [cameraErr, setCameraErr] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!cameraOn) return
+    if (!supportsBarcodeDetector()) {
+      setCameraErr(language === 'pt' ? 'Scanner não suportado neste navegador.' : 'Scanner not supported in this browser.')
+      return
+    }
+
+    let stream: MediaStream | null = null
+    let raf = 0
+    const video = document.getElementById('ean-video') as HTMLVideoElement | null
+
+    const run = async () => {
+      try {
+        setCameraErr(null)
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+        if (!video) return
+        video.srcObject = stream
+        await video.play()
+
+        // @ts-expect-error - BarcodeDetector is a web API
+        const detector = new BarcodeDetector({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'qr_code'] })
+
+        const tick = async () => {
+          try {
+            if (!video || video.readyState < 2) {
+              raf = requestAnimationFrame(tick)
+              return
+            }
+            const barcodes = await detector.detect(video)
+            const v = (barcodes?.[0]?.rawValue ?? '') as string
+            if (v) {
+              setCode(v)
+              setCameraOn(false)
+              // auto-trigger with current qty
+              onScanned({ code: v, qty })
+              return
+            }
+          } catch {
+            // ignore detection errors
+          }
+          raf = requestAnimationFrame(tick)
+        }
+
+        raf = requestAnimationFrame(tick)
+      } catch (e: any) {
+        setCameraErr(String(e?.message ?? e))
+      }
+    }
+
+    void run()
+
+    return () => {
+      if (raf) cancelAnimationFrame(raf)
+      if (stream) stream.getTracks().forEach((t) => t.stop())
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cameraOn])
+
+  function submit() {
+    const c = code.trim().replace(/\s+/g, '')
+    if (!c) {
+      setErr(language === 'pt' ? 'Informe o código.' : 'Enter a code.')
+      return
+    }
+    if (!Number.isFinite(qty) || qty <= 0) {
+      setErr(language === 'pt' ? 'Quantidade inválida.' : 'Invalid quantity.')
+      return
+    }
+    onScanned({ code: c, qty })
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60]">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="surface modal-safe absolute bottom-0 left-0 right-0 mx-auto w-full max-w-lg rounded-t-2xl border border-theme p-5 shadow-xl sm:bottom-auto sm:top-24 sm:rounded-2xl">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-semibold">{language === 'pt' ? 'Escanear EAN' : 'Scan barcode'}</h2>
+            <p className="text-sm text-[var(--text-muted)]">{language === 'pt' ? 'Leia o código e adicione ao pedido.' : 'Read a code and add it to the order.'}</p>
+          </div>
+          <button className="btn btn-secondary btn-icon" onClick={onClose} type="button" aria-label={language === 'pt' ? 'Fechar' : 'Close'}>
+            ×
+          </button>
+        </div>
+
+        <div className="mt-4 grid gap-3">
+          <label className="grid gap-1">
+            <span className="text-xs font-medium text-[var(--foreground)]">{language === 'pt' ? 'Código' : 'Code'}</span>
+            <input
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              className="w-full rounded-lg border border-theme bg-transparent px-3 py-2"
+              placeholder={language === 'pt' ? 'EAN…' : 'EAN…'}
+              inputMode="numeric"
+            />
+          </label>
+
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
+            <label className="grid gap-1">
+              <span className="text-xs font-medium text-[var(--foreground)]">{language === 'pt' ? 'Quantidade' : 'Qty'}</span>
+              <input
+                value={String(qty)}
+                onChange={(e) => setQty(Number(e.target.value.replace(',', '.')))}
+                className="w-full rounded-lg border border-theme bg-transparent px-3 py-2"
+                inputMode="decimal"
+              />
+            </label>
+            <div className="flex flex-wrap gap-2">
+              <button className="btn btn-secondary btn-sm" type="button" onClick={() => setQty((q) => q + 1)}>
+                +1
+              </button>
+              <button className="btn btn-secondary btn-sm" type="button" onClick={() => setQty((q) => q + 5)}>
+                +5
+              </button>
+              <button className="btn btn-secondary btn-sm" type="button" onClick={() => setQty((q) => q + 10)}>
+                +10
+              </button>
+            </div>
+          </div>
+
+          {err ? <div className="text-sm text-red-600">{err}</div> : null}
+
+          <div className="flex flex-col gap-2">
+            <button className="btn btn-primary" type="button" onClick={submit}>
+              {language === 'pt' ? 'Adicionar ao pedido' : 'Add to order'}
+            </button>
+
+            <button className="btn btn-secondary" type="button" onClick={() => setCameraOn((v) => !v)}>
+              {cameraOn ? (language === 'pt' ? 'Parar câmera' : 'Stop camera') : language === 'pt' ? 'Usar câmera' : 'Use camera'}
+            </button>
+
+            {cameraOn ? (
+              <div className="mt-2 overflow-hidden rounded-xl border border-theme bg-black">
+                <video id="ean-video" className="h-56 w-full object-cover" muted playsInline />
+              </div>
+            ) : null}
+
+            {cameraErr ? <div className="text-sm text-[var(--text-muted)]">{cameraErr}</div> : null}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ReceiveConfirmModal({
+  language,
+  summary,
+  onClose,
+  onConfirm,
+  isBusy,
+}: {
+  language: string
+  summary: { distinctItems: number; totalUnits: number; estimatedCost: number | null }
+  onClose: () => void
+  onConfirm: () => void
+  isBusy: boolean
+}) {
+  return (
+    <div className="fixed inset-0 z-[60]">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="surface modal-safe absolute bottom-0 left-0 right-0 mx-auto w-full max-w-lg rounded-t-2xl border border-theme p-5 shadow-xl sm:bottom-auto sm:top-24 sm:rounded-2xl">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-semibold">{language === 'pt' ? 'Receber pedido' : 'Receive order'}</h2>
+            <p className="text-sm text-[var(--text-muted)]">{language === 'pt' ? 'Confirme para dar entrada no estoque.' : 'Confirm to add stock.'}</p>
+          </div>
+          <button className="btn btn-secondary btn-icon" onClick={onClose} type="button" aria-label={language === 'pt' ? 'Fechar' : 'Close'}>
+            ×
+          </button>
+        </div>
+
+        <div className="mt-4 grid gap-2 text-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-[var(--text-muted)]">{language === 'pt' ? 'Itens distintos' : 'Distinct items'}</span>
+            <span className="font-medium">{summary.distinctItems}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-[var(--text-muted)]">{language === 'pt' ? 'Total de unidades' : 'Total units'}</span>
+            <span className="font-medium">{summary.totalUnits}</span>
+          </div>
+          {summary.estimatedCost != null ? (
+            <div className="flex items-center justify-between">
+              <span className="text-[var(--text-muted)]">{language === 'pt' ? 'Custo estimado' : 'Estimated cost'}</span>
+              <span className="font-medium">{summary.estimatedCost}</span>
+            </div>
+          ) : null}
+        </div>
+
+        <div className="mt-5 flex gap-2">
+          <button className="btn btn-secondary" type="button" onClick={onClose} disabled={isBusy}>
+            {language === 'pt' ? 'Cancelar' : 'Cancel'}
+          </button>
+          <button className="btn btn-primary" type="button" onClick={onConfirm} disabled={isBusy}>
+            {language === 'pt' ? 'Confirmar e receber' : 'Confirm & receive'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function PurchaseOrdersPage() {
   const qc = useQueryClient()
   const { language, currency } = useSettings()
@@ -79,6 +302,8 @@ export default function PurchaseOrdersPage() {
   const moneyLocale = localeFromLanguage(language)
 
   const [isOpen, setIsOpen] = useState(false)
+  const [scanOpen, setScanOpen] = useState(false)
+  const [receiveSummary, setReceiveSummary] = useState<{ distinctItems: number; totalUnits: number; estimatedCost: number | null } | null>(null)
 
   const draftStore = useDraftStorage<Draft>('draft:purchaseOrders', emptyDraft)
   const draft = draftStore.value
@@ -120,6 +345,22 @@ export default function PurchaseOrdersPage() {
 
   const deleteM = useMutation({
     mutationFn: (id: string) => api<{ ok: true }>(`/api/purchase-orders/${id}`, { method: 'DELETE' }),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ['purchaseOrders'] })
+    },
+  })
+
+  const scanM = useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: { code: string; qty: number } }) =>
+      api<any>(`/api/purchase-orders/${id}/scan`, { method: 'POST', body: JSON.stringify(payload) }),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ['purchaseOrders'] })
+    },
+  })
+
+  const receiveM = useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: { dryRun?: boolean } }) =>
+      api<any>(`/api/purchase-orders/${id}/receive`, { method: 'POST', body: JSON.stringify(payload) }),
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ['purchaseOrders'] })
     },
@@ -228,6 +469,71 @@ export default function PurchaseOrdersPage() {
       draftStore.clear()
     } catch (e: any) {
       toastFailedToDelete(i, String(e?.message ?? ''))
+      throw e
+    }
+  }
+
+  async function scanAndAdd(payload: { code: string; qty: number }) {
+    if (!draft.id) return
+    try {
+      const res = await scanM.mutateAsync({ id: draft.id, payload })
+
+      if (res?.result === 'ADDED' && res?.purchaseOrder?.items) {
+        // Update draft items from server state
+        setDraft((d) => ({
+          ...d,
+          items: (res.purchaseOrder.items ?? []).map((it: any) => ({
+            productId: it.product.id,
+            quantity: String(it.quantity),
+            unitCost: it.unitCost == null ? '' : formatMoneyFromNumber(Number(it.unitCost), moneyLocale),
+            unit: it.product.unit,
+          })),
+        }))
+        toast.success(language === 'pt' ? 'Adicionado ao pedido.' : language === 'es' ? 'Añadido al pedido.' : 'Added to order.')
+        setScanOpen(false)
+        return
+      }
+
+      if (res?.result === 'FOUND_EXTERNAL') {
+        toast.error(
+          language === 'pt'
+            ? 'Código encontrado externamente, mas ainda não está vinculado a um produto.'
+            : language === 'es'
+              ? 'Código encontrado externamente, pero aún no está vinculado a un producto.'
+              : 'Found externally, but not linked to a product yet.',
+        )
+        return
+      }
+
+      toast.error(language === 'pt' ? 'Código não encontrado.' : language === 'es' ? 'Código no encontrado.' : 'Code not found.')
+    } catch (e: any) {
+      toastFailedToSave(i, String(e?.message ?? ''))
+      throw e
+    }
+  }
+
+  async function openReceiveConfirm() {
+    if (!draft.id) return
+    try {
+      const res = await receiveM.mutateAsync({ id: draft.id, payload: { dryRun: true } })
+      if (res?.summary) setReceiveSummary(res.summary)
+    } catch (e: any) {
+      toastFailedToSave(i, String(e?.message ?? ''))
+      throw e
+    }
+  }
+
+  async function confirmReceive() {
+    if (!draft.id) return
+    try {
+      await receiveM.mutateAsync({ id: draft.id, payload: { dryRun: false } })
+      toastUpdated(i, 'purchaseOrder')
+      setReceiveSummary(null)
+
+      // Keep modal open, but refresh local status.
+      setDraft((d) => ({ ...d, status: 'RECEIVED' }))
+    } catch (e: any) {
+      toastFailedToSave(i, String(e?.message ?? ''))
       throw e
     }
   }
@@ -513,7 +819,29 @@ export default function PurchaseOrdersPage() {
                 {language === 'pt' ? 'Excluir' : language === 'es' ? 'Eliminar' : 'Delete'}
               </button>
 
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2 sm:justify-end">
+                {draft.id && draft.status !== 'RECEIVED' && draft.status !== 'CANCELLED' ? (
+                  <>
+                    <button
+                      className="btn btn-secondary"
+                      type="button"
+                      onClick={() => setScanOpen(true)}
+                      disabled={scanM.isPending}
+                    >
+                      {language === 'pt' ? 'Escanear EAN' : language === 'es' ? 'Escanear EAN' : 'Scan'}
+                    </button>
+                    <button
+                      className="btn btn-secondary"
+                      type="button"
+                      onClick={() => void openReceiveConfirm()}
+                      disabled={receiveM.isPending}
+                      title={language === 'pt' ? 'Finalizar e dar entrada no estoque' : 'Finalize and add stock'}
+                    >
+                      {language === 'pt' ? 'Receber' : language === 'es' ? 'Recibir' : 'Receive'}
+                    </button>
+                  </>
+                ) : null}
+
                 <button
                   className="btn btn-secondary"
                   onClick={() => setIsOpen(false)}
@@ -533,6 +861,24 @@ export default function PurchaseOrdersPage() {
             </div>
           </div>
         </div>
+      ) : null}
+
+      {scanOpen ? (
+        <BarcodeScanModal
+          language={language}
+          onClose={() => setScanOpen(false)}
+          onScanned={(p) => void scanAndAdd(p)}
+        />
+      ) : null}
+
+      {receiveSummary ? (
+        <ReceiveConfirmModal
+          language={language}
+          summary={receiveSummary}
+          onClose={() => setReceiveSummary(null)}
+          onConfirm={() => void confirmReceive()}
+          isBusy={receiveM.isPending}
+        />
       ) : null}
     </div>
   )
