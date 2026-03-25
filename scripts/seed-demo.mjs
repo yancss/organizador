@@ -430,6 +430,15 @@ async function main() {
   const ws = await pickWorkspace()
   const user = await pickUser(ws.id)
 
+  // Diagnostics: confirm which DB we are connected to
+  try {
+    const db = await prisma.$queryRaw`SELECT current_database() as db, inet_server_addr() as host, inet_server_port() as port;`
+    const row = Array.isArray(db) ? db[0] : null
+    console.log(`[seed-demo] db=${row?.db ?? '?'} host=${row?.host ?? '?'} port=${row?.port ?? '?'}`)
+  } catch {
+    console.log('[seed-demo] db=(unable to query current_database)')
+  }
+
   console.log(`[seed-demo] workspace=${ws.id} (${ws.name}) user=${user.id} (${user.email ?? 'no-email'})`)
 
   const { supplier, customer } = await upsertSupplierAndCustomer(ws.id, user.id)
