@@ -12,7 +12,8 @@ export async function middleware(req: NextRequest) {
   // Only protect the main app shell
   if (!pathname.startsWith('/app')) return NextResponse.next()
 
-  const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET })
+  const secret = process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET
+  const token = await getToken({ req, secret })
   if (!token?.sub) {
     const url = req.nextUrl.clone()
     url.pathname = '/login'
