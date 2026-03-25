@@ -11,6 +11,7 @@
     "ensure:support-user:uat": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\run-ensure-support-user-with-envfile.ps1 -EnvFile .env.uat",
     "provision:uat": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\provision-uat.ps1",
     "provision:uat:demo": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\provision-uat.ps1 -WithDemo",
+    "set:support-password:uat": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\run-set-user-password-with-envfile.ps1 -EnvFile .env.uat -Email support.guardian.app@gmail.com -Password 123456",
     "start": "next start",
     "lint": "eslint",
     "postinstall": "prisma generate",
