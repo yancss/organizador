@@ -14,6 +14,11 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   const auth = await requireAdmin()
   if (!auth.ok) return Response.json({ error: auth.error }, { status: auth.status })
 
+  // This endpoint changes global user session policy; restrict to SUPERADMIN only.
+  if (auth.user.isSuperadmin !== true) {
+    return Response.json({ error: 'FORBIDDEN' }, { status: 403 })
+  }
+
   const { id } = await ctx.params
 
   const body = await req.json().catch(() => null)
