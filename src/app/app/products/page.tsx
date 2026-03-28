@@ -58,9 +58,72 @@ export default function ProductsPage() {
 
   const [barcodeInput, setBarcodeInput] = useState('')
   const [scanOpen, setScanOpen] = useState(false)
+  const [barcodeAutofillNote, setBarcodeAutofillNote] = useState<string | null>(null)
 
   function normalizeCode(code: string) {
     return code.trim().replace(/\s+/g, '')
+  }
+
+  function inferUnitFromExternal(ex: any): Draft['unit'] | null {
+    const raw = String(ex?.productQuantityUnit ?? ex?.quantityText ?? '').toLowerCase()
+    if (!raw) return null
+    if (raw.includes('kg')) return 'kg'
+    if (raw.includes('g') || raw.includes('gr')) return 'gr'
+    if (raw.includes('ml')) return 'ml'
+    if (raw.includes('l')) return 'l'
+    if (raw.includes('un') || raw.includes('unit')) return 'un'
+    return null
+  }
+
+  async function lookupAndAutofill(code: string) {
+    const c = normalizeCode(code)
+    if (!c) return
+    try {
+      const res = await api<any>(`/api/barcodes/lookup?code=${encodeURIComponent(c)}`)
+      if (res?.result === 'FOUND_EXTERNAL' && res?.external) {
+        const ex = res.external
+
+        setDraft((d) => {
+          const next: Draft = { ...d }
+          // Fill as much as possible, but do not overwrite user input.
+          if (!next.name.trim() && ex.name) next.name = String(ex.name)
+          if (!next.brand.trim() && ex.brand) next.brand = String(ex.brand)
+
+          // If new product and still RAW with empty name, external implies a finished retail item.
+          if (!next.id && next.kind === 'RAW' && ex.name && !d.name.trim()) {
+            next.kind = 'FINISHED'
+          }
+
+          const inferred = inferUnitFromExternal(ex)
+          if (inferred && (!next.unit || next.unit === 'un')) {
+            next.unit = inferred
+          }
+
+          return next
+        })
+
+        const details = [ex.name, ex.brand, ex.quantityText].filter(Boolean).join(' • ')
+        setBarcodeAutofillNote(
+          (language === 'pt'
+            ? 'Preenchido automaticamente via Open Food Facts'
+            : language === 'es'
+              ? 'Autocompletado vía Open Food Facts'
+              : 'Autofilled via Open Food Facts') + (details ? `: ${details}` : ''),
+        )
+      } else if (res?.result === 'FOUND_LOCAL') {
+        setBarcodeAutofillNote(
+          language === 'pt'
+            ? 'Este código já está cadastrado e vinculado a um produto.'
+            : language === 'es'
+              ? 'Este código ya está registrado y vinculado a un producto.'
+              : 'This code is already registered and linked to a product.',
+        )
+      } else {
+        setBarcodeAutofillNote(null)
+      }
+    } catch {
+      // ignore lookup errors
+    }
   }
 
   function supportsBarcodeDetector() {
@@ -300,12 +363,14 @@ export default function ProductsPage() {
     draftStore.clear()
     setDraft((d) => ({ ...d, pendingBarcodes: [] }))
     setBarcodeInput('')
+    setBarcodeAutofillNote(null)
     setIsOpen(true)
   }
 
   function openEdit(p: Product) {
     setDraft({ id: p.id, name: p.name, brand: p.brand ?? '', kind: p.kind ?? 'RAW', unit: p.unit, pendingBarcodes: [] })
     setBarcodeInput('')
+    setBarcodeAutofillNote(null)
     setIsOpen(true)
   }
 
@@ -571,6 +636,8 @@ export default function ProductsPage() {
                         const code = normalizeCode(barcodeInput)
                         if (!code) return
 
+                        await lookupAndAutofill(code)
+
                         if (!draft.id) {
                           setDraft((d) => ({ ...d, pendingBarcodes: [...(d.pendingBarcodes ?? []), code] }))
                           setBarcodeInput('')
@@ -591,6 +658,12 @@ export default function ProductsPage() {
                       {language === 'pt' ? 'Adicionar' : language === 'es' ? 'Agregar' : 'Add'}
                     </button>
                   </div>
+
+                  {barcodeAutofillNote ? (
+                    <div className="mt-2 rounded-lg border border-theme bg-[var(--surface)]/40 px-3 py-2 text-xs text-[var(--muted-foreground)]">
+                      {barcodeAutofillNote}
+                    </div>
+                  ) : null}
 
                   <div className="mt-3 space-y-2">
                     {draft.id ? (
@@ -660,6 +733,7 @@ export default function ProductsPage() {
                     const c = normalizeCode(code)
                     if (!c) return
                     setBarcodeInput(c)
+                    void lookupAndAutofill(c)
                     setScanOpen(false)
                   }}
                 />
