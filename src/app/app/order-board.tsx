@@ -169,6 +169,173 @@ function fromLocalInputValue(v: string): string | null {
   return d.toISOString()
 }
 
+function supportsBarcodeDetector() {
+  return typeof window !== 'undefined' && 'BarcodeDetector' in window
+}
+
+function BarcodeScanModal({
+  language,
+  onClose,
+  onScanned,
+}: {
+  language: string
+  onClose: () => void
+  onScanned: (payload: { code: string; qty: number }) => void
+}) {
+  const [code, setCode] = useState('')
+  const [qty, setQty] = useState(1)
+  const [err, setErr] = useState<string | null>(null)
+
+  const [cameraOn, setCameraOn] = useState(false)
+  const [cameraErr, setCameraErr] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!cameraOn) return
+    if (!supportsBarcodeDetector()) {
+      setCameraErr(language === 'pt' ? 'Scanner não suportado neste navegador.' : 'Scanner not supported in this browser.')
+      return
+    }
+
+    let stream: MediaStream | null = null
+    let raf = 0
+    const video = document.getElementById('ean-video-so') as HTMLVideoElement | null
+
+    const run = async () => {
+      try {
+        setCameraErr(null)
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+        if (!video) return
+        video.srcObject = stream
+        await video.play()
+
+        // @ts-expect-error - BarcodeDetector is a web API
+        const detector = new BarcodeDetector({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'qr_code'] })
+
+        const tick = async () => {
+          try {
+            if (!video || video.readyState < 2) {
+              raf = requestAnimationFrame(tick)
+              return
+            }
+            const barcodes = await detector.detect(video)
+            const v = (barcodes?.[0]?.rawValue ?? '') as string
+            if (v) {
+              setCode(v)
+              setCameraOn(false)
+              onScanned({ code: v, qty })
+              return
+            }
+          } catch {
+            // ignore
+          }
+          raf = requestAnimationFrame(tick)
+        }
+
+        raf = requestAnimationFrame(tick)
+      } catch (e: any) {
+        setCameraErr(String(e?.message ?? e))
+      }
+    }
+
+    void run()
+
+    return () => {
+      if (raf) cancelAnimationFrame(raf)
+      if (stream) stream.getTracks().forEach((t) => t.stop())
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cameraOn])
+
+  function submit() {
+    const c = code.trim().replace(/\s+/g, '')
+    if (!c) {
+      setErr(language === 'pt' ? 'Informe o código.' : 'Enter a code.')
+      return
+    }
+    if (!Number.isFinite(qty) || qty <= 0) {
+      setErr(language === 'pt' ? 'Quantidade inválida.' : 'Invalid quantity.')
+      return
+    }
+
+    setErr(null)
+    onScanned({ code: c, qty })
+  }
+
+  return (
+    <div className="fixed inset-0 z-50">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="surface modal-safe absolute bottom-0 left-0 right-0 mx-auto w-full max-w-lg rounded-t-2xl border border-theme p-5 shadow-xl sm:bottom-auto sm:top-24 sm:rounded-2xl">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-semibold">{language === 'pt' ? 'Escanear EAN' : language === 'es' ? 'Escanear EAN' : 'Scan'}</h2>
+            <p className="text-sm text-[var(--text-muted)]">
+              {language === 'pt'
+                ? 'Use a câmera (se disponível) ou digite o código.'
+                : language === 'es'
+                  ? 'Usa la cámara (si está disponible) o escribe el código.'
+                  : 'Use camera (if available) or type the code.'}
+            </p>
+          </div>
+          <button type="button" className="btn btn-secondary btn-icon" onClick={onClose} aria-label="Close">
+            ×
+          </button>
+        </div>
+
+        <div className="mt-4 grid gap-3">
+          <div className="grid grid-cols-2 gap-2">
+            <label className="grid gap-1">
+              <span className="text-xs font-medium text-[var(--foreground)]">{language === 'pt' ? 'Código' : language === 'es' ? 'Código' : 'Code'}</span>
+              <input
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                className="w-full rounded-lg border border-theme bg-transparent px-3 py-2"
+                placeholder={language === 'pt' ? 'EAN' : 'EAN'}
+              />
+            </label>
+            <label className="grid gap-1">
+              <span className="text-xs font-medium text-[var(--foreground)]">{language === 'pt' ? 'Qtd.' : language === 'es' ? 'Cant.' : 'Qty'}</span>
+              <input
+                value={String(qty)}
+                onChange={(e) => setQty(Number(e.target.value.replace(',', '.')))}
+                className="w-full rounded-lg border border-theme bg-transparent px-3 py-2 tabular-nums text-right"
+                inputMode="decimal"
+              />
+            </label>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <button type="button" className="btn btn-secondary" onClick={() => setCameraOn((v) => !v)}>
+              {cameraOn
+                ? language === 'pt'
+                  ? 'Desligar câmera'
+                  : language === 'es'
+                    ? 'Apagar cámara'
+                    : 'Stop camera'
+                : language === 'pt'
+                  ? 'Usar câmera'
+                  : language === 'es'
+                    ? 'Usar cámara'
+                    : 'Use camera'}
+            </button>
+            <button type="button" className="btn btn-primary" onClick={submit}>
+              {language === 'pt' ? 'Adicionar' : language === 'es' ? 'Agregar' : 'Add'}
+            </button>
+          </div>
+
+          {cameraOn ? (
+            <div className="rounded-xl border border-theme p-2">
+              <video id="ean-video-so" className="h-56 w-full rounded-lg bg-black" playsInline muted />
+              {cameraErr ? <div className="mt-2 text-xs text-[var(--danger)]">{cameraErr}</div> : null}
+            </div>
+          ) : null}
+
+          {err ? <div className="text-sm text-[var(--danger)]">{err}</div> : null}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 type Draft = {
   id?: string
   name: string
@@ -299,6 +466,8 @@ export default function OrderBoard() {
   const [columnsOpen, setColumnsOpen] = useState(false)
   const [listQuery, setListQuery] = useState('')
 
+  const [scanOpen, setScanOpen] = useState(false)
+
   // Operational filters (server-side; exports reuse them)
   const [view, setView] = useState<'upcoming' | 'history' | 'all'>('upcoming')
   const [createdByMe, setCreatedByMe] = useState(false)
@@ -388,6 +557,12 @@ export default function OrderBoard() {
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ['orders'] })
     },
+  })
+
+  const scanM = useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: { code: string; qty: number } }) =>
+      api<any>(`/api/orders/${id}/scan`, { method: 'POST', body: JSON.stringify(payload) }),
+    onError: (e: any) => toastFailedToSave(i, String(e?.message ?? e ?? '')),
   })
 
   const orders = ordersQ.data?.orders ?? []
@@ -1372,16 +1547,30 @@ export default function OrderBoard() {
               </div>
 
               <div className="mt-2 rounded-lg border border-theme p-3">
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="text-sm font-medium">{i.modal.itemsTitle}</div>
-                  <button
-                    type="button"
-                    className="btn btn-secondary btn-sm"
-                    onClick={addItemLine}
-                    disabled={productsQ.isLoading || (productsQ.data?.products?.length ?? 0) === 0}
-                  >
-                    {i.modal.addItem}
-                  </button>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    {draft.id ? (
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => setScanOpen(true)}
+                        disabled={scanM.isPending}
+                      >
+                        {language === 'pt' ? 'Escanear EAN' : language === 'es' ? 'Escanear EAN' : 'Scan'}
+                      </button>
+                    ) : null}
+
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={addItemLine}
+                      disabled={productsQ.isLoading || (productsQ.data?.products?.length ?? 0) === 0}
+                    >
+                      {i.modal.addItem}
+                    </button>
+                  </div>
                 </div>
 
                 {draft.items.length === 0 ? (
@@ -1737,6 +1926,51 @@ export default function OrderBoard() {
             </div>
           </div>
         </div>
+      ) : null}
+
+      {scanOpen ? (
+        <BarcodeScanModal
+          language={language}
+          onClose={() => setScanOpen(false)}
+          onScanned={async (p) => {
+            if (!draft.id) return
+            try {
+              const res = await scanM.mutateAsync({ id: draft.id, payload: p })
+              if (res?.result === 'ADDED' && res?.order?.items) {
+                setDraft((d) => ({
+                  ...d,
+                  items: (res.order.items ?? []).map((it: any) => ({
+                    productId: it.product.id,
+                    quantity: String(it.quantity),
+                    unitPrice: it.unitPrice == null ? '' : formatMoneyFromNumber(Number(it.unitPrice), moneyLocale),
+                    unit: it.product.unit,
+                    discountType: it.discountType ?? null,
+                    discountValue: it.discountValue == null ? '' : formatMoneyFromNumber(Number(it.discountValue), moneyLocale),
+                    discountPercent: it.discountPercent == null ? '' : String(it.discountPercent),
+                  })),
+                }))
+                toast.success(language === 'pt' ? 'Adicionado ao pedido.' : language === 'es' ? 'Añadido al pedido.' : 'Added to order.')
+                setScanOpen(false)
+                return
+              }
+
+              if (res?.result === 'FOUND_EXTERNAL') {
+                toast.error(
+                  language === 'pt'
+                    ? 'Código encontrado externamente, mas ainda não está vinculado a um produto.'
+                    : language === 'es'
+                      ? 'Código encontrado externamente, pero aún no está vinculado a un producto.'
+                      : 'Found externally, but not linked to a product yet.',
+                )
+                return
+              }
+
+              toast.error(language === 'pt' ? 'Código não encontrado.' : language === 'es' ? 'Código no encontrado.' : 'Code not found.')
+            } catch (e: any) {
+              toastFailedToSave(i, String(e?.message ?? e ?? ''))
+            }
+          }}
+        />
       ) : null}
     </div>
   )

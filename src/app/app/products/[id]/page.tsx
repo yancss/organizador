@@ -23,6 +23,7 @@ type Product = {
   createdById: string | null
   updatedById: string | null
   inventory: { id: string; quantity: string | number; minimum: string | number | null } | null
+  barcodes?: Array<{ id: string; code: string; source: string; externalRef: string | null; createdAt: string }>
 }
 
 export default function ProductDetailsPage() {
@@ -83,6 +84,33 @@ export default function ProductDetailsPage() {
               <div>
                 <span className="font-medium text-[var(--foreground)]">{language === 'pt' ? 'Custo médio' : 'Avg cost'}:</span>{' '}
                 {p.avgCost == null ? '—' : formatMoneyDisplay(p.avgCost, moneyLocale, currency)}
+              </div>
+            </div>
+          </section>
+
+          <section className="surface rounded-xl border border-theme p-4">
+            <h2 className="text-sm font-semibold text-[var(--foreground)]">{language === 'pt' ? 'Códigos de barras' : language === 'es' ? 'Códigos de barras' : 'Barcodes'}</h2>
+            <div className="mt-2 space-y-2">
+              {(p.barcodes ?? []).length ? (
+                (p.barcodes ?? []).map((b) => (
+                  <div key={b.id} className="flex items-center justify-between gap-3 rounded-lg border border-theme px-3 py-2">
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-medium text-[var(--foreground)]">{b.code}</div>
+                      <div className="text-xs text-[var(--muted-foreground)]">{b.source}{b.externalRef ? ` • ${b.externalRef}` : ''}</div>
+                    </div>
+                    <span className="text-xs text-[var(--muted-foreground)]">{new Date(b.createdAt).toLocaleDateString()}</span>
+                  </div>
+                ))
+              ) : (
+                <div className="text-sm text-[var(--muted-foreground)]">—</div>
+              )}
+
+              <div className="text-xs text-[var(--muted-foreground)]">
+                {language === 'pt'
+                  ? 'Para adicionar/remover códigos, use o botão Editar.'
+                  : language === 'es'
+                    ? 'Para agregar/quitar códigos, usa el botón Editar.'
+                    : 'To add/remove codes, use Edit.'}
               </div>
             </div>
           </section>

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { Barcode, Plus, Trash2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
 import { useDraftStorage } from '../use-draft-storage'
@@ -23,6 +24,8 @@ type Product = {
   avgCost?: string | number | null
   active?: boolean
 }
+
+type ProductBarcodeRow = { id: string; code: string; source: string; externalRef: string | null; createdAt: string }
 
 // (moved to api-client.ts)
 
@@ -52,9 +55,17 @@ export default function ProductsPage() {
   const draft = draftStore.value
   const setDraft = draftStore.setValue
 
+  const [barcodeInput, setBarcodeInput] = useState('')
+
   const productsQ = useQuery({
     queryKey: ['products'],
     queryFn: () => api<{ products: Product[] }>('/api/products'),
+  })
+
+  const barcodesQ = useQuery({
+    queryKey: ['productBarcodes', draft.id],
+    enabled: !!draft.id && isOpen,
+    queryFn: () => api<{ barcodes: ProductBarcodeRow[] }>(`/api/products/${draft.id}/barcodes`),
   })
 
   const createM = useMutation({
@@ -88,6 +99,26 @@ export default function ProductsPage() {
     },
   })
 
+  const addBarcodeM = useMutation({
+    mutationFn: ({ productId, code }: { productId: string; code: string }) =>
+      api<{ barcode: ProductBarcodeRow }>(`/api/products/${productId}/barcodes`, {
+        method: 'POST',
+        body: JSON.stringify({ code }),
+      }),
+    onSuccess: async (_res, vars) => {
+      await qc.invalidateQueries({ queryKey: ['productBarcodes', vars.productId] })
+      setBarcodeInput('')
+    },
+  })
+
+  const deleteBarcodeM = useMutation({
+    mutationFn: ({ productId, barcodeId }: { productId: string; barcodeId: string }) =>
+      api<{ ok: true }>(`/api/products/${productId}/barcodes/${barcodeId}`, { method: 'DELETE' }),
+    onSuccess: async (_res, vars) => {
+      await qc.invalidateQueries({ queryKey: ['productBarcodes', vars.productId] })
+    },
+  })
+
   const products = productsQ.data?.products ?? []
 
   // If user comes from the details page clicking "Editar", open the modal automatically.
@@ -112,11 +143,13 @@ export default function ProductsPage() {
 
   function openCreate() {
     draftStore.clear()
+    setBarcodeInput('')
     setIsOpen(true)
   }
 
   function openEdit(p: Product) {
     setDraft({ id: p.id, name: p.name, brand: p.brand ?? '', kind: p.kind ?? 'RAW', unit: p.unit })
+    setBarcodeInput('')
     setIsOpen(true)
   }
 
@@ -338,6 +371,85 @@ export default function ProductsPage() {
                   ))}
                 </select>
               </label>
+
+              {draft.id ? (
+                <div className="rounded-xl border border-theme p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 text-sm font-medium text-[var(--foreground)]">
+                      <Barcode className="size-4" />
+                      {language === 'pt' ? 'Códigos de barras' : language === 'es' ? 'Códigos de barras' : 'Barcodes'}
+                    </div>
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <input
+                      value={barcodeInput}
+                      onChange={(e) => setBarcodeInput(e.target.value)}
+                      placeholder={language === 'pt' ? 'EAN / código' : language === 'es' ? 'EAN / código' : 'EAN / code'}
+                      className="min-w-[220px] flex-1 rounded-lg border border-theme bg-transparent px-3 py-2 text-sm"
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={async () => {
+                        const code = barcodeInput.trim().replace(/\s+/g, '')
+                        if (!draft.id || !code) return
+                        try {
+                          await addBarcodeM.mutateAsync({ productId: draft.id, code })
+                          toast.success(language === 'pt' ? 'Código adicionado.' : language === 'es' ? 'Código agregado.' : 'Code added.')
+                        } catch (e: any) {
+                          toastFailedToSave(i, String(e?.message ?? e ?? ''))
+                        }
+                      }}
+                      disabled={!barcodeInput.trim() || addBarcodeM.isPending}
+                    >
+                      <Plus className="size-4" />
+                      {language === 'pt' ? 'Adicionar' : language === 'es' ? 'Agregar' : 'Add'}
+                    </button>
+                  </div>
+
+                  <div className="mt-3 space-y-2">
+                    {barcodesQ.isLoading ? (
+                      <div className="text-sm text-[var(--muted-foreground)]">{i.common.loading}</div>
+                    ) : (barcodesQ.data?.barcodes ?? []).length ? (
+                      (barcodesQ.data?.barcodes ?? []).map((b) => (
+                        <div key={b.id} className="flex items-center justify-between gap-3 rounded-lg border border-theme px-3 py-2">
+                          <div className="min-w-0">
+                            <div className="truncate text-sm font-medium text-[var(--foreground)]">{b.code}</div>
+                            <div className="text-xs text-[var(--muted-foreground)]">{b.source}</div>
+                          </div>
+                          <button
+                            type="button"
+                            className="btn btn-danger-soft btn-sm"
+                            onClick={async () => {
+                              try {
+                                await deleteBarcodeM.mutateAsync({ productId: draft.id as string, barcodeId: b.id })
+                                toast.success(language === 'pt' ? 'Código removido.' : language === 'es' ? 'Código eliminado.' : 'Code removed.')
+                              } catch (e: any) {
+                                toastFailedToDelete(i, String(e?.message ?? e ?? ''))
+                              }
+                            }}
+                            disabled={deleteBarcodeM.isPending}
+                            title={language === 'pt' ? 'Remover' : language === 'es' ? 'Eliminar' : 'Remove'}
+                          >
+                            <Trash2 className="size-4" />
+                          </button>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-sm text-[var(--muted-foreground)]">—</div>
+                    )}
+                  </div>
+
+                  <div className="mt-2 text-xs text-[var(--muted-foreground)]">
+                    {language === 'pt'
+                      ? 'Dica: depois de cadastrar aqui, você consegue escanear no pedido de compra/venda.'
+                      : language === 'es'
+                        ? 'Consejo: después de registrar aquí, podrás escanear en compra/venta.'
+                        : 'Tip: once registered here, you can scan in purchase/sales orders.'}
+                  </div>
+                </div>
+              ) : null}
             </div>
 
             <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
