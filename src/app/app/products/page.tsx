@@ -38,10 +38,11 @@ type Draft = {
   brand: string
   kind: 'RAW' | 'INTERMEDIATE' | 'FINISHED'
   unit: string
+  pendingBarcodes?: string[]
 }
 
 function emptyDraft(): Draft {
-  return { name: '', brand: '', kind: 'RAW', unit: 'un' }
+  return { name: '', brand: '', kind: 'RAW', unit: 'un', pendingBarcodes: [] }
 }
 
 export default function ProductsPage() {
@@ -56,6 +57,160 @@ export default function ProductsPage() {
   const setDraft = draftStore.setValue
 
   const [barcodeInput, setBarcodeInput] = useState('')
+  const [scanOpen, setScanOpen] = useState(false)
+
+  function normalizeCode(code: string) {
+    return code.trim().replace(/\s+/g, '')
+  }
+
+  function supportsBarcodeDetector() {
+    return typeof window !== 'undefined' && 'BarcodeDetector' in window
+  }
+
+  function BarcodeScanModal({
+    language,
+    onClose,
+    onScanned,
+  }: {
+    language: string
+    onClose: () => void
+    onScanned: (payload: { code: string }) => void
+  }) {
+    const [code, setCode] = useState('')
+    const [err, setErr] = useState<string | null>(null)
+    const [cameraOn, setCameraOn] = useState(false)
+    const [cameraErr, setCameraErr] = useState<string | null>(null)
+
+    useEffect(() => {
+      if (!cameraOn) return
+      if (!supportsBarcodeDetector()) {
+        setCameraErr(language === 'pt' ? 'Scanner não suportado neste navegador.' : 'Scanner not supported in this browser.')
+        return
+      }
+
+      let stream: MediaStream | null = null
+      let raf = 0
+      const video = document.getElementById('ean-video-product') as HTMLVideoElement | null
+
+      const run = async () => {
+        try {
+          setCameraErr(null)
+          stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+          if (!video) return
+          video.srcObject = stream
+          await video.play()
+
+          // @ts-expect-error - BarcodeDetector is a web API
+          const detector = new BarcodeDetector({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'qr_code'] })
+
+          const tick = async () => {
+            try {
+              if (!video || video.readyState < 2) {
+                raf = requestAnimationFrame(tick)
+                return
+              }
+              const barcodes = await detector.detect(video)
+              const v = (barcodes?.[0]?.rawValue ?? '') as string
+              if (v) {
+                setCode(v)
+                setCameraOn(false)
+                onScanned({ code: v })
+                return
+              }
+            } catch {
+              // ignore
+            }
+            raf = requestAnimationFrame(tick)
+          }
+
+          raf = requestAnimationFrame(tick)
+        } catch (e: any) {
+          setCameraErr(String(e?.message ?? e))
+        }
+      }
+
+      void run()
+
+      return () => {
+        if (raf) cancelAnimationFrame(raf)
+        if (stream) stream.getTracks().forEach((t) => t.stop())
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [cameraOn])
+
+    function submit() {
+      const c = normalizeCode(code)
+      if (!c) {
+        setErr(language === 'pt' ? 'Informe o código.' : 'Enter a code.')
+        return
+      }
+      setErr(null)
+      onScanned({ code: c })
+    }
+
+    return (
+      <div className="fixed inset-0 z-50">
+        <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+        <div className="surface modal-safe absolute bottom-0 left-0 right-0 mx-auto w-full max-w-lg rounded-t-2xl border border-theme p-5 shadow-xl sm:bottom-auto sm:top-24 sm:rounded-2xl">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-semibold">{language === 'pt' ? 'Escanear EAN' : language === 'es' ? 'Escanear EAN' : 'Scan'}</h2>
+              <p className="text-sm text-[var(--text-muted)]">
+                {language === 'pt'
+                  ? 'Use a câmera (se disponível) ou digite o código.'
+                  : language === 'es'
+                    ? 'Usa la cámara (si está disponible) o escribe el código.'
+                    : 'Use camera (if available) or type the code.'}
+              </p>
+            </div>
+            <button type="button" className="btn btn-secondary btn-icon" onClick={onClose} aria-label="Close">
+              ×
+            </button>
+          </div>
+
+          <div className="mt-4 grid gap-3">
+            <label className="grid gap-1">
+              <span className="text-xs font-medium text-[var(--foreground)]">{language === 'pt' ? 'Código' : language === 'es' ? 'Código' : 'Code'}</span>
+              <input
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                className="w-full rounded-lg border border-theme bg-transparent px-3 py-2"
+                placeholder={language === 'pt' ? 'EAN' : 'EAN'}
+              />
+            </label>
+
+            <div className="flex flex-wrap gap-2">
+              <button type="button" className="btn btn-secondary" onClick={() => setCameraOn((v) => !v)}>
+                {cameraOn
+                  ? language === 'pt'
+                    ? 'Desligar câmera'
+                    : language === 'es'
+                      ? 'Apagar cámara'
+                      : 'Stop camera'
+                  : language === 'pt'
+                    ? 'Usar câmera'
+                    : language === 'es'
+                      ? 'Usar cámara'
+                      : 'Use camera'}
+              </button>
+              <button type="button" className="btn btn-primary" onClick={submit}>
+                {language === 'pt' ? 'Adicionar' : language === 'es' ? 'Agregar' : 'Add'}
+              </button>
+            </div>
+
+            {cameraOn ? (
+              <div className="rounded-xl border border-theme p-2">
+                <video id="ean-video-product" className="h-56 w-full rounded-lg bg-black" playsInline muted />
+                {cameraErr ? <div className="mt-2 text-xs text-[var(--danger)]">{cameraErr}</div> : null}
+              </div>
+            ) : null}
+
+            {err ? <div className="text-sm text-[var(--danger)]">{err}</div> : null}
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   const productsQ = useQuery({
     queryKey: ['products'],
@@ -143,12 +298,13 @@ export default function ProductsPage() {
 
   function openCreate() {
     draftStore.clear()
+    setDraft((d) => ({ ...d, pendingBarcodes: [] }))
     setBarcodeInput('')
     setIsOpen(true)
   }
 
   function openEdit(p: Product) {
-    setDraft({ id: p.id, name: p.name, brand: p.brand ?? '', kind: p.kind ?? 'RAW', unit: p.unit })
+    setDraft({ id: p.id, name: p.name, brand: p.brand ?? '', kind: p.kind ?? 'RAW', unit: p.unit, pendingBarcodes: [] })
     setBarcodeInput('')
     setIsOpen(true)
   }
@@ -169,8 +325,20 @@ export default function ProductsPage() {
         await updateM.mutateAsync({ id: draft.id, payload })
         toastUpdated(i, 'product')
       } else {
-        await createM.mutateAsync(payload)
+        const created = await createM.mutateAsync(payload)
         toastCreated(i, 'product')
+
+        const pid = created?.product?.id
+        const codes = (draft.pendingBarcodes ?? []).map((c) => c.trim().replace(/\s+/g, '')).filter(Boolean)
+        if (pid && codes.length) {
+          for (const code of codes) {
+            try {
+              await addBarcodeM.mutateAsync({ productId: pid, code })
+            } catch {
+              // ignore individual barcode errors (e.g. duplicates) to avoid blocking product create
+            }
+          }
+        }
       }
 
       setIsOpen(false)
@@ -372,8 +540,7 @@ export default function ProductsPage() {
                 </select>
               </label>
 
-              {draft.id ? (
-                <div className="rounded-xl border border-theme p-3">
+              <div className="rounded-xl border border-theme p-3">
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2 text-sm font-medium text-[var(--foreground)]">
                       <Barcode className="size-4" />
@@ -388,12 +555,29 @@ export default function ProductsPage() {
                       placeholder={language === 'pt' ? 'EAN / código' : language === 'es' ? 'EAN / código' : 'EAN / code'}
                       className="min-w-[220px] flex-1 rounded-lg border border-theme bg-transparent px-3 py-2 text-sm"
                     />
+
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => setScanOpen(true)}
+                    >
+                      {language === 'pt' ? 'Escanear' : language === 'es' ? 'Escanear' : 'Scan'}
+                    </button>
+
                     <button
                       type="button"
                       className="btn btn-secondary btn-sm"
                       onClick={async () => {
-                        const code = barcodeInput.trim().replace(/\s+/g, '')
-                        if (!draft.id || !code) return
+                        const code = normalizeCode(barcodeInput)
+                        if (!code) return
+
+                        if (!draft.id) {
+                          setDraft((d) => ({ ...d, pendingBarcodes: [...(d.pendingBarcodes ?? []), code] }))
+                          setBarcodeInput('')
+                          toast.success(language === 'pt' ? 'Código adicionado ao rascunho.' : language === 'es' ? 'Código agregado al borrador.' : 'Code added to draft.')
+                          return
+                        }
+
                         try {
                           await addBarcodeM.mutateAsync({ productId: draft.id, code })
                           toast.success(language === 'pt' ? 'Código adicionado.' : language === 'es' ? 'Código agregado.' : 'Code added.')
@@ -409,27 +593,45 @@ export default function ProductsPage() {
                   </div>
 
                   <div className="mt-3 space-y-2">
-                    {barcodesQ.isLoading ? (
-                      <div className="text-sm text-[var(--muted-foreground)]">{i.common.loading}</div>
-                    ) : (barcodesQ.data?.barcodes ?? []).length ? (
-                      (barcodesQ.data?.barcodes ?? []).map((b) => (
-                        <div key={b.id} className="flex items-center justify-between gap-3 rounded-lg border border-theme px-3 py-2">
-                          <div className="min-w-0">
-                            <div className="truncate text-sm font-medium text-[var(--foreground)]">{b.code}</div>
-                            <div className="text-xs text-[var(--muted-foreground)]">{b.source}</div>
+                    {draft.id ? (
+                      barcodesQ.isLoading ? (
+                        <div className="text-sm text-[var(--muted-foreground)]">{i.common.loading}</div>
+                      ) : (barcodesQ.data?.barcodes ?? []).length ? (
+                        (barcodesQ.data?.barcodes ?? []).map((b) => (
+                          <div key={b.id} className="flex items-center justify-between gap-3 rounded-lg border border-theme px-3 py-2">
+                            <div className="min-w-0">
+                              <div className="truncate text-sm font-medium text-[var(--foreground)]">{b.code}</div>
+                              <div className="text-xs text-[var(--muted-foreground)]">{b.source}</div>
+                            </div>
+                            <button
+                              type="button"
+                              className="btn btn-danger-soft btn-sm"
+                              onClick={async () => {
+                                try {
+                                  await deleteBarcodeM.mutateAsync({ productId: draft.id as string, barcodeId: b.id })
+                                  toast.success(language === 'pt' ? 'Código removido.' : language === 'es' ? 'Código eliminado.' : 'Code removed.')
+                                } catch (e: any) {
+                                  toastFailedToDelete(i, String(e?.message ?? e ?? ''))
+                                }
+                              }}
+                              disabled={deleteBarcodeM.isPending}
+                              title={language === 'pt' ? 'Remover' : language === 'es' ? 'Eliminar' : 'Remove'}
+                            >
+                              <Trash2 className="size-4" />
+                            </button>
                           </div>
+                        ))
+                      ) : (
+                        <div className="text-sm text-[var(--muted-foreground)]">—</div>
+                      )
+                    ) : (draft.pendingBarcodes ?? []).length ? (
+                      (draft.pendingBarcodes ?? []).map((code, idx) => (
+                        <div key={code + idx} className="flex items-center justify-between gap-3 rounded-lg border border-theme px-3 py-2">
+                          <div className="truncate text-sm font-medium text-[var(--foreground)]">{code}</div>
                           <button
                             type="button"
                             className="btn btn-danger-soft btn-sm"
-                            onClick={async () => {
-                              try {
-                                await deleteBarcodeM.mutateAsync({ productId: draft.id as string, barcodeId: b.id })
-                                toast.success(language === 'pt' ? 'Código removido.' : language === 'es' ? 'Código eliminado.' : 'Code removed.')
-                              } catch (e: any) {
-                                toastFailedToDelete(i, String(e?.message ?? e ?? ''))
-                              }
-                            }}
-                            disabled={deleteBarcodeM.isPending}
+                            onClick={() => setDraft((d) => ({ ...d, pendingBarcodes: (d.pendingBarcodes ?? []).filter((_, i2) => i2 !== idx) }))}
                             title={language === 'pt' ? 'Remover' : language === 'es' ? 'Eliminar' : 'Remove'}
                           >
                             <Trash2 className="size-4" />
@@ -449,6 +651,18 @@ export default function ProductsPage() {
                         : 'Tip: once registered here, you can scan in purchase/sales orders.'}
                   </div>
                 </div>
+
+              {scanOpen ? (
+                <BarcodeScanModal
+                  language={language}
+                  onClose={() => setScanOpen(false)}
+                  onScanned={({ code }) => {
+                    const c = normalizeCode(code)
+                    if (!c) return
+                    setBarcodeInput(c)
+                    setScanOpen(false)
+                  }}
+                />
               ) : null}
             </div>
 
