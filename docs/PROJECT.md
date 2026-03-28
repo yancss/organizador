@@ -191,6 +191,10 @@ Ao criar um `WorkspaceMember`, enviar e-mail para o Support:
 ---
 
 ## 9) Rotas da aplicação (App Router)
+
+### 9.0) EAN / Códigos de barras
+Ver: `docs/BARCODES.md`
+
 ### 9.1) Páginas principais (estado atual)
 - `/app` (área logada)
 - `/app/home`
@@ -230,11 +234,16 @@ Auth:
 Dados (principais):
 - `/api/clients` + `/api/clients/[id]`
 - `/api/products` + `/api/products/[id]`
+  - barcodes: `GET|POST /api/products/[id]/barcodes`
+  - barcodes: `DELETE /api/products/[id]/barcodes/[barcodeId]`
+- `/api/barcodes/lookup` (EAN lookup local + Open Food Facts)
 - `/api/inventory` + `/api/inventory/[productId]`
 - `/api/recipes` + `/api/recipes/[id]`
 - `/api/orders` + `/api/orders/search` + `/api/orders/[id]`
+  - scan: `POST /api/orders/[id]/scan`
   - exports: `/api/orders/export/csv`, `/api/orders/export/pdf`
 - `/api/purchase-orders` + `/api/purchase-orders/[id]`
+  - scan: `POST /api/purchase-orders/[id]/scan`
 - `/api/purchases` + `/api/purchases/[id]`
 - `/api/deliveries` + `/api/deliveries/[id]`
 - `/api/receivables` + `/api/receivables/[id]`
