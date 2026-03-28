@@ -35,8 +35,11 @@ export async function requireSessionUser() {
 }
 
 export async function requireWorkspace() {
-  // Dev bypass
+  // Dev bypass (NEVER enable outside development)
   if (process.env.DISABLE_AUTH === '1') {
+    if (process.env.NODE_ENV !== 'development') {
+      return { ok: false as const, status: 500, error: 'DISABLE_AUTH_NOT_ALLOWED' }
+    }
     // Dev bypass: impersonate the Support SUPERADMIN.
     // NOTE: DB-level guardrails enforce that ONLY this email can be SUPERADMIN.
     const email = 'support.guardian.app@gmail.com'
