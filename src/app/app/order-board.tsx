@@ -46,14 +46,18 @@ function calcDraftTotals(draft: {
 
     let discount = 0
     if (draft.discountMode === 'PER_ITEM') {
-      const dt = (it.discountType ?? 'VALUE') as any
-      if (dt === 'PERCENT') {
+      // Priority: fixed value discount (R$) > percent discount
+      const dv = it.discountValue?.trim() ? Math.max(0, parseMoneyToNumber(it.discountValue, moneyLocale) ?? 0) : 0
+      if (dv > 0) {
+        discount = dv
+      } else {
         const p = clampPercent(Number(String(it.discountPercent ?? '').replace(',', '.')))
         discount = (subtotal * p) / 100
-      } else {
-        discount = it.discountValue?.trim() ? Math.max(0, parseMoneyToNumber(it.discountValue, moneyLocale) ?? 0) : 0
       }
-      discount = Math.min(subtotal, discount)
+
+      // Do not allow discount to zero the item (strictly less than subtotal)
+      if (subtotal > 0) discount = Math.min(Math.max(0, subtotal - 0.01), Math.max(0, discount))
+      else discount = 0
     }
 
     const total = Math.max(0, subtotal - discount)
@@ -317,6 +321,14 @@ export default function OrderBoard() {
 
   const liveTotals = useMemo(() => calcDraftTotals(draft, moneyLocale), [draft, moneyLocale])
 
+  const hasAnyItemDiscount = useMemo(() => {
+    return (draft.items ?? []).some((it) => {
+      const dv = it.discountValue?.trim() ? (parseMoneyToNumber(it.discountValue, moneyLocale) ?? 0) : 0
+      const dp = it.discountPercent?.trim() ? Number(String(it.discountPercent).replace(',', '.')) : 0
+      return (Number.isFinite(dv) && dv > 0) || (Number.isFinite(dp) && dp > 0)
+    })
+  }, [draft.items, moneyLocale])
+
   const productsQ = useQuery({
     queryKey: ['products', 'FINISHED'],
     queryFn: () => api<{ products: Product[] }>('/api/products?kind=FINISHED'),
@@ -528,26 +540,71 @@ export default function OrderBoard() {
 
     const items = draft.items
       .filter((it) => it.productId && it.quantity.trim())
-      .map((it) => ({
-        productId: it.productId,
-        quantity: Number(it.quantity.replace(',', '.')),
-        unitPrice: it.unitPrice.trim() ? parseMoneyToNumber(it.unitPrice, moneyLocale) : 0,
-        unit: it.unit ?? null,
-        discountType: draft.discountMode === 'PER_ITEM' ? (it.discountType ?? 'VALUE') : null,
-        discountValue:
-          draft.discountMode === 'PER_ITEM' && (it.discountType ?? 'VALUE') === 'VALUE' && it.discountValue?.trim()
-            ? parseMoneyToNumber(it.discountValue, moneyLocale)
-            : null,
-        discountPercent:
-          draft.discountMode === 'PER_ITEM' && (it.discountType ?? 'VALUE') === 'PERCENT' && it.discountPercent?.trim()
-            ? Number(it.discountPercent.replace(',', '.'))
-            : null,
-      }))
+      .map((it) => {
+        const quantity = Number(it.quantity.replace(',', '.'))
+        const unitPrice = it.unitPrice.trim() ? (parseMoneyToNumber(it.unitPrice, moneyLocale) ?? 0) : 0
+
+        // Per-item discount: allow both inputs, but persist one (priority: value > percent)
+        const dv = it.discountValue?.trim() ? Math.max(0, parseMoneyToNumber(it.discountValue, moneyLocale) ?? 0) : 0
+        const dp = it.discountPercent?.trim() ? clampPercent(Number(it.discountPercent.replace(',', '.'))) : 0
+
+        let discountType: DiscountType | null = null
+        let discountValue: number | null = null
+        let discountPercent: number | null = null
+
+        if (draft.discountMode === 'PER_ITEM') {
+          if (dv > 0) {
+            discountType = 'VALUE'
+            discountValue = dv
+          } else if (dp > 0) {
+            discountType = 'PERCENT'
+            discountPercent = dp
+          }
+        }
+
+        return {
+          productId: it.productId,
+          quantity,
+          unitPrice,
+          unit: it.unit ?? null,
+          discountType,
+          discountValue,
+          discountPercent,
+        }
+      })
       .filter((it) => Number.isFinite(it.quantity) && it.quantity > 0)
 
     if (!items.length) {
       toastFailedToSave(i, language === 'pt' ? 'Adicione pelo menos 1 item.' : language === 'es' ? 'Agrega al menos 1 ítem.' : 'Add at least 1 item.')
       return
+    }
+
+    // Validate per-item discount constraints: no negative and cannot zero the line
+    if (draft.discountMode === 'PER_ITEM') {
+      for (const it of items) {
+        const subtotal = Math.max(0, Number(it.quantity) * Math.max(0, Number(it.unitPrice ?? 0)))
+        let disc = 0
+
+        if (it.discountType === 'VALUE') disc = Math.max(0, Number(it.discountValue ?? 0))
+        else if (it.discountType === 'PERCENT') disc = (subtotal * clampPercent(Number(it.discountPercent ?? 0))) / 100
+
+        if (disc < 0) {
+          toastFailedToSave(i, language === 'pt' ? 'Desconto negativo não é permitido.' : language === 'es' ? 'No se permite descuento negativo.' : 'Negative discount is not allowed.')
+          return
+        }
+
+        if (subtotal > 0 && disc >= subtotal) {
+          toastFailedToSave(
+            i,
+            language === 'pt'
+              ? 'O desconto do item não pode zerar o valor do item (precisa ser menor que o subtotal do item).'
+              : language === 'es'
+                ? 'El descuento del ítem no puede dejar el valor en cero (debe ser menor que el subtotal del ítem).'
+                : 'Item discount cannot zero the line (must be less than the line subtotal).',
+          )
+          return
+        }
+      }
     }
 
     const payload = {
@@ -1208,7 +1265,7 @@ export default function OrderBoard() {
       {isOpen ? (
         <div className="fixed inset-0 z-50">
           <div className="absolute inset-0 bg-black/40" onClick={() => setIsOpen(false)} />
-          <div className="surface modal-safe absolute bottom-0 left-0 right-0 mx-auto w-full max-w-2xl rounded-t-2xl border border-theme p-5 shadow-xl sm:bottom-auto sm:top-20 sm:rounded-2xl">
+          <div className="surface modal-safe absolute bottom-0 left-0 right-0 mx-auto w-full max-w-6xl rounded-t-2xl border border-theme p-5 shadow-xl sm:bottom-auto sm:top-10 sm:rounded-2xl">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-lg font-semibold">{draft.id ? i.modal.editTitleOrder : i.modal.newTitleOrder}</h2>
@@ -1330,207 +1387,307 @@ export default function OrderBoard() {
                 {draft.items.length === 0 ? (
                   <div className="mt-2 text-sm text-neutral-600">{i.modal.noItems}</div>
                 ) : (
-                  <div className="mt-3 grid gap-2">
-                    {draft.items.map((it, idx) => (
-                      <div
-                        key={idx}
-                        className={`grid grid-cols-1 gap-2 sm:items-center ${draft.discountMode === 'PER_ITEM' ? 'sm:grid-cols-[1fr_120px_120px_120px_80px]' : 'sm:grid-cols-[1fr_140px_140px_80px]'}`}
-                      >
-                        <select
-                          value={it.productId}
-                          onChange={(e) => updateItemLine(idx, { productId: e.target.value })}
-                          className="w-full rounded-lg border border-theme bg-transparent px-3 py-2 text-sm"
-                        >
-                          {(productsQ.data?.products ?? []).map((p) => (
-                            <option key={p.id} value={p.id}>
-                              {p.name} ({p.unit})
-                            </option>
-                          ))}
-                        </select>
+                  <div className="mt-3 overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-left text-xs text-[var(--muted-foreground)]">
+                          <th className="py-2 pr-3">{language === 'pt' ? 'Produto' : language === 'es' ? 'Producto' : 'Product'}</th>
+                          <th className="py-2 pr-3 text-right">{language === 'pt' ? 'Qtd.' : language === 'es' ? 'Cant.' : 'Qty'}</th>
+                          <th className="py-2 pr-3">{language === 'pt' ? 'Unid.' : language === 'es' ? 'Unid.' : 'Unit'}</th>
+                          <th className="py-2 pr-3 text-right">{language === 'pt' ? 'Preço un.' : language === 'es' ? 'Precio un.' : 'Unit price'}</th>
+                          <th className="py-2 pr-3 text-right">{language === 'pt' ? 'Subtotal' : language === 'es' ? 'Subtotal' : 'Subtotal'}</th>
 
-                        <div className="grid grid-cols-[1fr_86px] gap-2">
-                          <input
-                            value={it.quantity}
-                            onChange={(e) => updateItemLine(idx, { quantity: e.target.value })}
-                            className="w-full rounded-lg border border-theme bg-transparent px-3 py-2 text-sm"
-                            placeholder={i.modal.quantityPlaceholder}
-                          />
-                          <select
-                            value={it.unit ?? ''}
-                            onChange={(e) => updateItemLine(idx, { unit: e.target.value })}
-                            className="w-full rounded-lg border border-theme bg-transparent px-3 py-2 text-sm"
-                            title="Unidade usada na quantidade e no preço unitário"
-                          >
-                            {(() => {
-                              const p = (productsQ.data?.products ?? []).find((p) => p.id === it.productId)
-                              const base = p?.unit
-                              const opts = base === 'gr' || base === 'g' ? ['gr', 'kg'] : base === 'kg' ? ['kg', 'gr'] : base === 'ml' ? ['ml', 'l'] : base === 'l' ? ['l', 'ml'] : base === 'un' ? ['un', 'dz'] : base === 'dz' ? ['dz', 'un'] : base ? [base] : []
-                              return opts.map((u) => (
-                                <option key={u} value={u}>
-                                  {u}
-                                </option>
-                              ))
-                            })()}
-                          </select>
-                        </div>
+                          <th className="py-2 pr-3 text-right">{language === 'pt' ? 'Desconto' : language === 'es' ? 'Descuento' : 'Discount'}</th>
 
-                        <input
-                          value={it.unitPrice}
-                          onChange={(e) => updateItemLine(idx, { unitPrice: formatMoneyFromInput(e.target.value, moneyLocale) })}
-                          className="w-full rounded-lg border border-theme bg-transparent px-3 py-2 text-sm"
-                          inputMode="numeric"
-                          placeholder={language === 'pt' ? 'Preço un.' : language === 'es' ? 'Precio un.' : 'Unit price'}
-                        />
+                          <th className="py-2 pr-3 text-right">{language === 'pt' ? 'Total' : language === 'es' ? 'Total' : 'Total'}</th>
+                          <th className="py-2 text-right">{language === 'pt' ? 'Ações' : language === 'es' ? 'Acciones' : 'Actions'}</th>
+                        </tr>
+                      </thead>
 
-                        {draft.discountMode === 'PER_ITEM' ? (
-                          <>
-                            <select
-                              value={it.discountType ?? 'VALUE'}
-                              onChange={(e) => {
-                                const nextType = e.target.value as any
-                                updateItemLine(idx, {
-                                  discountType: nextType,
-                                  discountValue: nextType === 'VALUE' ? it.discountValue ?? '' : '',
-                                  discountPercent: nextType === 'PERCENT' ? it.discountPercent ?? '' : '',
-                                })
-                              }}
-                              className="w-full rounded-lg border border-theme bg-transparent px-3 py-2 text-sm"
-                            >
-                              <option value="VALUE">Desc. valor</option>
-                              <option value="PERCENT">Desc. %</option>
-                            </select>
+                      <tbody>
+                        {draft.items.map((it, idx) => {
+                          const qty = Number(String(it.quantity ?? '').replace(',', '.'))
+                          const unit = it.unitPrice?.trim() ? (parseMoneyToNumber(it.unitPrice, moneyLocale) ?? 0) : 0
+                          const subtotal = (Number.isFinite(qty) ? Math.max(0, qty) : 0) * Math.max(0, unit)
 
-                            {it.discountType === 'PERCENT' ? (
-                              <input
-                                value={it.discountPercent ?? ''}
-                                onChange={(e) => updateItemLine(idx, { discountPercent: e.target.value })}
-                                className="w-full rounded-lg border border-theme bg-transparent px-3 py-2 text-sm"
-                                inputMode="decimal"
-                                placeholder="%"
-                              />
-                            ) : (
-                              <input
-                                value={it.discountValue ?? ''}
-                                onChange={(e) => updateItemLine(idx, { discountValue: formatMoneyFromInput(e.target.value, moneyLocale) })}
-                                className="w-full rounded-lg border border-theme bg-transparent px-3 py-2 text-sm"
-                                inputMode="numeric"
-                                placeholder={language === 'pt' ? 'Desc.' : language === 'es' ? 'Desc.' : 'Disc.'}
-                              />
-                            )}
-                          </>
-                        ) : null}
+                          let disc = 0
+                          if (draft.discountMode === 'PER_ITEM') {
+                            const dv = it.discountValue?.trim() ? Math.max(0, parseMoneyToNumber(it.discountValue, moneyLocale) ?? 0) : 0
+                            if (dv > 0) {
+                              disc = dv
+                            } else {
+                              const p = clampPercent(Number(String(it.discountPercent ?? '').replace(',', '.')))
+                              disc = (subtotal * p) / 100
+                            }
 
-                        <div className="flex items-center justify-between gap-2 sm:flex-col sm:items-end">
-                          <div className="text-xs tabular-nums text-[var(--text-muted)]">
-                            {formatMoneyDisplay(
-                              (() => {
-                                const qty = Number(String(it.quantity ?? '').replace(',', '.'))
-                                const unit = it.unitPrice?.trim() ? (parseMoneyToNumber(it.unitPrice, moneyLocale) ?? 0) : 0
-                                const subtotal = (Number.isFinite(qty) ? Math.max(0, qty) : 0) * Math.max(0, unit)
+                            // keep total > 0 when subtotal > 0
+                            if (subtotal > 0) disc = Math.min(Math.max(0, subtotal - 0.01), Math.max(0, disc))
+                            else disc = 0
+                          }
 
-                                let disc = 0
-                                if (draft.discountMode === 'PER_ITEM') {
-                                  const dt = (it.discountType ?? 'VALUE') as any
-                                  if (dt === 'PERCENT') {
-                                    const p = clampPercent(Number(String(it.discountPercent ?? '').replace(',', '.')))
-                                    disc = (subtotal * p) / 100
-                                  } else {
-                                    disc = it.discountValue?.trim() ? Math.max(0, parseMoneyToNumber(it.discountValue, moneyLocale) ?? 0) : 0
+                          const total = Math.max(0, subtotal - disc)
+
+                          return (
+                            <tr key={idx} className="border-t border-theme align-top">
+                              <td className="py-2 pr-3">
+                                <SearchSelect
+                                  value={
+                                    it.productId
+                                      ? (() => {
+                                          const found = (productsQ.data?.products ?? []).find((p) => p.id === it.productId)
+                                          const label = found ? `${found.name} (${found.unit})` : '—'
+                                          return { id: it.productId, label }
+                                        })()
+                                      : null
                                   }
-                                  disc = Math.min(subtotal, disc)
-                                }
+                                  onChange={(next) => updateItemLine(idx, { productId: next?.id ?? '' })}
+                                  minChars={2}
+                                  labels={{
+                                    placeholder: language === 'pt' ? 'Selecione um produto…' : language === 'es' ? 'Selecciona un producto…' : 'Select a product…',
+                                    hint:
+                                      language === 'pt'
+                                        ? 'Digite pelo menos 2 letras…'
+                                        : language === 'es'
+                                          ? 'Escribe 2+ letras…'
+                                          : 'Type at least 2 letters…',
+                                    loading: language === 'pt' ? 'Buscando…' : language === 'es' ? 'Buscando…' : 'Searching…',
+                                    empty:
+                                      language === 'pt'
+                                        ? 'Nenhum produto encontrado.'
+                                        : language === 'es'
+                                          ? 'No se encontraron productos.'
+                                          : 'No products found.',
+                                  }}
+                                  fetcher={async (q) => {
+                                    const res = await fetch(`/api/products?kind=FINISHED&q=${encodeURIComponent(q)}`)
+                                    if (!res.ok) throw new Error(await res.text())
+                                    const data = (await res.json()) as { products: Array<{ id: string; name: string; unit: string }> }
+                                    return (data.products ?? []).map((p) => ({ id: p.id, label: `${p.name} (${p.unit})` }))
+                                  }}
+                                />
+                              </td>
 
-                                return Math.max(0, subtotal - disc)
-                              })(),
-                              moneyLocale,
-                              currency,
-                            )}
-                          </div>
+                              <td className="py-2 pr-3">
+                                <input
+                                  value={it.quantity}
+                                  onChange={(e) => updateItemLine(idx, { quantity: e.target.value })}
+                                  className="w-24 rounded-lg border border-theme bg-transparent px-3 py-2 text-sm tabular-nums text-right"
+                                  placeholder={i.modal.quantityPlaceholder}
+                                />
+                              </td>
 
-                          <button
-                            type="button"
-                            className="btn btn-danger-soft"
-                            onClick={() => removeItemLine(idx)}
-                          >
-                            {i.modal.removeItem}
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                              <td className="py-2 pr-3">
+                                <select
+                                  value={it.unit ?? ''}
+                                  onChange={(e) => updateItemLine(idx, { unit: e.target.value })}
+                                  className="w-24 rounded-lg border border-theme bg-transparent px-3 py-2 text-sm"
+                                  title="Unidade usada na quantidade e no preço unitário"
+                                >
+                                  {(() => {
+                                    const p = (productsQ.data?.products ?? []).find((p) => p.id === it.productId)
+                                    const base = p?.unit
+                                    const opts =
+                                      base === 'gr' || base === 'g'
+                                        ? ['gr', 'kg']
+                                        : base === 'kg'
+                                          ? ['kg', 'gr']
+                                          : base === 'ml'
+                                            ? ['ml', 'l']
+                                            : base === 'l'
+                                              ? ['l', 'ml']
+                                              : base === 'un'
+                                                ? ['un', 'dz']
+                                                : base === 'dz'
+                                                  ? ['dz', 'un']
+                                                  : base
+                                                    ? [base]
+                                                    : []
+                                    return opts.map((u) => (
+                                      <option key={u} value={u}>
+                                        {u}
+                                      </option>
+                                    ))
+                                  })()}
+                                </select>
+                              </td>
+
+                              <td className="py-2 pr-3">
+                                <input
+                                  value={it.unitPrice}
+                                  onChange={(e) => updateItemLine(idx, { unitPrice: formatMoneyFromInput(e.target.value, moneyLocale) })}
+                                  className="w-32 rounded-lg border border-theme bg-transparent px-3 py-2 text-sm tabular-nums text-right"
+                                  inputMode="numeric"
+                                  placeholder={language === 'pt' ? 'Preço un.' : language === 'es' ? 'Precio un.' : 'Unit price'}
+                                />
+                              </td>
+
+                              <td className="py-2 pr-3 text-right">
+                                <div className="min-w-[96px] tabular-nums text-[var(--text-muted)]">
+                                  {formatMoneyDisplay(subtotal, moneyLocale, currency)}
+                                </div>
+                              </td>
+
+                              <td className="py-2 pr-3 text-right">
+                                <div className="flex justify-end gap-2">
+                                  <input
+                                    value={it.discountPercent ?? ''}
+                                    onChange={(e) => updateItemLine(idx, { discountPercent: e.target.value })}
+                                    className="w-20 rounded-lg border border-theme bg-transparent px-3 py-2 text-sm tabular-nums text-right"
+                                    inputMode="decimal"
+                                    placeholder="%"
+                                    disabled={draft.discountMode !== 'PER_ITEM'}
+                                  />
+                                  <input
+                                    value={it.discountValue ?? ''}
+                                    onChange={(e) => updateItemLine(idx, { discountValue: formatMoneyFromInput(e.target.value, moneyLocale) })}
+                                    className="w-32 rounded-lg border border-theme bg-transparent px-3 py-2 text-sm tabular-nums text-right"
+                                    inputMode="numeric"
+                                    placeholder={language === 'pt' ? 'R$' : language === 'es' ? '$' : '$'}
+                                    disabled={draft.discountMode !== 'PER_ITEM'}
+                                  />
+                                </div>
+                              </td>
+
+                              <td className="py-2 pr-3 text-right">
+                                <div className="min-w-[96px] tabular-nums text-[var(--text-muted)]">
+                                  {formatMoneyDisplay(total, moneyLocale, currency)}
+                                </div>
+                              </td>
+
+                              <td className="py-2 text-right">
+                                <button
+                                  type="button"
+                                  className="btn btn-danger-soft btn-sm whitespace-nowrap"
+                                  onClick={() => removeItemLine(idx)}
+                                  aria-label={i.modal.removeItem}
+                                  title={i.modal.removeItem}
+                                >
+                                  {i.modal.removeItem}
+                                </button>
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
                   </div>
                 )}
 
-                <div className="mt-4 flex flex-col gap-1 border-t border-theme pt-3 text-sm">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[var(--text-muted)]">Subtotal</span>
-                    <span className="tabular-nums">{formatMoneyDisplay(liveTotals.subtotal, moneyLocale, currency)}</span>
+                <div className="mt-4 grid gap-3 border-t border-theme pt-3 sm:grid-cols-[1fr_280px] sm:items-start">
+                  {/** Discount config (kept close to totals for clarity) */}
+                  <div className="min-w-0">
+                    <div className="text-xs font-medium text-[var(--muted-foreground)]">{language === 'pt' ? 'Desconto' : language === 'es' ? 'Descuento' : 'Discount'}</div>
+
+                    <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-4">
+                      <select
+                        value={draft.discountMode}
+                        onChange={(e) => {
+                          const nextMode = e.target.value as any
+                          setDraft((d) => {
+                            // If switching away from per-item discounts, clear per-item fields.
+                            if (nextMode !== 'PER_ITEM' && d.discountMode === 'PER_ITEM') {
+                              return {
+                                ...d,
+                                discountMode: nextMode,
+                                items: d.items.map((it) => ({
+                                  ...it,
+                                  discountType: null,
+                                  discountValue: '',
+                                  discountPercent: '',
+                                })),
+                              }
+                            }
+
+                            return { ...d, discountMode: nextMode }
+                          })
+                        }}
+                        className="w-full rounded-lg border border-theme bg-transparent px-3 py-2"
+                        disabled={hasAnyItemDiscount}
+                        title={
+                          hasAnyItemDiscount
+                            ? language === 'pt'
+                              ? 'Desconto por item ativo: limpe os descontos por item para usar desconto no total.'
+                              : language === 'es'
+                                ? 'Descuento por ítem activo: limpia los descuentos por ítem para usar descuento en el total.'
+                                : 'Per-item discount active: clear item discounts to use total discount.'
+                            : undefined
+                        }
+                      >
+                        <option value="SUBTOTAL">No total</option>
+                        <option value="PER_ITEM">Por item</option>
+                      </select>
+
+                      <select
+                        value={draft.discountType}
+                        onChange={(e) => {
+                          const nextType = e.target.value as any
+                          setDraft((d) => {
+                            // keep only one filled; wipe the other to avoid ambiguity
+                            if (nextType === 'VALUE') return { ...d, discountType: nextType, discountPercent: '' }
+                            return { ...d, discountType: nextType, discountValue: '' }
+                          })
+                        }}
+                        className="w-full rounded-lg border border-theme bg-transparent px-3 py-2"
+                        disabled={draft.discountMode !== 'SUBTOTAL' || hasAnyItemDiscount}
+                      >
+                        <option value="VALUE">Valor</option>
+                        <option value="PERCENT">%</option>
+                      </select>
+
+                      {draft.discountMode === 'SUBTOTAL' ? (
+                        <input
+                          value={draft.discountValue}
+                          onChange={(e) => setDraft((d) => ({ ...d, discountValue: formatMoneyFromInput(e.target.value, moneyLocale) }))}
+                          inputMode="numeric"
+                          placeholder={language === 'pt' ? 'R$' : language === 'es' ? '$' : '$'}
+                          className="w-full rounded-lg border border-theme bg-transparent px-3 py-2"
+                          disabled={draft.discountType !== 'VALUE' || hasAnyItemDiscount}
+                        />
+                      ) : (
+                        <div className="hidden sm:block" />
+                      )}
+
+                      {draft.discountMode === 'SUBTOTAL' ? (
+                        <input
+                          value={draft.discountPercent}
+                          onChange={(e) => setDraft((d) => ({ ...d, discountPercent: e.target.value }))}
+                          inputMode="decimal"
+                          placeholder="%"
+                          className="w-full rounded-lg border border-theme bg-transparent px-3 py-2"
+                          disabled={draft.discountType !== 'PERCENT' || hasAnyItemDiscount}
+                        />
+                      ) : (
+                        <div className="text-xs text-[var(--text-muted)] sm:col-span-2">Configure os descontos na seção de itens.</div>
+                      )}
+                    </div>
+
+                    {hasAnyItemDiscount ? (
+                      <div className="mt-2 text-xs text-[var(--text-muted)]">
+                        {language === 'pt'
+                          ? 'Há desconto por item. O desconto no total fica desativado até você limpar os descontos dos itens.'
+                          : language === 'es'
+                            ? 'Hay descuento por ítem. El descuento en el total queda desactivado hasta que limpies los descuentos de los ítems.'
+                            : 'Per-item discount is active. Total discount is disabled until you clear item discounts.'}
+                      </div>
+                    ) : null}
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-[var(--text-muted)]">Desconto</span>
-                    <span className="tabular-nums">{formatMoneyDisplay(liveTotals.discount, moneyLocale, currency)}</span>
-                  </div>
-                  <div className="flex items-center justify-between font-semibold">
-                    <span>Total</span>
-                    <span className="tabular-nums">{formatMoneyDisplay(liveTotals.total, moneyLocale, currency)}</span>
+
+                  {/** Totals */}
+                  <div className="flex flex-col gap-1 text-sm">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[var(--text-muted)]">{language === 'pt' ? 'Total bruto' : language === 'es' ? 'Total bruto' : 'Gross total'}</span>
+                      <span className="tabular-nums">{formatMoneyDisplay(liveTotals.subtotal, moneyLocale, currency)}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[var(--text-muted)]">{language === 'pt' ? 'Desconto' : language === 'es' ? 'Descuento' : 'Discount'}</span>
+                      <span className="tabular-nums">{formatMoneyDisplay(liveTotals.discount, moneyLocale, currency)}</span>
+                    </div>
+                    <div className="flex items-center justify-between font-semibold">
+                      <span>{language === 'pt' ? 'Total após desconto' : language === 'es' ? 'Total tras descuento' : 'Total after discount'}</span>
+                      <span className="tabular-nums">{formatMoneyDisplay(liveTotals.total, moneyLocale, currency)}</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <label className="grid gap-1">
-                  <FieldLabel>Desconto</FieldLabel>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <select
-                      value={draft.discountMode}
-                      onChange={(e) => setDraft((d) => ({ ...d, discountMode: e.target.value as any }))}
-                      className="w-full rounded-lg border border-theme bg-transparent px-3 py-2"
-                    >
-                      <option value="SUBTOTAL">No total</option>
-                      <option value="PER_ITEM">Por item</option>
-                    </select>
-
-                    <select
-                      value={draft.discountType}
-                      onChange={(e) => {
-                        const nextType = e.target.value as any
-                        setDraft((d) => {
-                          // keep only one filled; wipe the other to avoid ambiguity
-                          if (nextType === 'VALUE') return { ...d, discountType: nextType, discountPercent: '' }
-                          return { ...d, discountType: nextType, discountValue: '' }
-                        })
-                      }}
-                      className="w-full rounded-lg border border-theme bg-transparent px-3 py-2"
-                      disabled={draft.discountMode !== 'SUBTOTAL'}
-                    >
-                      <option value="VALUE">Valor</option>
-                      <option value="PERCENT">%</option>
-                    </select>
-                  </div>
-
-                  {draft.discountMode === 'SUBTOTAL' ? (
-                    <div className="mt-2 grid grid-cols-2 gap-2">
-                      <input
-                        value={draft.discountValue}
-                        onChange={(e) => setDraft((d) => ({ ...d, discountValue: formatMoneyFromInput(e.target.value, moneyLocale) }))}
-                        inputMode="numeric"
-                        placeholder="Valor"
-                        className="w-full rounded-lg border border-theme bg-transparent px-3 py-2"
-                        disabled={draft.discountType !== 'VALUE'}
-                      />
-                      <input
-                        value={draft.discountPercent}
-                        onChange={(e) => setDraft((d) => ({ ...d, discountPercent: e.target.value }))}
-                        inputMode="decimal"
-                        placeholder="%"
-                        className="w-full rounded-lg border border-theme bg-transparent px-3 py-2"
-                        disabled={draft.discountType !== 'PERCENT'}
-                      />
-                    </div>
-                  ) : (
-                    <div className="mt-2 text-xs text-[var(--text-muted)]">Configure os descontos na seção de itens.</div>
-                  )}
-                </label>
               </div>
 
               <label className="grid gap-1">

@@ -42,6 +42,12 @@ yarn-error.log*
 # vercel
 .vercel
 
+# salesforce tooling cache (should never be committed)
+.sfdx/
+
+# scratch/tmp scripts
+/tmp_*.js
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

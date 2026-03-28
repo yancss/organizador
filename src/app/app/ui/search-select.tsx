@@ -67,30 +67,42 @@ export default function SearchSelect({
 
   return (
     <div ref={ref} className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between gap-2 rounded-lg border border-theme bg-transparent px-3 py-2 text-left"
-      >
-        <span className={display ? 'text-[var(--foreground)]' : 'text-[var(--muted-foreground)]'}>
-          {display || labels.placeholder}
-        </span>
-        <span className="text-[var(--muted-foreground)]">▾</span>
-      </button>
+      {/**
+       * Inline combobox: type directly in the field (no extra input below).
+       * When closed, it shows the selected label; when open, it becomes the query.
+       */}
+      <div className="relative">
+        <input
+          value={open ? q : display}
+          onChange={(e) => {
+            const next = e.target.value
+            if (!open) setOpen(true)
+            setQ(next)
+          }}
+          onFocus={() => {
+            setOpen(true)
+            setQ('')
+          }}
+          placeholder={labels.placeholder}
+          className="w-full rounded-lg border border-theme bg-transparent px-3 py-2 text-sm"
+        />
+        <button
+          type="button"
+          className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)]"
+          onClick={() => {
+            setOpen((v) => !v)
+            setQ('')
+          }}
+          aria-label="Toggle"
+        >
+          ▾
+        </button>
+      </div>
 
       {open ? (
         <div className="surface absolute z-30 mt-2 w-full overflow-hidden rounded-xl border border-theme shadow-[0_10px_30px_rgba(0,0,0,0.18)]">
-          <div className="p-2">
-            <input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder={labels.placeholder}
-              className="w-full rounded-lg border border-theme bg-transparent px-3 py-2 text-sm"
-              autoFocus
-            />
-            <div className="mt-2 text-xs text-[var(--muted-foreground)]">
-              {q.trim().length < minChars ? labels.hint : loading ? labels.loading : ''}
-            </div>
+          <div className="px-3 py-2 text-xs text-[var(--muted-foreground)]">
+            {q.trim().length < minChars ? labels.hint : loading ? labels.loading : ''}
           </div>
 
           <div className="max-h-64 overflow-y-auto border-t border-theme">
