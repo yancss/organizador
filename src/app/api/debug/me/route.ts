@@ -3,6 +3,11 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 
 export async function GET(req: Request) {
+  // Debug endpoint: never expose session details in non-development environments.
+  if (process.env.NODE_ENV !== 'development') {
+    return Response.json({ error: 'NOT_FOUND' }, { status: 404 })
+  }
+
   const session = await getServerSession(authOptions)
 
   const url = new URL(req.url)
