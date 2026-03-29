@@ -83,3 +83,22 @@ Implementação recomendada:
 2) Revisão de scoping `workspaceId` em todos os endpoints
 3) Revisão RBAC (bloquear admin routes para não-admin)
 4) Rodar varredura de endpoints que aceitam `id` e garantir ownership
+
+---
+
+## 8) Auditoria (2026-03-29) — achados principais
+### Ajustes já aplicados
+- `DISABLE_AUTH` bloqueado fora de `NODE_ENV=development`.
+- Rate limit (best-effort) no `middleware.ts` para:
+  - `/api/auth/*`
+  - `/api/barcodes/lookup`
+  - `*/scan`
+- `GET /api/debug/me` desativado fora de development.
+- `PATCH /api/admin/users/[id]/session-policy` restrito a **SUPERADMIN**.
+
+### Itens pendentes (ownership/workspace)
+Rotas que aceitam IDs relacionados e **precisam validar ownership no workspace** (evitar vínculo cross-tenant):
+- `POST /api/orders` (`src/app/api/orders/route.ts`): validar `clientId` no workspace.
+- `POST /api/deliveries` (`src/app/api/deliveries/route.ts`): validar `items[].productId` no workspace + `kind=FINISHED`; validar/derivar `clientId`.
+- `POST /api/payments` (`src/app/api/payments/route.ts`): se `clientId` for enviado, validar no workspace (ou remover do input e derivar do SalesOrder).
+- `POST /api/refunds` (`src/app/api/refunds/route.ts`): se `clientId` for enviado, validar no workspace (ou remover do input e derivar de payment/salesOrder).

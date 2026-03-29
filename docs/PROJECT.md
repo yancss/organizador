@@ -1,5 +1,14 @@
 # Organizador — Documentação do Projeto (robusta)
 
+## Premissas de mudança (Guardian)
+Sempre que formos alterar algo no Guardian, seguir:
+1) Implementar primeiro em **dev-local**.
+2) Subir para **UAT somente após teste e autorização do Jorjs**.
+3) Após qualquer alteração, fazer checagem de **segurança** (scoping workspace/RBAC/rate limit/debug endpoints).
+4) Se adicionar/alterar campos de UI: verificar **traduções (pt/es/en)** e **cores/tema**.
+5) Lembrar sempre do caminho do repo local: `D:\ProjetosT\organizador`.
+
+
 > Arquivo único com visão completa do projeto: setup, deploy, arquitetura, auth, workspaces, APIs, decisões e roadmap.
 
 ## 1) Visão geral
