@@ -72,6 +72,12 @@ export async function POST(req: Request) {
   })
   if (!so) return Response.json({ error: 'SALES_ORDER_NOT_FOUND' }, { status: 404 })
 
+  // Validate optional clientId override
+  if (parsed.data.clientId) {
+    const ok = await prisma.client.findFirst({ where: { id: parsed.data.clientId, workspaceId: wsId }, select: { id: true } })
+    if (!ok) return Response.json({ error: 'CLIENT_NOT_FOUND' }, { status: 404 })
+  }
+
   const payment = await prisma.payment.create({
     data: {
       workspaceId: wsId,

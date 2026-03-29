@@ -110,6 +110,24 @@ export async function POST(req: Request) {
   })
   if (!so) return Response.json({ error: 'SALES_ORDER_NOT_FOUND' }, { status: 404 })
 
+  // Validate items products (if provided) belong to workspace and are FINISHED
+  if (parsed.data.items?.length) {
+    const productIds = [...new Set(parsed.data.items.map((it) => it.productId))]
+    const allowed = await prisma.product.findMany({
+      where: { workspaceId: wsId, id: { in: productIds }, active: true, kind: 'FINISHED' },
+      select: { id: true },
+    })
+    const allowedSet = new Set(allowed.map((p) => p.id))
+    const invalid = productIds.filter((pid) => !allowedSet.has(pid))
+    if (invalid.length) return Response.json({ error: 'INVALID_ITEM_PRODUCT', invalid }, { status: 400 })
+  }
+
+  // Validate clientId override (optional)
+  if (parsed.data.clientId && parsed.data.clientId !== so.clientId) {
+    const ok = await prisma.client.findFirst({ where: { id: parsed.data.clientId, workspaceId: wsId }, select: { id: true } })
+    if (!ok) return Response.json({ error: 'CLIENT_NOT_FOUND' }, { status: 404 })
+  }
+
   const method = parsed.data.method ?? 'PICKUP'
 
   if (method === 'DELIVERY') {

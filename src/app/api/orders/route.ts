@@ -115,6 +115,13 @@ export async function POST(req: Request) {
     return Response.json({ error: 'INVALID_ITEM_PRODUCT', invalid }, { status: 400 })
   }
 
+  // Validate client belongs to the workspace
+  const client = await prisma.client.findFirst({
+    where: { id: parsed.data.clientId, workspaceId: wsId },
+    select: { id: true },
+  })
+  if (!client) return Response.json({ error: 'CLIENT_NOT_FOUND' }, { status: 404 })
+
   const discountMode = parsed.data.discountMode ?? 'SUBTOTAL'
 
   // Normalize item units/prices to the product base unit.
