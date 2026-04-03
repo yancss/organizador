@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { api } from '@/app/app/api-client'
 import { toastCreated, toastFailedToSave } from '@/app/app/toast'
@@ -196,11 +196,14 @@ export default function SalesOrderDetailsPage() {
     if (!editingDiscountMode) setDiscountModeDraft(((order.discountMode ?? 'SUBTOTAL') as any) === 'PER_ITEM' ? 'PER_ITEM' : 'SUBTOTAL')
   }, [order, editingName, editingClient, editingDeliveryAt, editingStatus, editingDiscountMode])
 
-  const productLabelById = useMemo(() => {
+  // NOTE: this used to be memoized by `order?.items`, but React Compiler flags it because
+  // the dependency array may include values that can be mutated later.
+  // This map is tiny and cheap; compute it per-render for correctness and clean lint.
+  const productLabelById = (() => {
     const m = new Map<string, string>()
     for (const it of order?.items ?? []) m.set(it.product.id, `${it.product.name} (${it.product.unit})`)
     return m
-  }, [order?.items])
+  })()
 
   return (
     <div className="space-y-6">
