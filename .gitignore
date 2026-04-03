@@ -48,6 +48,15 @@ yarn-error.log*
 # scratch/tmp scripts
 /tmp_*.js
 
+# OpenClaw workspace artifacts (never commit)
+/.openclaw/
+/AGENTS.md
+/HEARTBEAT.md
+/IDENTITY.md
+/SOUL.md
+/TOOLS.md
+/USER.md
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

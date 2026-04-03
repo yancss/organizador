@@ -7,6 +7,54 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ============================
+// Fiscal (multinational skeleton)
+// ============================
+
+// Limited set for now; designed to expand.
+enum CountryCode {
+  BR
+  PT
+  ES
+}
+
+enum TaxIdType {
+  CNPJ
+  CPF
+  NIF
+  CIF
+}
+
+enum CompanyBranchType {
+  HQ
+  BRANCH
+}
+
+enum FiscalDocumentKind {
+  SALE
+  PURCHASE
+  SERVICE
+}
+
+enum FiscalDocumentStatus {
+  DRAFT
+  ISSUED
+  CANCELLED
+}
+
+enum BrNfeEnvironment {
+  HOMOLOGATION
+  PRODUCTION
+}
+
+enum BrNfeStatus {
+  DRAFT
+  PENDING_TRANSMISSION
+  AUTHORIZED
+  REJECTED
+  CANCELLED
+}
+
 enum UserRole {
   USER
   SUPERADMIN
@@ -61,15 +109,15 @@ model Workspace {
   createdById String?
   updatedById String?
 
-  salesOrders    SalesOrder[]
-  purchaseOrders PurchaseOrder[]
-  clients        Client[]
-  products       Product[]
+  salesOrders     SalesOrder[]
+  purchaseOrders  PurchaseOrder[]
+  clients         Client[]
+  products        Product[]
   productBarcodes ProductBarcode[]
-  inventories    Inventory[]
-  purchases      Purchase[]
-  consumptions   Consumption[]
-  recipes        Recipe[]
+  inventories     Inventory[]
+  purchases       Purchase[]
+  consumptions    Consumption[]
+  recipes         Recipe[]
 
   // Logistics + Finance (sales flow)
   deliveries          Delivery[]
@@ -96,6 +144,13 @@ model Workspace {
   updatedAt         DateTime           @updatedAt
   workspaceSettings WorkspaceSetting[]
   auditEvents       AuditEvent[]
+
+  // Fiscal
+  companies           Company[]
+  companyBranches     CompanyBranch[]
+  fiscalDocuments     FiscalDocument[]
+  fiscalDocumentLines FiscalDocumentLine[]
+  brNfes              BrNfe[]
 }
 
 model WorkspaceMember {
@@ -274,9 +329,10 @@ model SalesOrder {
   consumptions     Consumption[]
   financialEntries FinancialEntry[]
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  refunds   Refund[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  refunds         Refund[]
+  fiscalDocuments FiscalDocument[]
 
   @@unique([workspaceId, code])
   @@index([workspaceId])
@@ -448,8 +504,9 @@ model Client {
   deliveries  Delivery[]
   refunds     Refund[]
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  fiscalDocuments FiscalDocument[]
 
   @@unique([workspaceId, name])
   @@index([workspaceId])
@@ -510,18 +567,19 @@ model Product {
   recipeItems     RecipeItem[]
   recipesAsFinal  Recipe[]         @relation("RecipeProductFinal")
 
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
-  purchaseOrderItems PurchaseOrderItem[]
-  deliveryItems      DeliveryItem[]
-  barcodes           ProductBarcode[]
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  purchaseOrderItems  PurchaseOrderItem[]
+  deliveryItems       DeliveryItem[]
+  barcodes            ProductBarcode[]
+  fiscalDocumentLines FiscalDocumentLine[]
 
   @@unique([workspaceId, name])
   @@index([workspaceId])
 }
 
 model ProductBarcode {
-  id          String        @id @default(cuid())
+  id          String @id @default(cuid())
   workspaceId String
   productId   String
 
@@ -1005,8 +1063,9 @@ model Delivery {
   items      DeliveryItem[]
   receivable Receivable?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  fiscalDocuments FiscalDocument[]
 
   @@index([workspaceId])
   @@index([salesOrderId])
@@ -1213,4 +1272,193 @@ model Refund {
   @@index([status])
   @@index([requestedAt])
   @@index([completedAt])
+}
+
+// ============================
+// Fiscal (multinational skeleton)
+// ============================
+
+model Company {
+  id          String @id @default(cuid())
+  workspaceId String
+
+  // Group/legal entity container. Branches (HQ/filiais) issue documents.
+  legalName String
+  tradeName String?
+  country   CountryCode
+
+  createdById String?
+  updatedById String?
+
+  workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  branches  CompanyBranch[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([workspaceId])
+}
+
+model CompanyBranch {
+  id          String @id @default(cuid())
+  workspaceId String
+  companyId   String
+
+  type CompanyBranchType @default(HQ)
+  code String            @db.VarChar(32)
+
+  country   CountryCode
+  taxIdType TaxIdType
+  taxId     String      @db.VarChar(32)
+
+  // Brazil-specific (optional until BR is configured)
+  brIe  String? @db.VarChar(32)
+  brCrt Int?
+
+  // NFe numbering is reserved on issuance (not on draft creation)
+  brNfeSeries      String?           @db.VarChar(16)
+  brNfeNextNumber  Int?
+  brNfeEnvironment BrNfeEnvironment?
+
+  addressLine1 String?
+  addressLine2 String?
+  city         String?
+  state        String? @db.VarChar(32)
+  postalCode   String? @db.VarChar(16)
+
+  createdById String?
+  updatedById String?
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  company   Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  fiscalDocuments FiscalDocument[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([workspaceId, companyId, code])
+  @@index([workspaceId])
+  @@index([companyId])
+  @@index([country])
+}
+
+model FiscalDocument {
+  id          String @id @default(cuid())
+  workspaceId String
+  branchId    String
+
+  country CountryCode
+  kind    FiscalDocumentKind   @default(SALE)
+  status  FiscalDocumentStatus @default(DRAFT)
+
+  // Optional source references (supports invoicing without delivery)
+  salesOrderId String?
+  deliveryId   String?
+
+  // Party snapshot (keep immutable even if client changes later)
+  clientId           String?
+  clientName         String?
+  clientTaxIdType    TaxIdType?
+  clientTaxId        String?      @db.VarChar(32)
+  clientAddressLine1 String?
+  clientAddressLine2 String?
+  clientCity         String?
+  clientState        String?      @db.VarChar(32)
+  clientPostalCode   String?      @db.VarChar(16)
+  clientCountry      CountryCode?
+
+  // Totals (taxes are country-specific and may be expanded later)
+  subtotal   Decimal @default(0) @db.Decimal(12, 2)
+  discount   Decimal @default(0) @db.Decimal(12, 2)
+  taxesTotal Decimal @default(0) @db.Decimal(12, 2)
+  total      Decimal @default(0) @db.Decimal(12, 2)
+
+  createdById String?
+  updatedById String?
+
+  workspace  Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  branch     CompanyBranch @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  salesOrder SalesOrder?   @relation(fields: [salesOrderId], references: [id], onDelete: SetNull)
+  delivery   Delivery?     @relation(fields: [deliveryId], references: [id], onDelete: SetNull)
+  client     Client?       @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  lines FiscalDocumentLine[]
+  brNfe BrNfe?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([workspaceId])
+  @@index([branchId])
+  @@index([status])
+  @@index([kind])
+  @@index([salesOrderId])
+  @@index([deliveryId])
+  @@index([clientId])
+}
+
+model FiscalDocumentLine {
+  id          String @id @default(cuid())
+  workspaceId String
+  documentId  String
+
+  // PRODUCT or SERVICE line (simple string for now)
+  lineType String @db.VarChar(16)
+
+  productId   String?
+  description String
+
+  qty      Decimal @default(0) @db.Decimal(12, 3)
+  unit     String? @db.VarChar(16)
+  price    Decimal @default(0) @db.Decimal(12, 4)
+  discount Decimal @default(0) @db.Decimal(12, 2)
+  total    Decimal @default(0) @db.Decimal(12, 2)
+
+  // Country-specific tax breakdown (skeleton)
+  taxesJson Json?
+
+  createdById String?
+  updatedById String?
+
+  workspace Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  document  FiscalDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  product   Product?       @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([workspaceId])
+  @@index([documentId])
+  @@index([productId])
+}
+
+model BrNfe {
+  id          String @id @default(cuid())
+  workspaceId String
+  documentId  String @unique
+
+  environment BrNfeEnvironment @default(HOMOLOGATION)
+  status      BrNfeStatus      @default(DRAFT)
+
+  series    String? @db.VarChar(16)
+  number    Int?
+  accessKey String? @db.VarChar(64)
+
+  xmlDraft      String?
+  xmlAuthorized String?
+  protocol      String?
+  rejection     String?
+
+  createdById String?
+  updatedById String?
+
+  workspace Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  document  FiscalDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([workspaceId])
+  @@index([status])
 }
