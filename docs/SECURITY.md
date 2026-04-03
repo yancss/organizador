@@ -69,7 +69,24 @@ Implementação recomendada:
 
 ---
 
-## 6) Headers e Hardening (Next.js)
+## 6) Dependências (npm audit)
+### Política
+- Manter `npm audit --omit=dev` **zerado** (ou justificar exceções).
+- Prioridade:
+  1) **high/critical**
+  2) moderate
+  3) low
+
+### Remediações aplicadas (2026-04-03)
+- **Removido `xlsx`** do projeto (advisories high sem fix disponível; não havia uso no `src/`).
+- **Atualizado `nodemailer` para `8.0.4`** (corrige advisory high reportado pelo `npm audit`).
+  - Nota: `next-auth@4.24.13` declara `peerOptional nodemailer@^7.x`. Em installs recentes, pode ser necessário usar `npm i --legacy-peer-deps`.
+- **Atualizado Prisma para `6.19.3`** (`prisma` e `@prisma/client`) para remover advisory high transitivo via `@prisma/config`/`effect`.
+- **Atualizado Next.js para `16.2.2`** para remover advisory moderate (série 16.1.x estava afetada).
+
+---
+
+## 7) Headers e Hardening (Next.js)
 - Adicionar headers básicos:
   - `Content-Security-Policy` (mesmo que inicial)
   - `X-Frame-Options` / `frame-ancestors`
@@ -78,7 +95,7 @@ Implementação recomendada:
 
 ---
 
-## 7) Pendências sugeridas (curto prazo)
+## 8) Pendências sugeridas (curto prazo)
 1) Rate limit em `/api/auth/*`
 2) Revisão de scoping `workspaceId` em todos os endpoints
 3) Revisão RBAC (bloquear admin routes para não-admin)
@@ -86,7 +103,7 @@ Implementação recomendada:
 
 ---
 
-## 8) Auditoria (2026-03-29) — achados principais
+## 9) Auditoria (2026-03-29) — achados principais
 ### Ajustes já aplicados
 - `DISABLE_AUTH` bloqueado fora de `NODE_ENV=development`.
 - Rate limit (best-effort) no `middleware.ts` para:

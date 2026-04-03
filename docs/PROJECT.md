@@ -25,12 +25,17 @@ Objetivo de produto:
 ---
 
 ## 2) Stack e dependências principais
-- `next` (App Router)
-- `prisma` / `@prisma/client`
+- `next` **16.2.2** (App Router)
+- `prisma` / `@prisma/client` **6.19.3**
 - `next-auth` v4
 - `@next-auth/prisma-adapter`
 - `bcryptjs`
-- `nodemailer` (infra de e-mail)
+- `nodemailer` **8.0.4** (infra de e-mail)
+
+Notas de segurança/instalação:
+- Manter `npm audit --omit=dev` zerado.
+- Por causa de um `peerOptional` do `next-auth@4` com `nodemailer@^7`, pode ser necessário instalar com:
+  - `npm i --legacy-peer-deps`
 
 Scripts relevantes (`package.json`):
 - `npm run dev`
