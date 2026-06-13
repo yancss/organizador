@@ -1,13 +1,19 @@
-import { PrismaClient } from '@prisma/client'
+import * as PrismaModule from '@prisma/client'
+import type { PrismaClient as PrismaClientType } from '@prisma/client'
 
+import { enqueueAuditLog } from './audit-outbox'
 import { getUserId } from './request-context'
 
 declare global {
   // eslint-disable-next-line no-var
-  var prisma: PrismaClient | undefined
+  var prisma: PrismaClientType | undefined
 }
 
-function withAuditExtension(p: PrismaClient) {
+const ENABLE_PRISMA_DEBUG_LOGS = process.env.PRISMA_DEBUG_LOGS === '1'
+const ENABLE_AUDIT_DEBUG_LOGS = process.env.AUDIT_DEBUG_LOGS === '1'
+const ENABLE_AUDIT_BEFORE_VALUES = process.env.AUDIT_BEFORE_VALUES === '1'
+
+function withAuditExtension(p: PrismaClientType) {
   // Models we expect to have audit fields (createdById/updatedById)
   const AUDITED = new Set([
     'Workspace',
@@ -183,6 +189,37 @@ function withAuditExtension(p: PrismaClient) {
     return null
   }
 
+  async function persistAuditLog(input: {
+    workspaceId: string
+    action: 'CREATE' | 'UPDATE' | 'DELETE'
+    actorUserId?: string | null
+    entityType?: string | null
+    entityId?: string | null
+    summary?: string | null
+    meta?: any
+    changesObj?: Record<string, { from: any; to: any }> | null
+  }) {
+    await enqueueAuditLog({
+      workspaceId: input.workspaceId,
+      category: 'CRUD',
+      action: input.action,
+      actorUserId: input.actorUserId ?? null,
+      entityType: input.entityType ?? null,
+      entityId: input.entityId ?? null,
+      summary: input.summary ?? null,
+      ...(input.meta !== undefined ? { meta: input.meta } : {}),
+      ...(input.changesObj
+        ? {
+            changes: Object.entries(input.changesObj).map(([field, v]) => ({
+              field,
+              from: (v as any).from ?? null,
+              to: (v as any).to ?? null,
+            })),
+          }
+        : {}),
+    })
+  }
+
   // Prisma v6: prefer query extensions over middleware ($use is removed from types).
   return p.$extends({
     query: {
@@ -194,7 +231,7 @@ function withAuditExtension(p: PrismaClient) {
           const modelLc = modelName.toLowerCase()
           const modelEntityType = modelName ? modelName[0].toUpperCase() + modelName.slice(1) : modelName
 
-          if (process.env.NODE_ENV !== 'production' && modelName) {
+          if (ENABLE_PRISMA_DEBUG_LOGS && modelName) {
             // eslint-disable-next-line no-console
             console.log('[prisma] op', { model: modelName, operation })
           }
@@ -250,7 +287,7 @@ function withAuditExtension(p: PrismaClient) {
 
           const shouldLog = Boolean(modelName && AUDIT_LOG_MODELS_LC.has(modelLc))
 
-          if (shouldLog && process.env.NODE_ENV !== 'production') {
+          if (shouldLog && ENABLE_AUDIT_DEBUG_LOGS) {
             // eslint-disable-next-line no-console
             console.log('[audit] op', { model: modelName, operation, actorUserId: actorUserId ?? null })
           }
@@ -258,7 +295,7 @@ function withAuditExtension(p: PrismaClient) {
           let before: any | null = null
           let changeKeys: string[] = []
 
-          if (shouldLog && operation === 'update') {
+          if (shouldLog && operation === 'update' && ENABLE_AUDIT_BEFORE_VALUES) {
             const data = (args as any)?.data
             if (data && typeof data === 'object') {
               changeKeys = Object.keys(data)
@@ -323,27 +360,14 @@ function withAuditExtension(p: PrismaClient) {
 
               const summary = `${action} ${modelName}${entityId ? `#${entityId}` : ''}`
 
-              await p.auditEvent.create({
-                data: {
-                  workspaceId,
-                  category: 'CRUD',
-                  action,
-                  actorUserId: actorUserId ?? null,
-                  entityType: modelEntityType,
-                  entityId: entityId ?? null,
-                  summary,
-                  ...(changesObj
-                    ? {
-                        changes: {
-                          create: Object.entries(changesObj).map(([field, v]) => ({
-                            field,
-                            from: (v as any).from ?? null,
-                            to: (v as any).to ?? null,
-                          })),
-                        },
-                      }
-                    : {}),
-                },
+              await persistAuditLog({
+                workspaceId,
+                action,
+                actorUserId,
+                entityType: modelEntityType,
+                entityId: entityId ?? null,
+                summary,
+                changesObj,
               })
             }
 
@@ -356,7 +380,7 @@ function withAuditExtension(p: PrismaClient) {
                 // We only log when we can safely infer workspaceId from where.
                 const workspaceId: string | undefined = extractWorkspaceId(where)
                 if (!workspaceId) {
-                  if (process.env.NODE_ENV !== 'production') {
+                  if (ENABLE_AUDIT_DEBUG_LOGS) {
                     // eslint-disable-next-line no-console
                     console.warn('[audit] skip updateMany: could not infer workspaceId', { model: modelName, where })
                   }
@@ -369,7 +393,7 @@ function withAuditExtension(p: PrismaClient) {
                 // If it looks like a single-record updateMany, fetch the current values first so we can log only real diffs.
                 let beforeMany: any | null = null
                 const keys = data && typeof data === 'object' ? Object.keys(data) : []
-                const canBefore = Boolean(entityId && keys.length)
+                const canBefore = ENABLE_AUDIT_BEFORE_VALUES && Boolean(entityId && keys.length)
 
                 if (canBefore) {
                   const select: Record<string, boolean> = { id: true, workspaceId: true }
@@ -399,24 +423,15 @@ function withAuditExtension(p: PrismaClient) {
                   typeof count === 'number' ? ` (${count})` : ''
                 }`
 
-                await p.auditEvent.create({
-                  data: {
-                    workspaceId,
-                    category: 'CRUD',
-                    action: 'UPDATE',
-                    actorUserId: actorUserId ?? null,
-                    entityType: modelEntityType,
-                    entityId,
-                    summary,
-                    changes: {
-                      create: Object.entries(changes).map(([field, v]) => ({
-                        field,
-                        from: (v as any).from ?? null,
-                        to: (v as any).to ?? null,
-                      })),
-                    },
-                    meta: { where },
-                  },
+                await persistAuditLog({
+                  workspaceId,
+                  action: 'UPDATE',
+                  actorUserId,
+                  entityType: modelEntityType,
+                  entityId,
+                  summary,
+                  changesObj: changes,
+                  meta: { where, diffMode: beforeMany ? 'before-values' : 'minimal' },
                 })
               }
 
@@ -425,7 +440,7 @@ function withAuditExtension(p: PrismaClient) {
 
                 const workspaceId: string | undefined = extractWorkspaceId(where)
                 if (!workspaceId) {
-                  if (process.env.NODE_ENV !== 'production') {
+                  if (ENABLE_AUDIT_DEBUG_LOGS) {
                     // eslint-disable-next-line no-console
                     console.warn('[audit] skip deleteMany: could not infer workspaceId', { model: modelName, where })
                   }
@@ -435,17 +450,14 @@ function withAuditExtension(p: PrismaClient) {
                 const count = (result as any)?.count
                 const summary = `DELETE_MANY ${modelName}${typeof count === 'number' ? ` (${count})` : ''}`
 
-                await p.auditEvent.create({
-                  data: {
-                    workspaceId,
-                    category: 'CRUD',
-                    action: 'DELETE',
-                    actorUserId: actorUserId ?? null,
-                    entityType: modelEntityType,
-                    entityId: null,
-                    summary,
-                    meta: { where },
-                  },
+                await persistAuditLog({
+                  workspaceId,
+                  action: 'DELETE',
+                  actorUserId,
+                  entityType: modelEntityType,
+                  entityId: null,
+                  summary,
+                  meta: { where },
                 })
               }
 
@@ -455,7 +467,7 @@ function withAuditExtension(p: PrismaClient) {
                 const rows = Array.isArray(data) ? data : data ? [data] : []
                 const workspaceId: string | undefined = rows[0]?.workspaceId
                 if (!workspaceId) {
-                  if (process.env.NODE_ENV !== 'production') {
+                  if (ENABLE_AUDIT_DEBUG_LOGS) {
                     // eslint-disable-next-line no-console
                     console.warn('[audit] skip createMany: could not infer workspaceId', { model: modelName })
                   }
@@ -465,17 +477,14 @@ function withAuditExtension(p: PrismaClient) {
                 const count = (result as any)?.count
                 const summary = `CREATE_MANY ${modelName}${typeof count === 'number' ? ` (${count})` : ''}`
 
-                await p.auditEvent.create({
-                  data: {
-                    workspaceId,
-                    category: 'CRUD',
-                    action: 'CREATE',
-                    actorUserId: actorUserId ?? null,
-                    entityType: modelEntityType,
-                    entityId: null,
-                    summary,
-                    meta: { count },
-                  },
+                await persistAuditLog({
+                  workspaceId,
+                  action: 'CREATE',
+                  actorUserId,
+                  entityType: modelEntityType,
+                  entityId: null,
+                  summary,
+                  meta: { count },
                 })
               }
 
@@ -488,7 +497,7 @@ function withAuditExtension(p: PrismaClient) {
                 // Try workspaceId in create payload first, then where
                 const workspaceId: string | undefined = create?.workspaceId ?? extractWorkspaceId(where)
                 if (!workspaceId) {
-                  if (process.env.NODE_ENV !== 'production') {
+                  if (ENABLE_AUDIT_DEBUG_LOGS) {
                     // eslint-disable-next-line no-console
                     console.warn('[audit] skip upsert: could not infer workspaceId', { model: modelName, where })
                   }
@@ -511,35 +520,22 @@ function withAuditExtension(p: PrismaClient) {
 
                 const summary = `UPSERT ${modelName}${entityId ? `#${entityId}` : ''}`
 
-                await p.auditEvent.create({
-                  data: {
-                    workspaceId,
-                    category: 'CRUD',
-                    action: 'UPDATE',
-                    actorUserId: actorUserId ?? null,
-                    entityType: modelEntityType,
-                    entityId,
-                    summary,
-                    ...(changes
-                      ? {
-                          changes: {
-                            create: Object.entries(changes).map(([field, v]) => ({
-                              field,
-                              from: (v as any).from ?? null,
-                              to: (v as any).to ?? null,
-                            })),
-                          },
-                        }
-                      : {}),
-                    meta: { where },
-                  },
+                await persistAuditLog({
+                  workspaceId,
+                  action: 'UPDATE',
+                  actorUserId,
+                  entityType: modelEntityType,
+                  entityId,
+                  summary,
+                  changesObj: changes,
+                  meta: { where },
                 })
               }
             }
           } catch (e) {
             // Never break product flows due to audit logging.
             // But in dev, surface it to help diagnose missing migrations / env issues.
-            if (process.env.NODE_ENV !== 'production') {
+            if (process.env.NODE_ENV !== 'production' || ENABLE_AUDIT_DEBUG_LOGS) {
               // eslint-disable-next-line no-console
               console.error('[audit] failed to write AuditEvent', { model, operation, error: String((e as any)?.message ?? e) })
             }
@@ -552,9 +548,20 @@ function withAuditExtension(p: PrismaClient) {
   })
 }
 
-const _prisma = global.prisma ?? withAuditExtension(new PrismaClient())
+function resolvePrismaClientCtor() {
+  const directCtor = (PrismaModule as { PrismaClient?: unknown }).PrismaClient
+  if (typeof directCtor === 'function') return directCtor as new () => PrismaClientType
+
+  const defaultCtor = (PrismaModule as { default?: { PrismaClient?: unknown } }).default?.PrismaClient
+  if (typeof defaultCtor === 'function') return defaultCtor as new () => PrismaClientType
+
+  throw new TypeError('Unable to resolve PrismaClient constructor from @prisma/client')
+}
+
+const PrismaClientCtor = resolvePrismaClientCtor()
+const _prisma = global.prisma ?? withAuditExtension(new PrismaClientCtor())
 
 // We intentionally export it as PrismaClient to avoid extension type propagation across the codebase.
-export const prisma: PrismaClient = _prisma as unknown as PrismaClient
+export const prisma: PrismaClientType = _prisma as unknown as PrismaClientType
 
 if (process.env.NODE_ENV !== 'production') global.prisma = prisma

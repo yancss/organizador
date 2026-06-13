@@ -3,6 +3,12 @@ import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { requireWorkspace } from '@/lib/authz'
 
+function parsePositiveInt(value: string | null, fallback: number, max: number) {
+  const n = Number(value)
+  if (!Number.isFinite(n) || n <= 0) return fallback
+  return Math.min(max, Math.floor(n))
+}
+
 export async function GET(req: Request) {
   const auth = await requireWorkspace()
   if (!auth.ok) return Response.json({ error: auth.error }, { status: auth.status })
@@ -12,27 +18,43 @@ export async function GET(req: Request) {
   const url = new URL(req.url)
   const kind = url.searchParams.get('kind') // RAW | FINISHED | null
   const q = (url.searchParams.get('q') ?? '').trim()
+  const page = parsePositiveInt(url.searchParams.get('page'), 1, 10_000)
+  const take = parsePositiveInt(url.searchParams.get('take'), 25, 100)
+  const skip = (page - 1) * take
+  const where = {
+    workspaceId: wsId,
+    active: true,
+    ...(kind ? { kind: kind as any } : {}),
+    ...(q.length >= 2
+      ? {
+          name: {
+            contains: q,
+            mode: 'insensitive' as const,
+          },
+        }
+      : {}),
+  }
 
-  const products = await prisma.product.findMany({
-    where: {
-      workspaceId: wsId,
-      active: true,
-      ...(kind ? { kind: kind as any } : {}),
-      ...(q.length >= 2
-        ? {
-            name: {
-              contains: q,
-              mode: 'insensitive',
-            },
-          }
-        : {}),
+  const [total, products] = await prisma.$transaction([
+    prisma.product.count({ where }),
+    prisma.product.findMany({
+      where,
+      orderBy: [{ name: 'asc' }],
+      skip,
+      take,
+      select: { id: true, name: true, brand: true, kind: true, unit: true, avgCost: true },
+    }),
+  ])
+
+  return Response.json({
+    products,
+    meta: {
+      page,
+      take,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / take)),
     },
-    orderBy: [{ name: 'asc' }],
-    take: q.length >= 2 ? 25 : 500,
-    select: { id: true, name: true, brand: true, kind: true, unit: true, avgCost: true },
   })
-
-  return Response.json({ products })
 }
 
 const CreateProductSchema = z.object({

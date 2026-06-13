@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useDeferredValue, useEffect, useState } from 'react'
 import { Barcode, Plus, Trash2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
@@ -26,6 +26,7 @@ type Product = {
 }
 
 type ProductBarcodeRow = { id: string; code: string; source: string; externalRef: string | null; createdAt: string }
+type ListMeta = { page: number; take: number; total: number; totalPages: number }
 
 // (moved to api-client.ts)
 
@@ -52,6 +53,8 @@ export default function ProductsPage() {
   const i = t(language)
 
   const [isOpen, setIsOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const [page, setPage] = useState(1)
   const draftStore = useDraftStorage<Draft>('draft:products', emptyDraft)
   const draft = draftStore.value
   const setDraft = draftStore.setValue
@@ -59,6 +62,7 @@ export default function ProductsPage() {
   const [barcodeInput, setBarcodeInput] = useState('')
   const [scanOpen, setScanOpen] = useState(false)
   const [barcodeAutofillNote, setBarcodeAutofillNote] = useState<string | null>(null)
+  const deferredQuery = useDeferredValue(query)
 
   function normalizeCode(code: string) {
     return code.trim().replace(/\s+/g, '')
@@ -276,8 +280,8 @@ export default function ProductsPage() {
   }
 
   const productsQ = useQuery({
-    queryKey: ['products'],
-    queryFn: () => api<{ products: Product[] }>('/api/products'),
+    queryKey: ['products', deferredQuery, page],
+    queryFn: () => api<{ products: Product[]; meta: ListMeta }>(`/api/products?q=${encodeURIComponent(deferredQuery)}&page=${page}&take=25`),
   })
 
   const barcodesQ = useQuery({
@@ -338,6 +342,11 @@ export default function ProductsPage() {
   })
 
   const products = productsQ.data?.products ?? []
+  const meta = productsQ.data?.meta
+
+  useEffect(() => {
+    setPage(1)
+  }, [deferredQuery])
 
   // If user comes from the details page clicking "Editar", open the modal automatically.
   useEffect(() => {
@@ -444,6 +453,22 @@ export default function ProductsPage() {
         </button>
       </header>
 
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="w-full max-w-md">
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={i.table.searchPlaceholder}
+            className="w-full rounded-lg border border-theme bg-transparent px-3 py-2 text-sm"
+          />
+        </div>
+
+        <div className="flex items-center gap-2 text-xs text-[var(--muted-foreground)]">
+          <span>{meta ? `${meta.total}` : '0'}</span>
+          <span>{language === 'pt' ? 'registros' : language === 'es' ? 'registros' : 'records'}</span>
+        </div>
+      </div>
+
       {productsQ.isLoading ? (
         <p className="text-sm text-neutral-600">Carregando…</p>
       ) : productsQ.isError ? (
@@ -457,6 +482,9 @@ export default function ProductsPage() {
           labels={i.table}
           initialSort={{ key: 'name', dir: 'asc' }}
           onRowClick={(r) => router.push(`/app/products/${r.id}`)}
+          showSearch={false}
+          showFooter={false}
+          pageSize={Math.max(1, products.length)}
           columns={[
             {
               key: 'name',
@@ -535,6 +563,39 @@ export default function ProductsPage() {
           ]}
         />
       )}
+
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="text-xs text-[var(--muted-foreground)]">
+          {meta
+            ? language === 'pt'
+              ? `Mostrando ${products.length} de ${meta.total}`
+              : language === 'es'
+                ? `Mostrando ${products.length} de ${meta.total}`
+                : `Showing ${products.length} of ${meta.total}`
+            : language === 'pt'
+              ? 'Mostrando 0 de 0'
+              : language === 'es'
+                ? 'Mostrando 0 de 0'
+                : 'Showing 0 of 0'}
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button type="button" className="btn btn-secondary btn-sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={!meta || meta.page <= 1}>
+            {i.table.previous}
+          </button>
+          <div className="text-xs text-[var(--muted-foreground)]">
+            {meta ? i.table.page.replace('{page}', String(meta.page)).replace('{pages}', String(meta.totalPages)) : i.table.page.replace('{page}', '1').replace('{pages}', '1')}
+          </div>
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={() => setPage((p) => (meta ? Math.min(meta.totalPages, p + 1) : p + 1))}
+            disabled={!meta || meta.page >= meta.totalPages}
+          >
+            {i.table.next}
+          </button>
+        </div>
+      </div>
 
       {isOpen ? (
         <div className="fixed inset-0 z-50">

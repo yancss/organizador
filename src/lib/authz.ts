@@ -10,6 +10,7 @@ export type SessionUser = {
   workspaceId?: string
   workspaceRole?: 'USER' | 'ADMIN'
   isSuperadmin?: boolean
+  permissions?: string[]
 }
 
 export type WorkspaceContext = {
@@ -127,24 +128,28 @@ export async function requireWorkspace() {
   // Resolve permissions (custom roles) for non-admin users.
   let permissions: string[] | undefined = undefined
   if (!isSuper && workspaceRole !== 'ADMIN') {
-    const rows = await prisma.workspaceUserRole.findMany({
-      where: { workspaceId, userId: u.id },
-      select: {
-        role: {
-          select: {
-            permissions: {
-              select: { permission: { select: { key: true } } },
+    if (Array.isArray(u.permissions)) {
+      permissions = u.permissions
+    } else {
+      const rows = await prisma.workspaceUserRole.findMany({
+        where: { workspaceId, userId: u.id },
+        select: {
+          role: {
+            select: {
+              permissions: {
+                select: { permission: { select: { key: true } } },
+              },
             },
           },
         },
-      },
-    })
+      })
 
-    const keys = new Set<string>()
-    for (const r of rows) {
-      for (const rp of r.role.permissions) keys.add(rp.permission.key)
+      const keys = new Set<string>()
+      for (const r of rows) {
+        for (const rp of r.role.permissions) keys.add(rp.permission.key)
+      }
+      permissions = [...keys]
     }
-    permissions = [...keys]
   }
 
   return {

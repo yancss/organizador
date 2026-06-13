@@ -50,6 +50,7 @@ export default function DataTable<T>({
   onRowClick,
   pageSize = 10,
   showSearch = true,
+  showFooter = true,
   labels,
 }: {
   rows: T[]
@@ -59,6 +60,7 @@ export default function DataTable<T>({
   onRowClick?: (row: T) => void
   pageSize?: number
   showSearch?: boolean
+  showFooter?: boolean
   labels: DataTableLabels
 }) {
   const [sortKey, setSortKey] = useState<string | null>(initialSort?.key ?? null)
@@ -250,33 +252,35 @@ export default function DataTable<T>({
           </div>
 
           {/* footer/pagination */}
-          <div className="flex flex-col gap-2 border-t border-theme bg-[var(--surface-2)] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="text-xs text-[var(--muted-foreground)]">
-              {fmt(labels.showing, { start: startIndex, end: endIndex, total: sortedRows.length })}
-            </div>
-
-            <div className="flex items-center justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => goTo(page - 1)}
-                disabled={page <= 1}
-                className="btn btn-secondary btn-sm"
-              >
-                {labels.previous}
-              </button>
+          {showFooter ? (
+            <div className="flex flex-col gap-2 border-t border-theme bg-[var(--surface-2)] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="text-xs text-[var(--muted-foreground)]">
-                {fmt(labels.page, { page, pages: totalPages })}
+                {fmt(labels.showing, { start: startIndex, end: endIndex, total: sortedRows.length })}
               </div>
-              <button
-                type="button"
-                onClick={() => goTo(page + 1)}
-                disabled={page >= totalPages}
-                className="btn btn-secondary btn-sm"
-              >
-                {labels.next}
-              </button>
+
+              <div className="flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => goTo(page - 1)}
+                  disabled={page <= 1}
+                  className="btn btn-secondary btn-sm"
+                >
+                  {labels.previous}
+                </button>
+                <div className="text-xs text-[var(--muted-foreground)]">
+                  {fmt(labels.page, { page, pages: totalPages })}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => goTo(page + 1)}
+                  disabled={page >= totalPages}
+                  className="btn btn-secondary btn-sm"
+                >
+                  {labels.next}
+                </button>
+              </div>
             </div>
-          </div>
+          ) : null}
         </div>
       )}
     </div>

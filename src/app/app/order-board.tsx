@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ChevronLeft, ChevronRight, Maximize2, Minimize2, Settings, X } from 'lucide-react'
 
@@ -130,6 +130,25 @@ type Order = {
     discountPercent?: string | number | null
     product: Product
   }>
+}
+
+type OrdersListMeta = {
+  page: number
+  take: number
+  total: number
+  totalPages: number
+}
+
+type ExportJobStatus = 'PENDING' | 'PROCESSING' | 'DONE' | 'FAILED'
+
+type ExportJobResponse = {
+  job: {
+    id: string
+    status: ExportJobStatus
+    fileName?: string | null
+    truncated?: boolean | null
+    error?: string | null
+  }
 }
 
 // (moved to api-client.ts)
@@ -465,6 +484,7 @@ export default function OrderBoard() {
   const [mode, setMode] = useState<'list' | 'kanban'>('list')
   const [columnsOpen, setColumnsOpen] = useState(false)
   const [listQuery, setListQuery] = useState('')
+  const [listPage, setListPage] = useState(1)
 
   const [scanOpen, setScanOpen] = useState(false)
 
@@ -474,12 +494,14 @@ export default function OrderBoard() {
   const [ownerMe, setOwnerMe] = useState(false)
   const [overdueOnly, setOverdueOnly] = useState(false)
   const [statusFilter, setStatusFilter] = useState<Order['status'][]>([])
+  const [exportingFormat, setExportingFormat] = useState<null | 'csv' | 'pdf'>(null)
 
   const defaultVisibleStatuses = useMemo(() => STATUS_ORDER.filter((s) => s !== 'CANCELLED'), [])
   const [visibleStatuses, setVisibleStatuses] = useState<Order['status'][]>(() => defaultVisibleStatuses)
 
   const calRef = useRef<FullCalendar | null>(null)
   const calModalRef = useRef<FullCalendar | null>(null)
+  const exportPollRef = useRef<number | null>(null)
   const didAutoOpenEditRef = useRef(false)
   const [calTitle, setCalTitle] = useState('')
   const [calModalTitle, setCalModalTitle] = useState('')
@@ -487,6 +509,7 @@ export default function OrderBoard() {
   const draftStore = useDraftStorage<Draft>('draft:orders', emptyDraft)
   const draft = draftStore.value
   const setDraft = draftStore.setValue
+  const deferredListQuery = useDeferredValue(listQuery)
 
   const liveTotals = useMemo(() => calcDraftTotals(draft, moneyLocale), [draft, moneyLocale])
 
@@ -512,8 +535,14 @@ export default function OrderBoard() {
     const p = new URLSearchParams()
     p.set('view', view)
 
-    const q = listQuery.trim()
+    const q = deferredListQuery.trim()
     if (q) p.set('q', q)
+    p.set('mode', mode)
+
+    if (mode === 'list') {
+      p.set('page', String(listPage))
+      p.set('take', '25')
+    }
 
     if (createdByMe) p.set('createdBy', 'me')
     if (ownerMe) p.set('owner', 'me')
@@ -522,11 +551,11 @@ export default function OrderBoard() {
     for (const st of statusFilter) p.append('status', st)
 
     return p
-  }, [view, listQuery, createdByMe, ownerMe, overdueOnly, statusFilter])
+  }, [view, deferredListQuery, mode, listPage, createdByMe, ownerMe, overdueOnly, statusFilter])
 
   const ordersQ = useQuery({
     queryKey: ['orders', ordersParams.toString()],
-    queryFn: () => api<{ orders: Order[] }>(`/api/orders?${ordersParams.toString()}`),
+    queryFn: () => api<{ orders: Order[]; meta?: OrdersListMeta }>(`/api/orders?${ordersParams.toString()}`),
   })
 
 
@@ -565,7 +594,93 @@ export default function OrderBoard() {
     onError: (e: any) => toastFailedToSave(i, String(e?.message ?? e ?? '')),
   })
 
+  useEffect(() => {
+    return () => {
+      if (exportPollRef.current != null) window.clearTimeout(exportPollRef.current)
+    }
+  }, [])
+
+  async function pollExportJob(jobId: string, attempts = 0): Promise<void> {
+    const res = await fetch(`/api/orders/export-jobs/${jobId}`, { cache: 'no-store' })
+    if (!res.ok) throw new Error(await res.text())
+
+    const data = (await res.json()) as ExportJobResponse
+
+    if (data.job.status === 'DONE') {
+      setExportingFormat(null)
+      window.location.href = `/api/orders/export-jobs/${jobId}/download`
+      if (data.job.truncated) {
+        toast.success(
+          language === 'pt'
+            ? 'Export concluido com limite aplicado.'
+            : language === 'es'
+              ? 'Exportacion completada con limite aplicado.'
+              : 'Export completed with row limit applied.',
+        )
+      } else {
+        toast.success(language === 'pt' ? 'Export concluido.' : language === 'es' ? 'Exportacion completada.' : 'Export completed.')
+      }
+      return
+    }
+
+    if (data.job.status === 'FAILED') {
+      setExportingFormat(null)
+      throw new Error(data.job.error || 'EXPORT_FAILED')
+    }
+
+    if (attempts >= 30) {
+      setExportingFormat(null)
+      toast.success(
+        language === 'pt'
+          ? 'Export agendado. O arquivo ficara disponivel em breve.'
+          : language === 'es'
+            ? 'Exportacion en cola. El archivo estara disponible en breve.'
+            : 'Export queued. The file will be available shortly.',
+      )
+      return
+    }
+
+    exportPollRef.current = window.setTimeout(() => {
+      void pollExportJob(jobId, attempts + 1).catch((err) => {
+        setExportingFormat(null)
+        toast.error(String((err as any)?.message ?? err ?? 'EXPORT_FAILED'))
+      })
+    }, 2000)
+  }
+
+  async function requestExport(format: 'csv' | 'pdf') {
+    if (exportingFormat) return
+
+    setExportingFormat(format)
+    try {
+      const p = new URLSearchParams(ordersParams)
+      p.set('currency', currency)
+      const result = await api<{ ok: true; job: { id: string } }>('/api/orders/export-jobs', {
+        method: 'POST',
+        body: JSON.stringify({ format, params: p.toString(), currency }),
+      })
+
+      toast(
+        language === 'pt'
+          ? `Export ${format.toUpperCase()} em processamento...`
+          : language === 'es'
+            ? `Exportacion ${format.toUpperCase()} en proceso...`
+            : `${format.toUpperCase()} export in progress...`,
+      )
+
+      await pollExportJob(result.job.id)
+    } catch (err) {
+      setExportingFormat(null)
+      toast.error(String((err as any)?.message ?? err ?? 'EXPORT_FAILED'))
+    }
+  }
+
   const orders = ordersQ.data?.orders ?? []
+  const ordersMeta = ordersQ.data?.meta
+
+  useEffect(() => {
+    setListPage(1)
+  }, [deferredListQuery, view, createdByMe, ownerMe, overdueOnly, statusFilter, mode])
 
   // If user comes from the details page clicking "Editar", open the modal automatically.
   useEffect(() => {
@@ -613,7 +728,7 @@ export default function OrderBoard() {
 
   // Server-side filtering (ordersParams) already applies. Keep a tiny client-side fallback for safety.
   const listFiltered = useMemo(() => {
-    const q = listQuery.trim().toLowerCase()
+    const q = deferredListQuery.trim().toLowerCase()
     if (!q) return orders
     return orders.filter((o) => {
       if ((o.code ?? '').toLowerCase().includes(q)) return true
@@ -621,7 +736,7 @@ export default function OrderBoard() {
       if (o.client?.name && o.client.name.toLowerCase().includes(q)) return true
       return false
     })
-  }, [orders, listQuery])
+  }, [orders, deferredListQuery])
 
   const sorted = useMemo(() => {
     const items = [...listFiltered]
@@ -1147,25 +1262,19 @@ export default function OrderBoard() {
                     <button
                       type="button"
                       className="btn btn-secondary btn-sm"
-                      onClick={() => {
-                        const p = new URLSearchParams(ordersParams)
-                        p.set('currency', currency)
-                        window.location.href = `/api/orders/export/csv?${p.toString()}`
-                      }}
+                      disabled={exportingFormat !== null}
+                      onClick={() => void requestExport('csv')}
                     >
-                      {language === 'pt' ? 'CSV' : language === 'es' ? 'CSV' : 'CSV'}
+                      {exportingFormat === 'csv' ? '...' : language === 'pt' ? 'CSV' : language === 'es' ? 'CSV' : 'CSV'}
                     </button>
 
                     <button
                       type="button"
                       className="btn btn-secondary btn-sm"
-                      onClick={() => {
-                        const p = new URLSearchParams(ordersParams)
-                        p.set('currency', currency)
-                        window.location.href = `/api/orders/export/pdf?${p.toString()}`
-                      }}
+                      disabled={exportingFormat !== null}
+                      onClick={() => void requestExport('pdf')}
                     >
-                      {language === 'pt' ? 'PDF' : language === 'es' ? 'PDF' : 'PDF'}
+                      {exportingFormat === 'pdf' ? '...' : language === 'pt' ? 'PDF' : language === 'es' ? 'PDF' : 'PDF'}
                     </button>
 
                     <button
@@ -1218,6 +1327,8 @@ export default function OrderBoard() {
               empty={i.orders.empty}
               labels={i.table}
               showSearch={false}
+              showFooter={false}
+              pageSize={Math.max(1, sorted.length)}
               initialSort={{ key: 'deliveryAt', dir: 'asc' }}
               onRowClick={openDetails}
               columns={[
@@ -1298,6 +1409,48 @@ export default function OrderBoard() {
                 },
               ]}
             />
+
+            {mode === 'list' ? (
+              <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="text-xs text-[var(--muted-foreground)]">
+                  {ordersMeta
+                    ? language === 'pt'
+                      ? `Mostrando ${sorted.length} de ${ordersMeta.total}`
+                      : language === 'es'
+                        ? `Mostrando ${sorted.length} de ${ordersMeta.total}`
+                        : `Showing ${sorted.length} of ${ordersMeta.total}`
+                    : language === 'pt'
+                      ? `Mostrando ${sorted.length}`
+                      : language === 'es'
+                        ? `Mostrando ${sorted.length}`
+                        : `Showing ${sorted.length}`}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => setListPage((p) => Math.max(1, p - 1))}
+                    disabled={!ordersMeta || ordersMeta.page <= 1}
+                  >
+                    {i.table.previous}
+                  </button>
+                  <div className="text-xs text-[var(--muted-foreground)]">
+                    {ordersMeta
+                      ? i.table.page.replace('{page}', String(ordersMeta.page)).replace('{pages}', String(ordersMeta.totalPages))
+                      : i.table.page.replace('{page}', '1').replace('{pages}', '1')}
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => setListPage((p) => (ordersMeta ? Math.min(ordersMeta.totalPages, p + 1) : p + 1))}
+                    disabled={!ordersMeta || ordersMeta.page >= ordersMeta.totalPages}
+                  >
+                    {i.table.next}
+                  </button>
+                </div>
+              </div>
+            ) : null}
           </section>
 
           <section className="surface rounded-xl border border-theme p-2 sm:p-3">

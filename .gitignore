@@ -47,6 +47,7 @@ yarn-error.log*
 
 # scratch/tmp scripts
 /tmp_*.js
+/state/
 
 # OpenClaw workspace artifacts (never commit)
 /.openclaw/

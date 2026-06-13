@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useDeferredValue, useEffect, useMemo, useState } from 'react'
 
 import { PhoneInput } from 'react-international-phone'
 
@@ -49,6 +49,13 @@ type Client = {
 
   address?: string | null
   observations?: string | null
+}
+
+type ListMeta = {
+  page: number
+  take: number
+  total: number
+  totalPages: number
 }
 
 type Draft = {
@@ -154,8 +161,11 @@ export default function ClientsPage() {
   const i = t(language)
 
   const [isOpen, setIsOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const [page, setPage] = useState(1)
   const [ptFound, setPtFound] = useState(false)
   const [ptOptions, setPtOptions] = useState<Array<{ distrito: string; concelho: string }>>([])
+  const deferredQuery = useDeferredValue(query)
 
   const [audit, setAudit] = useState<{
     createdAt?: string
@@ -169,8 +179,8 @@ export default function ClientsPage() {
   const setDraft = draftStore.setValue
 
   const clientsQ = useQuery({
-    queryKey: ['clients'],
-    queryFn: () => api<{ clients: Client[] }>('/api/clients'),
+    queryKey: ['clients', deferredQuery, page],
+    queryFn: () => api<{ clients: Client[]; meta: ListMeta }>(`/api/clients?q=${encodeURIComponent(deferredQuery)}&page=${page}&take=25`),
   })
 
   const createM = useMutation({
@@ -205,6 +215,7 @@ export default function ClientsPage() {
   })
 
   const clients = clientsQ.data?.clients ?? []
+  const meta = clientsQ.data?.meta
 
   const auditUserIds = useMemo(() => {
     const ids = new Set<string>()
@@ -262,6 +273,10 @@ export default function ClientsPage() {
     setAudit(null)
     setIsOpen(true)
   }
+
+  useEffect(() => {
+    setPage(1)
+  }, [deferredQuery])
 
   function openEdit(c: Client) {
     const birthDate = c.birthDate ? String(c.birthDate).slice(0, 10) : ''
@@ -545,6 +560,22 @@ export default function ClientsPage() {
         </button>
       </header>
 
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="w-full max-w-md">
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={i.table.searchPlaceholder}
+            className="w-full rounded-lg border border-theme bg-transparent px-3 py-2 text-sm"
+          />
+        </div>
+
+        <div className="flex items-center gap-2 text-xs text-[var(--muted-foreground)]">
+          <span>{meta ? `${meta.total}` : '0'}</span>
+          <span>{language === 'pt' ? 'registros' : language === 'es' ? 'registros' : 'records'}</span>
+        </div>
+      </div>
+
       {clientsQ.isLoading ? (
         <p className="text-sm text-neutral-600">Carregando…</p>
       ) : clientsQ.isError ? (
@@ -558,6 +589,9 @@ export default function ClientsPage() {
           labels={i.table}
           initialSort={{ key: 'name', dir: 'asc' }}
           onRowClick={openEdit}
+          showSearch={false}
+          showFooter={false}
+          pageSize={Math.max(1, clients.length)}
           columns={[
             {
               key: 'name',
@@ -587,6 +621,39 @@ export default function ClientsPage() {
           ]}
         />
       )}
+
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="text-xs text-[var(--muted-foreground)]">
+          {meta
+            ? language === 'pt'
+              ? `Mostrando ${clients.length} de ${meta.total}`
+              : language === 'es'
+                ? `Mostrando ${clients.length} de ${meta.total}`
+                : `Showing ${clients.length} of ${meta.total}`
+            : language === 'pt'
+              ? 'Mostrando 0 de 0'
+              : language === 'es'
+                ? 'Mostrando 0 de 0'
+                : 'Showing 0 of 0'}
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button type="button" className="btn btn-secondary btn-sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={!meta || meta.page <= 1}>
+            {i.table.previous}
+          </button>
+          <div className="text-xs text-[var(--muted-foreground)]">
+            {meta ? i.table.page.replace('{page}', String(meta.page)).replace('{pages}', String(meta.totalPages)) : i.table.page.replace('{page}', '1').replace('{pages}', '1')}
+          </div>
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={() => setPage((p) => (meta ? Math.min(meta.totalPages, p + 1) : p + 1))}
+            disabled={!meta || meta.page >= meta.totalPages}
+          >
+            {i.table.next}
+          </button>
+        </div>
+      </div>
 
       {isOpen ? (
         <div className="fixed inset-0 z-50">

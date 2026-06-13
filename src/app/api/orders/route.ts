@@ -9,6 +9,12 @@ import { convertQty, convertUnitPrice, isConvertible, normalizeUnit } from '@/li
 import { buildSalesOrdersWhere } from '@/lib/orders-query'
 import { calcOrderTotals } from '@/lib/sales-order-totals'
 
+function parsePositiveInt(value: string | null, fallback: number, max: number) {
+  const n = Number(value)
+  if (!Number.isFinite(n) || n <= 0) return fallback
+  return Math.min(max, Math.floor(n))
+}
+
 export async function GET(req: Request) {
   const auth = await requireWorkspace()
   if (!auth.ok) return Response.json({ error: auth.error }, { status: auth.status })
@@ -16,44 +22,72 @@ export async function GET(req: Request) {
   const wsId = auth.user.workspaceId
 
   const url = new URL(req.url)
+  const mode = (url.searchParams.get('mode') ?? '').trim()
+  const page = parsePositiveInt(url.searchParams.get('page'), 1, 10_000)
+  const take = parsePositiveInt(url.searchParams.get('take'), 25, 100)
+  const skip = (page - 1) * take
 
   const where = buildSalesOrdersWhere({ wsId, userId: auth.user.id, params: url.searchParams })
+  const orderSelect = {
+    id: true,
+    code: true,
+    name: true,
+    observations: true,
+    orderedAt: true,
+    deliveryAt: true,
+    status: true,
+    orderIndex: true,
+    value: true,
+
+    discountMode: true,
+    discountType: true,
+    discountValue: true,
+    discountPercent: true,
+
+    client: { select: { id: true, name: true } },
+    items: {
+      select: {
+        id: true,
+        quantity: true,
+        unitPrice: true,
+        discountType: true,
+        discountValue: true,
+        discountPercent: true,
+        product: { select: { id: true, name: true, unit: true } },
+      },
+      orderBy: { createdAt: 'asc' as const },
+    },
+    createdAt: true,
+    updatedAt: true,
+  }
+
+  if (mode === 'list') {
+    const [total, orders] = await prisma.$transaction([
+      prisma.salesOrder.count({ where }),
+      prisma.salesOrder.findMany({
+        where,
+        orderBy: [{ deliveryAt: 'asc' }, { createdAt: 'desc' }],
+        skip,
+        take,
+        select: orderSelect,
+      }),
+    ])
+
+    return Response.json({
+      orders,
+      meta: {
+        page,
+        take,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / take)),
+      },
+    })
+  }
 
   const orders = await prisma.salesOrder.findMany({
     where,
     orderBy: [{ deliveryAt: 'asc' }, { createdAt: 'desc' }],
-    select: {
-      id: true,
-      code: true,
-      name: true,
-      observations: true,
-      orderedAt: true,
-      deliveryAt: true,
-      status: true,
-      orderIndex: true,
-      value: true,
-
-      discountMode: true,
-      discountType: true,
-      discountValue: true,
-      discountPercent: true,
-
-      client: { select: { id: true, name: true } },
-      items: {
-        select: {
-          id: true,
-          quantity: true,
-          unitPrice: true,
-          discountType: true,
-          discountValue: true,
-          discountPercent: true,
-          product: { select: { id: true, name: true, unit: true } },
-        },
-        orderBy: { createdAt: 'asc' },
-      },
-      createdAt: true,
-      updatedAt: true,
-    },
+    select: orderSelect,
   })
 
   return Response.json({ orders })
@@ -107,9 +141,10 @@ export async function POST(req: Request) {
       active: true,
       kind: 'FINISHED',
     },
-    select: { id: true },
+    select: { id: true, unit: true },
   })
   const allowedSet = new Set(allowed.map((p) => p.id))
+  const productUnitById = new Map(allowed.map((p) => [p.id, p.unit]))
   const invalid = productIds.filter((id) => !allowedSet.has(id))
   if (invalid.length) {
     return Response.json({ error: 'INVALID_ITEM_PRODUCT', invalid }, { status: 400 })
@@ -128,8 +163,7 @@ export async function POST(req: Request) {
   const normalizedItems = (parsed.data.items ?? []).length
     ? await Promise.all(
         (parsed.data.items ?? []).map(async (it) => {
-          const p = await prisma.product.findFirst({ where: { id: it.productId, workspaceId: wsId }, select: { unit: true } })
-          const baseUnit = p?.unit
+          const baseUnit = productUnitById.get(it.productId)
           if (!baseUnit) throw new Error('PRODUCT_NOT_FOUND')
 
           const inputUnitRaw = it.unit ?? null

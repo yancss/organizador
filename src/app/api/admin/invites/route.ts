@@ -1,8 +1,8 @@
 import { z } from 'zod'
 
-import { prisma } from '@/lib/prisma'
 import { requireAdmin } from '@/lib/authz'
-import { sendEmail } from '@/lib/email'
+import { enqueueEmail } from '@/lib/email'
+import { prisma } from '@/lib/prisma'
 import { newResetToken, sha256 } from '@/lib/tokens'
 
 const BodySchema = z.object({
@@ -22,20 +22,17 @@ export async function POST(req: Request) {
 
   const inviter = auth.user
   const workspaceId = inviter.workspaceId!
-
   const email = parsed.data.email.trim().toLowerCase()
   const workspaceRole = parsed.data.role
 
-  // 1) Block if the user already exists
   const existing = await prisma.user.findUnique({ where: { email }, select: { id: true } })
   if (existing) {
     return Response.json({ error: 'USER_ALREADY_EXISTS' }, { status: 409 })
   }
 
-  // 2) Create invite token (user is created only when accepting the invite)
   const token = newResetToken()
   const tokenHash = sha256(token)
-  const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24) // 24h
+  const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24)
 
   await prisma.userInviteToken.create({
     data: {
@@ -52,31 +49,35 @@ export async function POST(req: Request) {
   const appUrl = process.env.APP_URL || process.env.NEXTAUTH_URL || 'http://localhost:3000'
   const activateUrl = `${appUrl.replace(/\/$/, '')}/activate?email=${encodeURIComponent(email)}&token=${encodeURIComponent(token)}`
 
-  // 4) Send invite email
   try {
-    await sendEmail({
-      to: email,
-      subject: 'Guardian — Convite para acesso',
-      text: `Você foi convidado para acessar a plataforma Guardian.\n\nFinalize seu cadastro e defina sua senha (válido por 24 horas):\n${activateUrl}`,
-      html: `<p>Você foi convidado para acessar a plataforma Guardian.</p><p><a href="${activateUrl}">Clique aqui para finalizar o cadastro e definir sua senha</a> (válido por 24 horas).</p>`,
-    })
+    await enqueueEmail(
+      {
+        to: email,
+        subject: 'Guardian - Convite para acesso',
+        text: `Voce foi convidado para acessar a plataforma Guardian.\n\nFinalize seu cadastro e defina sua senha (valido por 24 horas):\n${activateUrl}`,
+        html: `<p>Voce foi convidado para acessar a plataforma Guardian.</p><p><a href="${activateUrl}">Clique aqui para finalizar o cadastro e definir sua senha</a> (valido por 24 horas).</p>`,
+      },
+      { kind: 'workspace-invite', workspaceId, inviterUserId: inviter.id, workspaceRole },
+    )
   } catch (err) {
-    console.error('[admin/invites] sendEmail failed', err)
+    console.error('[admin/invites] enqueueEmail failed', err)
     if (process.env.NODE_ENV !== 'production') {
       console.log('[admin/invites] dev activateUrl', activateUrl)
     }
   }
 
-  // 5) Notify superadmin (support)
   const supportEmail = (process.env.SUPPORT_GUARDIAN_EMAIL || 'support.guardian.app@gmail.com').trim().toLowerCase()
   if (supportEmail && supportEmail !== email) {
     try {
       const ws = await prisma.workspace.findUnique({ where: { id: workspaceId }, select: { name: true } })
-      await sendEmail({
-        to: supportEmail,
-        subject: 'Guardian — convite enviado',
-        text: `Convite enviado para ${email} no workspace ${ws?.name ?? workspaceId} por ${inviter.id} (role: ${workspaceRole}).`,
-      })
+      await enqueueEmail(
+        {
+          to: supportEmail,
+          subject: 'Guardian - convite enviado',
+          text: `Convite enviado para ${email} no workspace ${ws?.name ?? workspaceId} por ${inviter.id} (role: ${workspaceRole}).`,
+        },
+        { kind: 'support-invite-notification', workspaceId, invitedEmail: email, workspaceRole },
+      )
     } catch (err) {
       console.error('[admin/invites] notify support failed', err)
     }

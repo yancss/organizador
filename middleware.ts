@@ -1,10 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getToken } from 'next-auth/jwt'
 
-// Simple edge-friendly rate limit (best-effort).
-// Note: this is in-memory per runtime instance; it is not a distributed limiter.
-// It still reduces accidental abuse and basic brute-force in UAT.
-const buckets = new Map<string, { n: number; resetAt: number }>()
+import { hitRateLimit } from '@/lib/rate-limit'
 
 function getIp(req: NextRequest) {
   // NextRequest.ip exists at runtime in some deployments but is not always typed.
@@ -17,26 +14,25 @@ function getIp(req: NextRequest) {
   )
 }
 
-function hit(key: string, limit: number, windowMs: number) {
-  const now = Date.now()
-  const b = buckets.get(key)
-  if (!b || now >= b.resetAt) {
-    buckets.set(key, { n: 1, resetAt: now + windowMs })
-    return { ok: true as const, remaining: limit - 1, resetAt: now + windowMs }
-  }
-
-  if (b.n >= limit) return { ok: false as const, remaining: 0, resetAt: b.resetAt }
-  b.n += 1
-  return { ok: true as const, remaining: Math.max(0, limit - b.n), resetAt: b.resetAt }
+function appendRateLimitHeaders(res: NextResponse, remaining: number, resetAt: number, limit: number, source: string) {
+  res.headers.set('X-RateLimit-Limit', String(limit))
+  res.headers.set('X-RateLimit-Remaining', String(Math.max(0, remaining)))
+  res.headers.set('X-RateLimit-Reset', String(Math.ceil(resetAt / 1000)))
+  res.headers.set('X-RateLimit-Policy', source)
 }
 
-function rateLimitResponse(resetAt: number) {
+function rateLimitResponse(resetAt: number, limit: number, source: string) {
   const res = NextResponse.json({ error: 'RATE_LIMITED' }, { status: 429 })
   res.headers.set('Retry-After', String(Math.max(1, Math.ceil((resetAt - Date.now()) / 1000))))
+  appendRateLimitHeaders(res, 0, resetAt, limit, source)
   return res
 }
 
-// Protect authenticated app routes + best-effort API rate limiting.
+async function runRateLimit(key: string, limit: number, windowMs: number) {
+  return hitRateLimit(key, limit, windowMs)
+}
+
+// Protect authenticated app routes + API rate limiting.
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
 
@@ -45,36 +41,44 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next()
   }
 
-  // API rate limiting (targeted)
   if (pathname.startsWith('/api/')) {
     const ip = getIp(req)
 
-    // Auth endpoints (brute-force / spam sensitive)
     if (pathname.startsWith('/api/auth/')) {
-      // allow nextauth callbacks but still limit overall
-      const rl = hit(`auth:${ip}`, 20, 60_000)
-      if (!rl.ok) return rateLimitResponse(rl.resetAt)
-      return NextResponse.next()
+      const rl = await runRateLimit(`auth:${ip}`, 20, 60_000)
+      if (!rl.ok) return rateLimitResponse(rl.resetAt, rl.limit, rl.source)
+      const res = NextResponse.next()
+      appendRateLimitHeaders(res, rl.remaining, rl.resetAt, rl.limit, rl.source)
+      return res
     }
 
-    // Barcode lookup (calls external services)
     if (pathname === '/api/barcodes/lookup') {
-      const rl = hit(`barcode_lookup:${ip}`, 60, 60_000)
-      if (!rl.ok) return rateLimitResponse(rl.resetAt)
-      return NextResponse.next()
+      const rl = await runRateLimit(`barcode_lookup:${ip}`, 60, 60_000)
+      if (!rl.ok) return rateLimitResponse(rl.resetAt, rl.limit, rl.source)
+      const res = NextResponse.next()
+      appendRateLimitHeaders(res, rl.remaining, rl.resetAt, rl.limit, rl.source)
+      return res
     }
 
-    // Scan endpoints (barcode → add item)
     if (pathname.endsWith('/scan')) {
-      const rl = hit(`scan:${ip}`, 40, 60_000)
-      if (!rl.ok) return rateLimitResponse(rl.resetAt)
-      return NextResponse.next()
+      const rl = await runRateLimit(`scan:${ip}`, 40, 60_000)
+      if (!rl.ok) return rateLimitResponse(rl.resetAt, rl.limit, rl.source)
+      const res = NextResponse.next()
+      appendRateLimitHeaders(res, rl.remaining, rl.resetAt, rl.limit, rl.source)
+      return res
+    }
+
+    if (pathname.startsWith('/api/orders/export/')) {
+      const rl = await runRateLimit(`orders_export:${ip}`, 10, 60_000)
+      if (!rl.ok) return rateLimitResponse(rl.resetAt, rl.limit, rl.source)
+      const res = NextResponse.next()
+      appendRateLimitHeaders(res, rl.remaining, rl.resetAt, rl.limit, rl.source)
+      return res
     }
 
     return NextResponse.next()
   }
 
-  // Only protect the main app shell
   if (!pathname.startsWith('/app')) return NextResponse.next()
 
   const secret = process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET

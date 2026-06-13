@@ -6,6 +6,100 @@ import bcrypt from 'bcryptjs'
 
 import { prisma } from '@/lib/prisma'
 
+const DEFAULT_MAX_AGE_SEC = 60 * 60 * 4
+const DEFAULT_AUTH_CONTEXT_REFRESH_SEC = 120
+
+function getAuthContextRefreshSec() {
+  const raw = Number(process.env.AUTH_CONTEXT_REFRESH_SEC ?? DEFAULT_AUTH_CONTEXT_REFRESH_SEC)
+  if (!Number.isFinite(raw) || raw <= 0) return DEFAULT_AUTH_CONTEXT_REFRESH_SEC
+  return Math.floor(raw)
+}
+
+function clearTokenAuthState(t: any) {
+  delete t.sub
+  t.userRole = undefined
+  t.workspaceId = undefined
+  t.workspaceRole = undefined
+  t.isSuperadmin = undefined
+  t.permissions = undefined
+  t.fixedIat = undefined
+  t.fixedExp = undefined
+  t.policyVersion = undefined
+  t.authRefreshedAt = undefined
+}
+
+async function refreshTokenAuthState(t: any, nowSec: number) {
+  const dbUser = await prisma.user.findUnique({
+    where: { id: t.sub },
+    select: {
+      id: true,
+      role: true,
+      active: true,
+      sessionMaxAgeSec: true,
+      sessionPolicyVersion: true,
+    },
+  })
+
+  if (!dbUser || dbUser.active === false) {
+    clearTokenAuthState(t)
+    return
+  }
+
+  if (t.policyVersion !== undefined && t.policyVersion !== dbUser.sessionPolicyVersion) {
+    clearTokenAuthState(t)
+    return
+  }
+
+  if (!t.fixedIat || !t.fixedExp) {
+    const maxAgeSec = dbUser.sessionMaxAgeSec ?? DEFAULT_MAX_AGE_SEC
+    t.fixedIat = nowSec
+    t.fixedExp = nowSec + maxAgeSec
+    t.policyVersion = dbUser.sessionPolicyVersion
+  }
+
+  if (nowSec >= Number(t.fixedExp)) {
+    clearTokenAuthState(t)
+    return
+  }
+
+  t.userRole = dbUser.role
+  t.isSuperadmin = dbUser.role === 'SUPERADMIN'
+
+  const membership = await prisma.workspaceMember.findFirst({
+    where: { userId: dbUser.id },
+    orderBy: { createdAt: 'asc' },
+    select: { workspaceId: true, role: true },
+  })
+
+  t.workspaceId = membership?.workspaceId
+  t.workspaceRole = membership?.role
+
+  if (!t.isSuperadmin && membership?.workspaceId && membership.role !== 'ADMIN') {
+    const rows = await prisma.workspaceUserRole.findMany({
+      where: { workspaceId: membership.workspaceId, userId: dbUser.id },
+      select: {
+        role: {
+          select: {
+            permissions: {
+              select: { permission: { select: { key: true } } },
+            },
+          },
+        },
+      },
+    })
+
+    const keys = new Set<string>()
+    for (const row of rows) {
+      for (const rp of row.role.permissions) keys.add(rp.permission.key)
+    }
+    t.permissions = [...keys]
+  } else {
+    t.permissions = []
+  }
+
+  t.authRefreshedAt = nowSec
+}
+
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
   debug: process.env.NODE_ENV === 'development',
@@ -59,81 +153,27 @@ export const authOptions: NextAuthOptions = {
       // When signing in, persist user id into the token.
       if (user?.id) t.sub = user.id
 
-      // Fixed (non-sliding) expiry enforced by custom claims.
-      // NextAuth may re-issue JWTs; we keep a fixed issuedAt/expiresAt and validate against it.
-      const DEFAULT_MAX_AGE_SEC = 60 * 60 * 4
-
       if (t.sub) {
-        const dbUser = await prisma.user.findUnique({
-          where: { id: t.sub },
-          select: {
-            id: true,
-            role: true,
-            active: true,
-            sessionMaxAgeSec: true,
-            sessionPolicyVersion: true,
-          },
-        })
-
-        // If user was deactivated after token issuance, force sign-out by dropping sub.
-        if (!dbUser || dbUser.active === false) {
-          delete t.sub
-          t.userRole = undefined
-          t.workspaceId = undefined
-          t.workspaceRole = undefined
-          t.isSuperadmin = undefined
-          t.fixedIat = undefined
-          t.fixedExp = undefined
-          t.policyVersion = undefined
-          return token
-        }
-
-        // Policy version check (admin can bump to force logout)
-        if (t.policyVersion !== undefined && t.policyVersion !== dbUser.sessionPolicyVersion) {
-          delete t.sub
-          t.userRole = undefined
-          t.workspaceId = undefined
-          t.workspaceRole = undefined
-          t.isSuperadmin = undefined
-          t.fixedIat = undefined
-          t.fixedExp = undefined
-          t.policyVersion = undefined
-          return token
-        }
-
-        // Establish fixed window on first issuance
-        const maxAgeSec = dbUser.sessionMaxAgeSec ?? DEFAULT_MAX_AGE_SEC
         const nowSec = Math.floor(Date.now() / 1000)
+        const refreshSec = getAuthContextRefreshSec()
 
-        if (!t.fixedIat || !t.fixedExp) {
-          t.fixedIat = nowSec
-          t.fixedExp = nowSec + maxAgeSec
-          t.policyVersion = dbUser.sessionPolicyVersion
-        }
-
-        // Hard expiration
-        if (nowSec >= Number(t.fixedExp)) {
-          delete t.sub
-          t.userRole = undefined
-          t.workspaceId = undefined
-          t.workspaceRole = undefined
-          t.isSuperadmin = undefined
+        if (t.fixedExp && nowSec >= Number(t.fixedExp)) {
+          clearTokenAuthState(t)
           return token
         }
 
-        const userRole = dbUser.role
-        t.userRole = userRole
-        t.isSuperadmin = userRole === 'SUPERADMIN'
+        const needsRefresh =
+          Boolean(user?.id) ||
+          !t.authRefreshedAt ||
+          !t.fixedIat ||
+          !t.fixedExp ||
+          !t.userRole ||
+          !Object.prototype.hasOwnProperty.call(t, 'permissions') ||
+          Number(t.authRefreshedAt) + refreshSec <= nowSec
 
-        // Resolve active workspace (first membership). If none, do NOT create anything implicitly.
-        const membership = await prisma.workspaceMember.findFirst({
-          where: { userId: dbUser.id },
-          orderBy: { createdAt: 'asc' },
-          select: { workspaceId: true, role: true },
-        })
-
-        t.workspaceId = membership?.workspaceId
-        t.workspaceRole = membership?.role
+        if (needsRefresh) {
+          await refreshTokenAuthState(t, nowSec)
+        }
       }
 
       return token
@@ -147,6 +187,7 @@ export const authOptions: NextAuthOptions = {
         ;(session.user as any).workspaceId = t.workspaceId
         ;(session.user as any).workspaceRole = t.workspaceRole
         ;(session.user as any).isSuperadmin = t.isSuperadmin
+        ;(session.user as any).permissions = Array.isArray(t.permissions) ? t.permissions : []
         ;(session.user as any).sessionExpiresAt = t.fixedExp ? new Date(Number(t.fixedExp) * 1000).toISOString() : undefined
       }
       return session

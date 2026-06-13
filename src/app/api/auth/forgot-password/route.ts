@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
+import { enqueueEmail } from '@/lib/email'
 import { prisma } from '@/lib/prisma'
-import { sendEmail } from '@/lib/email'
 import { newResetToken, sha256 } from '@/lib/tokens'
 
 const BodySchema = z.object({
@@ -12,7 +12,7 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => null)
   const parsed = BodySchema.safeParse(body)
 
-  // Não revelar se existe ou não (anti-enumeração)
+  // Nao revelar se existe ou nao (anti-enumeracao)
   if (!parsed.success) {
     return Response.json({ ok: true }, { status: 200 })
   }
@@ -24,14 +24,14 @@ export async function POST(req: Request) {
     select: { id: true, active: true, email: true },
   })
 
-  // Sempre responder ok, mesmo se usuário não existir/inativo
+  // Sempre responder ok, mesmo se usuario nao existir/inativo
   if (!user || user.active === false || !user.email) {
     return Response.json({ ok: true }, { status: 200 })
   }
 
   const token = newResetToken()
   const tokenHash = sha256(token)
-  const expiresAt = new Date(Date.now() + 1000 * 60 * 30) // 30 min
+  const expiresAt = new Date(Date.now() + 1000 * 60 * 30)
 
   await prisma.passwordResetToken.create({
     data: {
@@ -45,21 +45,22 @@ export async function POST(req: Request) {
   const resetUrl = `${appUrl.replace(/\/$/, '')}/reset-password?email=${encodeURIComponent(email)}&token=${encodeURIComponent(token)}`
 
   try {
-    await sendEmail({
-      to: email,
-      subject: 'Guardian — Recuperação de senha',
-      text: `Você solicitou a recuperação de senha.\n\nAbra este link para definir uma nova senha (válido por 30 minutos):\n${resetUrl}\n\nSe você não solicitou, ignore este email.`,
-      html: `
-        <p>Você solicitou a recuperação de senha.</p>
-        <p><a href="${resetUrl}">Clique aqui para definir uma nova senha</a> (válido por 30 minutos).</p>
-        <p>Se você não solicitou, ignore este email.</p>
-      `,
-    })
+    await enqueueEmail(
+      {
+        to: email,
+        subject: 'Guardian - Recuperacao de senha',
+        text: `Voce solicitou a recuperacao de senha.\n\nAbra este link para definir uma nova senha (valido por 30 minutos):\n${resetUrl}\n\nSe voce nao solicitou, ignore este email.`,
+        html: `
+          <p>Voce solicitou a recuperacao de senha.</p>
+          <p><a href="${resetUrl}">Clique aqui para definir uma nova senha</a> (valido por 30 minutos).</p>
+          <p>Se voce nao solicitou, ignore este email.</p>
+        `,
+      },
+      { kind: 'forgot-password' },
+    )
   } catch (err) {
-    // Não derrubar o fluxo para o usuário (pode ser SMTP/Resend mal configurado).
-    console.error('[forgot-password] sendEmail failed', err)
+    console.error('[forgot-password] enqueueEmail failed', err)
 
-    // Dev fallback: print the reset link so you can test the full flow even if email is blocked.
     if (process.env.NODE_ENV !== 'production') {
       console.log('[forgot-password] dev resetUrl', resetUrl)
     }
