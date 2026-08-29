@@ -1,9 +1,9 @@
 'use client'
 
+import Link from 'next/link'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import DataTable, { type ColumnDef } from '../../ui/data-table'
-import ApprovalPolicyCard from './approval-policy-card'
 import { api } from '../../api-client'
 import { t } from '../../i18n'
 import { formatMoneyDisplay, localeFromLanguage } from '../../money'
@@ -11,13 +11,14 @@ import { useSettings } from '../../settings-context'
 
 type Approval = {
   id: string
-  entityType: 'PURCHASE_ORDER' | 'SALES_ORDER'
+  entityType: 'PURCHASE_ORDER' | 'SALES_ORDER' | 'SALES_QUOTE'
   entityId: string
   policyKey: string
   reason: string
   status: 'PENDING' | 'APPROVED' | 'REJECTED'
   amount: string | number | null
   salesOrder?: { code: string | null; name: string; status: string } | null
+  salesQuote?: { code: string | null; name: string; status: string } | null
   purchaseOrder?: { code: string | null; status: string; supplierEntity?: { name: string } | null } | null
   requestedBy?: { name: string | null; email: string | null } | null
   decidedBy?: { name: string | null; email: string | null } | null
@@ -34,6 +35,11 @@ export default function WorkflowApprovalsPage() {
     queryKey: ['approvals'],
     queryFn: () => api<{ approvals: Approval[] }>('/api/approvals'),
   })
+  const meQ = useQuery({
+    queryKey: ['me'],
+    queryFn: () => api<{ workspace?: { role?: 'USER' | 'ADMIN'; isSuperadmin?: boolean } }>('/api/me'),
+  })
+  const isAdmin = Boolean(meQ.data?.workspace?.isSuperadmin) || meQ.data?.workspace?.role === 'ADMIN'
 
   const decideM = useMutation({
     mutationFn: ({ id, status }: { id: string; status: 'APPROVED' | 'REJECTED' }) =>
@@ -47,9 +53,13 @@ export default function WorkflowApprovalsPage() {
   })
 
   function entityLabel(entityType: Approval['entityType']) {
-    if (language === 'pt') return entityType === 'PURCHASE_ORDER' ? 'Compra' : 'Comercial'
-    if (language === 'es') return entityType === 'PURCHASE_ORDER' ? 'Compra' : 'Comercial'
-    return entityType === 'PURCHASE_ORDER' ? 'Purchase' : 'Sales'
+    const map: Record<Approval['entityType'], [string, string, string]> = {
+      PURCHASE_ORDER: ['Compra', 'Compra', 'Purchase'],
+      SALES_ORDER: ['Pedido', 'Pedido', 'Sales order'],
+      SALES_QUOTE: ['Orçamento', 'Presupuesto', 'Quote'],
+    }
+    const [pt, es, en] = map[entityType] ?? ['Comercial', 'Comercial', 'Sales']
+    return language === 'pt' ? pt : language === 'es' ? es : en
   }
 
   function statusLabel(status: Approval['status']) {
@@ -82,6 +92,9 @@ export default function WorkflowApprovalsPage() {
   function referenceLabel(row: Approval) {
     if (row.entityType === 'PURCHASE_ORDER') {
       return `${row.purchaseOrder?.code ?? '-'} ${row.purchaseOrder?.supplierEntity?.name ?? ''}`.trim()
+    }
+    if (row.entityType === 'SALES_QUOTE') {
+      return `${row.salesQuote?.code ?? '-'} ${row.salesQuote?.name ?? ''}`.trim()
     }
     return `${row.salesOrder?.code ?? '-'} ${row.salesOrder?.name ?? ''}`.trim()
   }
@@ -162,20 +175,25 @@ export default function WorkflowApprovalsPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-xl font-semibold">
-          {language === 'pt' ? 'Aprovações' : language === 'es' ? 'Aprobaciones' : 'Approvals'}
-        </h1>
-        <p className="text-sm text-neutral-600">
-          {language === 'pt'
-            ? 'Fila simples de aprovação por alçada para compras e descontos.'
-            : language === 'es'
-              ? 'Cola simple de aprobación por umbral para compras y descuentos.'
-              : 'Simple approval queue for purchase thresholds and discount exceptions.'}
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold">
+            {language === 'pt' ? 'Aprovações' : language === 'es' ? 'Aprobaciones' : 'Approvals'}
+          </h1>
+          <p className="text-sm text-neutral-600">
+            {language === 'pt'
+              ? 'Fila simples de aprovação por alçada para compras e descontos.'
+              : language === 'es'
+                ? 'Cola simple de aprobación por umbral para compras y descuentos.'
+                : 'Simple approval queue for purchase thresholds and discount exceptions.'}
+          </p>
+        </div>
+        {isAdmin ? (
+          <Link className="btn btn-secondary btn-sm" href="/app/admin/settings">
+            {language === 'pt' ? '⚙ Alçadas' : language === 'es' ? '⚙ Umbrales' : '⚙ Thresholds'}
+          </Link>
+        ) : null}
       </div>
-
-      <ApprovalPolicyCard />
 
       <DataTable
         rows={rows}

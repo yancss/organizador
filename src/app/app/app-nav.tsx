@@ -9,6 +9,7 @@ import {
   ClipboardList,
   FileText,
   Home as HomeIcon,
+  SlidersHorizontal,
   Package,
   Users,
   Wallet,
@@ -177,6 +178,7 @@ export default function AppNav({ onNavigate }: { onNavigate?: () => void }) {
 
       {canAdmin ? (
         <Section title={i.nav.admin}>
+          <NavItem href="/app/admin/settings" label={i.nav.adminSettings} icon={SlidersHorizontal} onNavigate={onNavigate} />
           <NavItem href="/app/admin/users" label={i.nav.adminUsers} icon={Users} onNavigate={onNavigate} />
           <NavItem href="/app/admin/roles" label={i.nav.adminRolesPermissions} icon={Shield} onNavigate={onNavigate} />
           <NavItem

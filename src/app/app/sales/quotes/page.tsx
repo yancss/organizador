@@ -8,7 +8,6 @@ import { api } from '../../api-client'
 import { useSettings } from '../../settings-context'
 import { toast } from '../../toast'
 import { formatMoneyDisplay, localeFromLanguage } from '../../money'
-import QuoteSettingsCard from './quote-settings-card'
 
 type QuoteStatus = 'DRAFT' | 'SENT' | 'APPROVED' | 'REJECTED' | 'EXPIRED' | 'CONVERTED' | 'CANCELLED'
 
@@ -44,6 +43,7 @@ function copy(language: string) {
     title: 'Orçamentos',
     subtitle: 'Propostas comerciais antes do pedido. Aprovado, converte em pedido de venda.',
     newQuote: 'Novo orçamento',
+    settings: 'Configurações',
     name: 'Nome / referência',
     client: 'Cliente',
     validUntil: 'Válido até',
@@ -80,6 +80,7 @@ function copy(language: string) {
     title: 'Presupuestos',
     subtitle: 'Propuestas comerciales antes del pedido. Aprobado, se convierte en pedido de venta.',
     newQuote: 'Nuevo presupuesto',
+    settings: 'Configuración',
     name: 'Nombre / referencia',
     client: 'Cliente',
     validUntil: 'Válido hasta',
@@ -116,6 +117,7 @@ function copy(language: string) {
     title: 'Quotes',
     subtitle: 'Commercial proposals before the order. Once approved, converts into a sales order.',
     newQuote: 'New quote',
+    settings: 'Settings',
     name: 'Name / reference',
     client: 'Client',
     validUntil: 'Valid until',
@@ -307,14 +309,19 @@ export default function SalesQuotesPage() {
           <h1 className="text-xl font-semibold">{c.title}</h1>
           <p className="text-sm text-[var(--text-muted)]">{c.subtitle}</p>
         </div>
-        {!draft ? (
-          <button className="btn btn-primary btn-sm" onClick={() => setDraft({ ...emptyDraft })}>
-            {c.newQuote}
-          </button>
-        ) : null}
+        <div className="flex items-center gap-2">
+          {isAdmin ? (
+            <Link className="btn btn-secondary btn-sm" href="/app/admin/settings">
+              ⚙ {c.settings}
+            </Link>
+          ) : null}
+          {!draft ? (
+            <button className="btn btn-primary btn-sm" onClick={() => setDraft({ ...emptyDraft })}>
+              {c.newQuote}
+            </button>
+          ) : null}
+        </div>
       </div>
-
-      <QuoteSettingsCard />
 
       {draft ? (
         <div className="surface rounded-2xl border border-theme p-4 space-y-3">

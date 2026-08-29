@@ -187,3 +187,15 @@ Config `sales.quote` estendida:
 Ainda fora de escopo: F2-03 (tabela de preço), F2-05 completo (papéis customizados além de
 USER/ADMIN), template de e-mail do orçamento ao cliente, markup padrão, prazo de entrega padrão,
 prefixo de numeração configurável.
+
+### Central de configuração (2026-08-29, 3ª rodada)
+
+Os cards de configuração saíram das telas operacionais e viraram uma **central com abas**:
+- Rota `/app/admin/settings` (`requireAdmin`), item "Configurações" no menu Admin.
+- `settings-hub.tsx` com abas: **Orçamentos** (`sales.quote`) e **Alçadas de aprovação**
+  (`approval.policies`). Estrutura pronta para novas abas (F2-04 condições de pagamento,
+  numeração, notificações, estoque…).
+- Componentes `approval-policy-card.tsx` e `quote-settings-card.tsx` movidos para
+  `src/app/app/admin/settings/`.
+- `/app/sales/quotes` e `/app/workflow/approvals` agora só têm um atalho "⚙" para a central
+  (visível para admin).

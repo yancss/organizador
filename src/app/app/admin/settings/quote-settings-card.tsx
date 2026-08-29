@@ -107,13 +107,13 @@ export default function QuoteSettingsCard() {
   if (q.isError || !q.data || !form) return null
 
   return (
-    <details className="surface rounded-2xl border border-theme p-4">
-      <summary className="flex cursor-pointer items-center justify-between text-sm font-semibold">
-        {c.title}
+    <div className="surface rounded-2xl border border-theme p-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-semibold">{c.title}</h2>
         <span className="rounded-lg bg-[var(--surface-2)] px-2 py-1 text-xs font-normal text-[var(--text-muted)]">
           {q.data.isCustom ? c.custom : c.standard}
         </span>
-      </summary>
+      </div>
 
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <label className="text-xs font-medium">
@@ -172,6 +172,6 @@ export default function QuoteSettingsCard() {
       <button className="btn btn-primary btn-sm mt-3" disabled={saveM.isPending} onClick={() => saveM.mutate(form)}>
         {saveM.isPending ? c.saving : c.save}
       </button>
-    </details>
+    </div>
   )
 }
