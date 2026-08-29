@@ -3,6 +3,8 @@ import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { requireWorkspace } from '@/lib/authz'
 import { adjustInventory } from '@/lib/inventory-movements'
+import { consumeInventoryLots, registerInventoryLotReceipt } from '@/lib/inventory-lots'
+import { ensureDefaultWarehouse } from '@/lib/stock-locations'
 
 const CreateSchema = z.object({
   recipeId: z.string().min(1),
@@ -10,6 +12,15 @@ const CreateSchema = z.object({
   date: z.string().datetime().optional().nullable(),
   observations: z.string().max(5000).optional().nullable(),
 })
+
+function makeProductionLotCode(recipeId: string, at: Date) {
+  const y = at.getFullYear()
+  const m = String(at.getMonth() + 1).padStart(2, '0')
+  const d = String(at.getDate()).padStart(2, '0')
+  const hh = String(at.getHours()).padStart(2, '0')
+  const mm = String(at.getMinutes()).padStart(2, '0')
+  return `PROD-${y}${m}${d}-${hh}${mm}-${recipeId.slice(0, 6).toUpperCase()}`
+}
 
 // Option A: explicit production command.
 // - Decrement RAW items (Consumption)
@@ -53,6 +64,7 @@ export async function POST(req: Request) {
 
   try {
     const result = await prisma.$transaction(async (tx) => {
+      const defaultWarehouse = await ensureDefaultWarehouse(tx as any, wsId, auth.user.id)
       // Build consumption list (RAW + INTERMEDIATE)
       const consumed: Array<{ productId: string; required: number }> = []
 
@@ -93,7 +105,27 @@ export async function POST(req: Request) {
         const avg = avgById.get(c.productId) ?? 0
         batchCost += c.required * avg
 
-        await adjustInventory(tx as any, { workspaceId: wsId, productId: c.productId, delta: -c.required })
+        await consumeInventoryLots(tx as any, {
+          workspaceId: wsId,
+          productId: c.productId,
+          warehouseId: defaultWarehouse.id,
+          quantity: c.required,
+          eventType: 'PRODUCTION_CONSUMPTION',
+          referenceType: 'Recipe',
+          referenceId: recipe.id,
+          notes: parsed.data.observations ?? null,
+        })
+
+        await adjustInventory(tx as any, {
+          workspaceId: wsId,
+          productId: c.productId,
+          delta: -c.required,
+          userId: auth.user.id,
+          movementType: 'PRODUCTION_CONSUMPTION',
+          referenceType: 'Recipe',
+          referenceId: recipe.id,
+          observations: parsed.data.observations ?? null,
+        })
 
         await tx.consumption.create({
           data: {
@@ -122,7 +154,31 @@ export async function POST(req: Request) {
       const currentQty = invBefore?.quantity == null ? 0 : Number(invBefore.quantity)
       const currentAvg = productBefore?.avgCost == null ? 0 : Number(productBefore.avgCost)
 
-      await adjustInventory(tx as any, { workspaceId: wsId, productId: recipe.productId, delta: producedQty })
+      await adjustInventory(tx as any, {
+        workspaceId: wsId,
+        productId: recipe.productId,
+        delta: producedQty,
+        userId: auth.user.id,
+        movementType: 'PRODUCTION_OUTPUT',
+        referenceType: 'Recipe',
+        referenceId: recipe.id,
+        observations: parsed.data.observations ?? null,
+        unitCost: unitCostProduced,
+      })
+
+      await registerInventoryLotReceipt(tx as any, {
+        workspaceId: wsId,
+        productId: recipe.productId,
+        warehouseId: defaultWarehouse.id,
+        lotCode: makeProductionLotCode(recipe.id, at),
+        expiresAt: null,
+        quantity: producedQty,
+        notes: parsed.data.observations ?? 'Production output batch.',
+        userId: auth.user.id,
+        eventType: 'PRODUCTION_OUTPUT',
+        referenceType: 'Recipe',
+        referenceId: recipe.id,
+      })
 
       // Weighted average cost for produced product
       const denom = currentQty + producedQty

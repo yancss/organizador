@@ -27,6 +27,13 @@ type Product = {
 
 type ProductBarcodeRow = { id: string; code: string; source: string; externalRef: string | null; createdAt: string }
 type ListMeta = { page: number; take: number; total: number; totalPages: number }
+type ProductSummary = {
+  rawCount: number
+  intermediateCount: number
+  finishedCount: number
+  brandedCount: number
+  pricedCount: number
+}
 
 // (moved to api-client.ts)
 
@@ -281,7 +288,7 @@ export default function ProductsPage() {
 
   const productsQ = useQuery({
     queryKey: ['products', deferredQuery, page],
-    queryFn: () => api<{ products: Product[]; meta: ListMeta }>(`/api/products?q=${encodeURIComponent(deferredQuery)}&page=${page}&take=25`),
+    queryFn: () => api<{ products: Product[]; summary: ProductSummary; meta: ListMeta }>(`/api/products?q=${encodeURIComponent(deferredQuery)}&page=${page}&take=25`),
   })
 
   const barcodesQ = useQuery({
@@ -342,6 +349,7 @@ export default function ProductsPage() {
   })
 
   const products = productsQ.data?.products ?? []
+  const summary = productsQ.data?.summary
   const meta = productsQ.data?.meta
 
   useEffect(() => {
@@ -438,34 +446,64 @@ export default function ProductsPage() {
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">{i.products.title}</h1>
-          <p className="text-sm text-neutral-600">{i.products.subtitle}</p>
-        </div>
+      <header className="rounded-2xl border border-theme bg-[var(--surface-2)] px-5 py-5 shadow-[var(--shadow-sm)]">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-xl font-semibold tracking-tight">{i.products.title}</h1>
+          </div>
 
-        <button
-          className="btn btn-primary"
-          onClick={openCreate}
-          type="button"
-        >
-          {i.products.new}
-        </button>
+          <button
+            className="btn btn-primary"
+            onClick={openCreate}
+            type="button"
+          >
+            {i.products.new}
+          </button>
+        </div>
       </header>
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="w-full max-w-md">
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={i.table.searchPlaceholder}
-            className="w-full rounded-lg border border-theme bg-transparent px-3 py-2 text-sm"
-          />
+      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="surface rounded-2xl border border-theme p-5">
+          <div className="text-xs uppercase tracking-wide text-[var(--text-muted)]">
+            {language === 'pt' ? 'Materia-prima' : language === 'es' ? 'Materia prima' : 'Raw materials'}
+          </div>
+          <div className="mt-1 text-2xl font-semibold">{summary?.rawCount ?? 0}</div>
         </div>
+        <div className="surface rounded-2xl border border-theme p-5">
+          <div className="text-xs uppercase tracking-wide text-[var(--text-muted)]">
+            {language === 'pt' ? 'Intermediarios' : language === 'es' ? 'Intermedios' : 'Intermediate'}
+          </div>
+          <div className="mt-1 text-2xl font-semibold">{summary?.intermediateCount ?? 0}</div>
+        </div>
+        <div className="surface rounded-2xl border border-theme p-5">
+          <div className="text-xs uppercase tracking-wide text-[var(--text-muted)]">
+            {language === 'pt' ? 'Produtos finais' : language === 'es' ? 'Productos finales' : 'Finished goods'}
+          </div>
+          <div className="mt-1 text-2xl font-semibold">{summary?.finishedCount ?? 0}</div>
+        </div>
+        <div className="surface rounded-2xl border border-theme p-5">
+          <div className="text-xs uppercase tracking-wide text-[var(--text-muted)]">
+            {language === 'pt' ? 'Com custo medio' : language === 'es' ? 'Con costo medio' : 'With average cost'}
+          </div>
+          <div className="mt-1 text-2xl font-semibold">{summary?.pricedCount ?? 0}</div>
+        </div>
+      </section>
 
-        <div className="flex items-center gap-2 text-xs text-[var(--muted-foreground)]">
-          <span>{meta ? `${meta.total}` : '0'}</span>
-          <span>{language === 'pt' ? 'registros' : language === 'es' ? 'registros' : 'records'}</span>
+      <div className="surface rounded-2xl border border-theme p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="w-full max-w-md">
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={i.table.searchPlaceholder}
+              className="w-full rounded-lg border border-theme bg-transparent px-3 py-2 text-sm"
+            />
+          </div>
+
+          <div className="rounded-xl bg-[var(--surface-2)] px-3 py-2 text-xs text-[var(--muted-foreground)]">
+            <span>{meta ? `${meta.total}` : '0'}</span>{' '}
+            <span>{language === 'pt' ? 'registros' : language === 'es' ? 'registros' : 'records'}</span>
+          </div>
         </div>
       </div>
 

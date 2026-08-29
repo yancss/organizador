@@ -3,25 +3,32 @@
 
 :root {
   /* semantic colors (light) */
-  --background: #fdfdfd;
-  --foreground: #0a0a0a;
+  --background: #f4f5f7;
+  --foreground: #111827;
 
   --surface: #ffffff;
-  --surface-2: #fbfbfb;
-  --border: #e5e5e5;
+  --surface-2: #f8fafc;
+  --surface-3: #eef2f7;
+  --border: #d7dee7;
 
-  --muted: #f5f5f5;
-  --muted-foreground: #525252;
-  --text-muted: #404040;
+  --muted: #edf1f5;
+  --muted-foreground: #667085;
+  --text-muted: #475467;
 
-  --primary: #171717;
-  --primary-foreground: #ffffff;
+  --primary: #1f2937;
+  --primary-foreground: #f9fafb;
+  --accent: #0f766e;
+  --accent-soft: rgba(15, 118, 110, 0.12);
 
   --danger: #b91c1c;
   --danger-bg: #fef2f2;
 
   --success: #15803d;
   --success-bg: #f0fdf4;
+
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.06);
+  --shadow-md: 0 10px 30px rgba(16, 24, 40, 0.08);
+  --shadow-lg: 0 18px 48px rgba(16, 24, 40, 0.12);
 }
 
 @theme inline {
@@ -39,24 +46,31 @@ html.dark {
 
   /* semantic colors (dark) */
   --background: #0b0b0b;
-  --foreground: #f5f5f5;
+  --foreground: #f3f4f6;
 
-  --surface: #111111;
-  --surface-2: #0f0f0f;
-  --border: #262626;
+  --surface: #111827;
+  --surface-2: #18212f;
+  --surface-3: #1f2937;
+  --border: #334155;
 
-  --muted: #171717;
-  --muted-foreground: #a3a3a3;
-  --text-muted: #d4d4d4;
+  --muted: #1f2937;
+  --muted-foreground: #94a3b8;
+  --text-muted: #cbd5e1;
 
-  --primary: #f5f5f5;
-  --primary-foreground: #0b0b0b;
+  --primary: #e5e7eb;
+  --primary-foreground: #0f172a;
+  --accent: #2dd4bf;
+  --accent-soft: rgba(45, 212, 191, 0.12);
 
   --danger: #f87171;
   --danger-bg: rgba(248, 113, 113, 0.12);
 
   --success: #4ade80;
   --success-bg: rgba(74, 222, 128, 0.12);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.22);
+  --shadow-md: 0 12px 32px rgba(0, 0, 0, 0.28);
+  --shadow-lg: 0 24px 56px rgba(0, 0, 0, 0.34);
 }
 
 /* Fallback for users without an explicit selection */
@@ -70,26 +84,35 @@ html.dark {
   :root:not([data-theme]) {
     color-scheme: dark;
     --background: #0b0b0b;
-    --foreground: #f5f5f5;
+    --foreground: #f3f4f6;
 
-    --surface: #111111;
-    --surface-2: #0f0f0f;
-    --border: #262626;
+    --surface: #111827;
+    --surface-2: #18212f;
+    --surface-3: #1f2937;
+    --border: #334155;
 
-    --muted: #171717;
-    --muted-foreground: #a3a3a3;
-    --text-muted: #d4d4d4;
+    --muted: #1f2937;
+    --muted-foreground: #94a3b8;
+    --text-muted: #cbd5e1;
 
-    --primary: #f5f5f5;
-    --primary-foreground: #0b0b0b;
+    --primary: #e5e7eb;
+    --primary-foreground: #0f172a;
+    --accent: #2dd4bf;
+    --accent-soft: rgba(45, 212, 191, 0.12);
 
     --danger: #f87171;
     --danger-bg: rgba(248, 113, 113, 0.12);
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.22);
+    --shadow-md: 0 12px 32px rgba(0, 0, 0, 0.28);
+    --shadow-lg: 0 24px 56px rgba(0, 0, 0, 0.34);
   }
 }
 
 body {
-  background: var(--background);
+  background:
+    radial-gradient(circle at top left, var(--accent-soft), transparent 26%),
+    linear-gradient(180deg, var(--background), var(--background));
   color: var(--foreground);
   font-family: var(--font-sans), ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto,
     Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
@@ -179,6 +202,7 @@ html.dark {
 .surface {
   background: var(--surface);
   border-color: var(--border);
+  box-shadow: var(--shadow-sm);
 }
 
 /* Buttons (semantic) */
@@ -192,31 +216,38 @@ html.dark {
   font-size: 0.875rem;
   line-height: 1.25rem;
   font-weight: 600;
-  transition: background-color 120ms ease, border-color 120ms ease, opacity 120ms ease;
+  border: 1px solid transparent;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease, opacity 120ms ease, box-shadow 120ms ease;
 }
 
 .btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+  box-shadow: none;
 }
 
 .btn-primary {
   background: var(--primary);
   color: var(--primary-foreground);
+  border-color: var(--primary);
 }
 
 .btn-primary:hover {
   opacity: 0.92;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.12);
 }
 
 .btn-secondary {
-  background: var(--surface);
+  background: var(--surface-2);
   color: var(--foreground);
   border: 1px solid var(--border);
 }
 
 .btn-secondary:hover {
   background: var(--muted);
+  border-color: var(--muted-foreground);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
 }
 
 .btn-danger {
@@ -226,6 +257,30 @@ html.dark {
 
 .btn-danger:hover {
   opacity: 0.92;
+}
+
+:root[data-theme='dark'] .btn,
+html.dark .btn {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.28);
+}
+
+:root[data-theme='dark'] .btn-secondary,
+html.dark .btn-secondary {
+  background: #1a1a1a;
+  border-color: #3a3a3a;
+  color: #fafafa;
+}
+
+:root[data-theme='dark'] .btn-secondary:hover,
+html.dark .btn-secondary:hover {
+  background: #242424;
+  border-color: #5a5a5a;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.32);
+}
+
+:root[data-theme='dark'] .btn-primary:hover,
+html.dark .btn-primary:hover {
+  box-shadow: 0 4px 14px rgba(255, 255, 255, 0.08);
 }
 
 .btn-sm {
@@ -332,6 +387,11 @@ html.dark {
   border-color: var(--border);
 }
 
+.surface-3 {
+  background: var(--surface-3);
+  border-color: var(--border);
+}
+
 .muted {
   color: var(--muted-foreground);
 }
@@ -344,11 +404,26 @@ html.dark {
   border-color: var(--border);
 }
 
+.page-shell {
+  border: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(255, 255, 255, 0.95));
+  box-shadow: var(--shadow-md);
+  backdrop-filter: blur(8px);
+}
+
+:root[data-theme='dark'] .page-shell,
+html.dark .page-shell {
+  background: linear-gradient(180deg, rgba(17, 24, 39, 0.88), rgba(17, 24, 39, 0.96));
+}
+
 /* Modal safety helpers (prevents overflow on small screens)
    Usage: add `modal-safe` to the modal container.
 */
 .modal-safe {
+  width: min(100%, calc(100vw - 1rem));
+  max-width: calc(100vw - 1rem);
   max-height: calc(100dvh - 1.5rem);
+  overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
@@ -356,7 +431,25 @@ html.dark {
 
 @media (min-width: 640px) {
   .modal-safe {
+    width: auto;
+    max-width: min(var(--modal-max-width, 100%), calc(100vw - 3rem));
     max-height: calc(100dvh - 6rem);
+  }
+}
+
+.modal-overlay-center {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0.75rem;
+}
+
+@media (min-width: 640px) {
+  .modal-overlay-center {
+    align-items: center;
+    padding: 1.5rem;
   }
 }
 

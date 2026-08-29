@@ -19,6 +19,7 @@ export async function GET() {
       id: auth.user.workspaceId,
       role: auth.user.workspaceRole,
       isSuperadmin: auth.user.isSuperadmin ?? false,
+      permissions: 'permissions' in auth.user ? auth.user.permissions ?? [] : [],
     },
   })
 }

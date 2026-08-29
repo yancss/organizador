@@ -96,7 +96,6 @@ export default function ProfileClient() {
     <div className="space-y-6">
       <header>
         <h1 className="text-xl font-semibold tracking-tight">{i.profile.title}</h1>
-        <p className="text-sm text-[var(--muted-foreground)]">{i.profile.subtitle}</p>
       </header>
 
       {meQ.isLoading ? (
@@ -212,12 +211,7 @@ export default function ProfileClient() {
           </div>
 
           <div className="mt-5 flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={onSave}
-              disabled={saveM.isPending}
-              className="rounded-md bg-[var(--primary)] px-4 py-2 text-sm font-medium text-[var(--primary-foreground)] disabled:opacity-50"
-            >
+            <button type="button" onClick={onSave} disabled={saveM.isPending} className="btn btn-primary">
               {saveM.isPending ? i.profile.saving : i.profile.save}
             </button>
 

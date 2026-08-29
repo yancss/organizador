@@ -96,7 +96,7 @@ export default function ReceivableDetailsPage() {
     onError: (e: any) => toastFailedToSave(i, String(e?.message ?? e ?? '')),
   })
 
-  if (q.isLoading) return <p className="text-sm text-neutral-600">Carregando…</p>
+  if (q.isLoading) return <p className="text-sm text-[var(--text-muted)]">Carregando...</p>
   if (q.isError) {
     return (
       <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
@@ -112,44 +112,61 @@ export default function ReceivableDetailsPage() {
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="space-y-2">
-          <div className="text-sm text-[var(--muted-foreground)]">
-            <Link href="/app/finance/receivables" className="underline">
-              {language === 'pt' ? 'Voltar' : language === 'es' ? 'Volver' : 'Back'}
-            </Link>
+      <header className="rounded-2xl border border-theme bg-[var(--surface-2)] px-5 py-5 shadow-[var(--shadow-sm)]">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-2">
+            <div className="text-sm text-[var(--muted-foreground)]">
+              <Link href="/app/finance/receivables" className="underline">
+                {language === 'pt' ? 'Voltar' : language === 'es' ? 'Volver' : 'Back'}
+              </Link>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-xl font-semibold tracking-tight">
+                {language === 'pt' ? 'Recebivel' : language === 'es' ? 'Por cobrar' : 'Receivable'}
+              </h1>
+              <span className="badge badge-muted">{rec.id.slice(0, 8)}...</span>
+              <span className="badge badge-solid">{rec.status}</span>
+            </div>
+
+            <div className="text-sm text-[var(--text-muted)]">
+              {formatMoneyDisplay(rec.value, moneyLocale, currency)}
+              {applied > 0 ? ` | ${language === 'pt' ? 'Aplicado' : language === 'es' ? 'Aplicado' : 'Applied'}: ${formatMoneyDisplay(applied, moneyLocale, currency)}` : ''}
+              {open > 0 ? ` | ${language === 'pt' ? 'Aberto' : language === 'es' ? 'Abierto' : 'Open'}: ${formatMoneyDisplay(open, moneyLocale, currency)}` : ''}
+            </div>
+
+            <div className="text-sm text-[var(--text-muted)]">
+              PV: <Link className="underline" href={`/app/sales/orders/${rec.salesOrderId}`}>{rec.salesOrderId.slice(0, 8)}...</Link>
+              {' | '}
+              {language === 'pt' ? 'Entrega' : language === 'es' ? 'Entrega' : 'Delivery'}:{' '}
+              <Link className="underline" href={`/app/deliveries/${rec.deliveryId}`}>{rec.deliveryId.slice(0, 8)}...</Link>
+            </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-xl font-semibold tracking-tight">
-              {language === 'pt' ? 'Recebível' : language === 'es' ? 'Por cobrar' : 'Receivable'}
-            </h1>
-            <span className="badge badge-muted">{rec.id.slice(0, 8)}…</span>
-            <span className="badge badge-solid">{rec.status}</span>
+          <div className="flex flex-wrap gap-2 sm:justify-end">
+            <button className="btn btn-secondary" type="button" onClick={() => applyPaymentsM.mutate()} disabled={applyPaymentsM.isPending}>
+              {language === 'pt' ? 'Aplicar pagamentos' : language === 'es' ? 'Aplicar pagos' : 'Apply payments'}
+            </button>
           </div>
-
-          <div className="text-sm text-neutral-600">
-            {formatMoneyDisplay(rec.value, moneyLocale, currency)}
-            {applied > 0 ? ` • ${language === 'pt' ? 'Aplicado' : language === 'es' ? 'Aplicado' : 'Applied'}: ${formatMoneyDisplay(applied, moneyLocale, currency)}` : ''}
-            {open > 0 ? ` • ${language === 'pt' ? 'Aberto' : language === 'es' ? 'Abierto' : 'Open'}: ${formatMoneyDisplay(open, moneyLocale, currency)}` : ''}
-          </div>
-
-          <div className="text-sm text-neutral-600">
-            PV: <Link className="underline" href={`/app/sales/orders/${rec.salesOrderId}`}>{rec.salesOrderId.slice(0, 8)}…</Link>
-            {' • '}
-            {language === 'pt' ? 'Entrega' : language === 'es' ? 'Entrega' : 'Delivery'}:{' '}
-            <Link className="underline" href={`/app/deliveries/${rec.deliveryId}`}>{rec.deliveryId.slice(0, 8)}…</Link>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap gap-2 sm:justify-end">
-          <button className="btn btn-secondary" type="button" onClick={() => applyPaymentsM.mutate()} disabled={applyPaymentsM.isPending}>
-            {language === 'pt' ? 'Aplicar pagamentos' : language === 'es' ? 'Aplicar pagos' : 'Apply payments'}
-          </button>
         </div>
       </header>
 
-      <section className="surface rounded-xl border border-theme p-4 space-y-4">
+      <section className="grid gap-3 md:grid-cols-3">
+        <div className="surface rounded-2xl border border-theme p-4">
+          <div className="text-xs uppercase tracking-wide text-[var(--text-muted)]">Valor total</div>
+          <div className="mt-1 text-2xl font-semibold">{formatMoneyDisplay(total, moneyLocale, currency)}</div>
+        </div>
+        <div className="surface rounded-2xl border border-theme p-4">
+          <div className="text-xs uppercase tracking-wide text-[var(--text-muted)]">Aplicado</div>
+          <div className="mt-1 text-2xl font-semibold">{formatMoneyDisplay(applied, moneyLocale, currency)}</div>
+        </div>
+        <div className="surface rounded-2xl border border-theme p-4">
+          <div className="text-xs uppercase tracking-wide text-[var(--text-muted)]">Em aberto</div>
+          <div className="mt-1 text-2xl font-semibold">{formatMoneyDisplay(open, moneyLocale, currency)}</div>
+        </div>
+      </section>
+
+      <section className="surface rounded-2xl border border-theme p-4 space-y-4">
         <div className="grid gap-3 sm:grid-cols-3">
           <label className="grid gap-1">
             <span className="text-xs font-medium text-[var(--foreground)]">{language === 'pt' ? 'Status' : language === 'es' ? 'Estado' : 'Status'}</span>
@@ -191,28 +208,28 @@ export default function ReceivableDetailsPage() {
         </div>
       </section>
 
-      <section className="surface rounded-xl border border-theme p-4">
-        <h2 className="text-sm font-semibold text-[var(--foreground)]">{language === 'pt' ? 'Aplicações' : language === 'es' ? 'Aplicaciones' : 'Applications'}</h2>
+      <section className="surface rounded-2xl border border-theme p-4">
+        <h2 className="text-sm font-semibold text-[var(--foreground)]">{language === 'pt' ? 'Aplicacoes' : language === 'es' ? 'Aplicaciones' : 'Applications'}</h2>
         <div className="mt-3 space-y-2">
           {rec.applications.length ? (
             rec.applications.map((a) => (
-              <div key={a.id} className="flex items-center justify-between gap-3 rounded-lg border border-theme px-3 py-2">
+              <div key={a.id} className="flex items-center justify-between gap-3 rounded-xl border border-theme px-3 py-2">
                 <div className="min-w-0">
-                  <div className="truncate text-sm font-medium text-[var(--foreground)]">{a.payment.id.slice(0, 8)}…</div>
+                  <div className="truncate text-sm font-medium text-[var(--foreground)]">{a.payment.id.slice(0, 8)}...</div>
                   <div className="text-xs text-[var(--muted-foreground)]">
-                    {a.payment.method} • {a.payment.status} • {new Date(a.appliedAt).toLocaleString()}
+                    {a.payment.method} | {a.payment.status} | {new Date(a.appliedAt).toLocaleString()}
                   </div>
                 </div>
                 <div className="text-sm tabular-nums text-[var(--muted-foreground)]">{formatMoneyDisplay(a.value, moneyLocale, currency)}</div>
               </div>
             ))
           ) : (
-            <div className="text-sm text-[var(--muted-foreground)]">—</div>
+            <div className="text-sm text-[var(--muted-foreground)]">-</div>
           )}
         </div>
       </section>
 
-      <section className="surface rounded-xl border border-theme p-4">
+      <section className="surface rounded-2xl border border-theme p-4">
         <h2 className="text-sm font-semibold text-[var(--foreground)]">{language === 'pt' ? 'Controle' : language === 'es' ? 'Control' : 'Control'}</h2>
         <div className="mt-3 grid gap-2 text-sm text-[var(--muted-foreground)] sm:grid-cols-2">
           <div>
@@ -225,11 +242,11 @@ export default function ReceivableDetailsPage() {
           </div>
           <div>
             <span className="font-medium text-[var(--foreground)]">{language === 'pt' ? 'Criado por' : language === 'es' ? 'Creado por' : 'Created by'}:</span>{' '}
-            {rec.createdById ?? '—'}
+            {rec.createdById ?? '-'}
           </div>
           <div>
             <span className="font-medium text-[var(--foreground)]">{language === 'pt' ? 'Atualizado por' : language === 'es' ? 'Actualizado por' : 'Updated by'}:</span>{' '}
-            {rec.updatedById ?? '—'}
+            {rec.updatedById ?? '-'}
           </div>
         </div>
       </section>

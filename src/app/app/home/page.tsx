@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   CalendarClock,
   CreditCard,
+  FileText,
   PackageCheck,
   RotateCcw,
   ShoppingCart,
@@ -13,9 +14,9 @@ import {
   Wallet,
 } from 'lucide-react'
 
-import { useSettings } from '../settings-context'
-import { t } from '../i18n'
 import { api } from '../api-client'
+import { t } from '../i18n'
+import { useSettings } from '../settings-context'
 
 function formatMoney(language: string, currency: string, value: string | number) {
   const n = typeof value === 'number' ? value : Number(value)
@@ -31,20 +32,13 @@ function formatMoney(language: string, currency: string, value: string | number)
       maximumFractionDigits: 2,
     }).format(n)
   } catch {
-    // Fallback (should be rare)
     return n.toFixed(2)
   }
 }
 
-// (moved to api-client.ts)
-
-
 type Tone = 'blue' | 'green' | 'amber' | 'red' | 'purple' | 'slate'
 
 function toneClasses(tone: Tone) {
-  // IMPORTANT: we do NOT rely on Tailwind's `dark:` variant here because Tailwind defaults to
-  // `prefers-color-scheme` (media). Our app theme is controlled by Settings via CSS variables.
-  // So the base surfaces use CSS vars; tone is only an accent (top bar + icon + pill + focus ring).
   switch (tone) {
     case 'green':
       return {
@@ -110,61 +104,70 @@ function Card({
   const toneC = toneClasses(tone)
 
   const inner = (
-    <div className="group relative overflow-hidden rounded-xl border border-theme bg-gradient-to-br from-[var(--surface)] to-[var(--surface-2)] p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
-      {/* accent bar (subtle, theme-safe) */}
-      <div className={"pointer-events-none absolute inset-x-0 top-0 h-1 " + toneC.accent} />
+    <div className="group relative flex h-full min-h-[156px] flex-col overflow-hidden rounded-xl border border-theme bg-gradient-to-br from-[var(--surface)] to-[var(--surface-2)] p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+      <div className={'pointer-events-none absolute inset-x-0 top-0 h-1 ' + toneC.accent} />
 
-      {/* subtle highlight */}
       <div className="pointer-events-none absolute inset-0 opacity-0 transition group-hover:opacity-100">
         <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full bg-black/5 blur-2xl" />
       </div>
 
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex min-h-[2.5rem] items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2">
           {icon ? (
-            <div className={"inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border " + toneC.icon}>
+            <div className={'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border ' + toneC.icon}>
               {icon}
             </div>
           ) : null}
-          <div className="min-w-0 truncate text-sm font-medium text-[var(--foreground)]">{title}</div>
+          <div className="min-w-0 text-sm font-medium text-[var(--foreground)]">{title}</div>
         </div>
 
         {href ? (
-          <div className="text-xs text-neutral-400 transition group-hover:text-[var(--foreground)]/70">→</div>
+          <div className="pt-0.5 text-xs text-neutral-400 transition group-hover:text-[var(--foreground)]/70" aria-hidden="true">
+            -&gt;
+          </div>
         ) : null}
       </div>
 
-      <div className="mt-2 text-2xl font-semibold tracking-tight text-[var(--foreground)]">
-        {value}
-      </div>
+      <div className="mt-3 text-2xl font-semibold tracking-tight text-[var(--foreground)]">{value}</div>
 
-      {hint ? (
-        <div className={"mt-3 inline-flex rounded-full px-2 py-1 text-xs " + toneC.pill}>{hint}</div>
-      ) : null}
+      <div className="mt-auto pt-4">
+        {hint ? (
+          <div className={'inline-flex rounded-full px-2 py-1 text-xs ' + toneC.pill}>{hint}</div>
+        ) : (
+          <div className="h-[28px]" aria-hidden="true" />
+        )}
+      </div>
     </div>
   )
 
   if (!href) return inner
 
   return (
-    <Link href={href} className={"block focus:outline-none focus-visible:ring-2 " + toneC.ring}>
+    <Link href={href} className={'block h-full focus:outline-none focus-visible:ring-2 ' + toneC.ring}>
       {inner}
     </Link>
   )
 }
 
 type Summary = {
+  visibleCards: CardKey[]
   cards: {
     receivablesOpen: { count: number; total: string | number }
     receivablesOverdue: { count: number; total: string | number }
-    payablesPlanned: { count: number; total: string | number }
+    payablesCommitted: { count: number; total: string | number }
     paymentsToday: { count: number; total: string | number }
-    salesOrdersOpen: { count: number }
+    quotesPending: { count: number }
+    salesOrdersInProgress: { count: number }
+    approvalsPending: { count: number }
+    inventoryCritical: { urgentCount: number; soonCount: number }
     deliveriesOpen: { count: number }
+    deliveriesOverdue: { count: number }
     deliveriesShippedToday: { count: number }
     refundsPending: { count: number }
   }
 }
+
+type CardKey = keyof Summary['cards']
 
 export default function HomePage() {
   const { language, currency } = useSettings()
@@ -182,79 +185,132 @@ export default function HomePage() {
   })
 
   const c = q.data?.cards
+  const visibleCards = q.data?.visibleCards ?? []
+
+  const cards = c
+    ? [
+        {
+          key: 'receivablesOpen' as const,
+          title: i.home.receivablesOpen,
+          value: formatMoney(language, currency, c.receivablesOpen.total),
+          hint: countLabel('title', c.receivablesOpen.count),
+          href: '/app/finance/receivables',
+          icon: <Wallet className="h-4 w-4" />,
+          tone: 'blue' as const,
+        },
+        {
+          key: 'receivablesOverdue' as const,
+          title: i.home.receivablesOverdue,
+          value: formatMoney(language, currency, c.receivablesOverdue.total),
+          hint: countLabel('title', c.receivablesOverdue.count),
+          href: '/app/finance/receivables',
+          icon: <AlertTriangle className="h-4 w-4" />,
+          tone: 'red' as const,
+        },
+        {
+          key: 'payablesCommitted' as const,
+          title: i.home.payablesCommitted,
+          value: formatMoney(language, currency, c.payablesCommitted.total),
+          hint: countLabel('entry', c.payablesCommitted.count),
+          href: '/app/finance/payables',
+          icon: <CalendarClock className="h-4 w-4" />,
+          tone: 'amber' as const,
+        },
+        {
+          key: 'paymentsToday' as const,
+          title: i.home.paymentsToday,
+          value: formatMoney(language, currency, c.paymentsToday.total),
+          hint: countLabel('payment', c.paymentsToday.count),
+          href: '/app/payments',
+          icon: <CreditCard className="h-4 w-4" />,
+          tone: 'green' as const,
+        },
+        {
+          key: 'quotesPending' as const,
+          title: i.home.quotesPending,
+          value: String(c.quotesPending.count),
+          href: '/app/sales/orders',
+          icon: <FileText className="h-4 w-4" />,
+          tone: 'slate' as const,
+        },
+        {
+          key: 'salesOrdersInProgress' as const,
+          title: i.home.salesOrdersInProgress,
+          value: String(c.salesOrdersInProgress.count),
+          href: '/app/sales/orders',
+          icon: <ShoppingCart className="h-4 w-4" />,
+          tone: 'purple' as const,
+        },
+        {
+          key: 'approvalsPending' as const,
+          title: i.home.approvalsPending,
+          value: String(c.approvalsPending.count),
+          href: '/app/workflow/approvals',
+          icon: <AlertTriangle className="h-4 w-4" />,
+          tone: 'amber' as const,
+        },
+        {
+          key: 'inventoryCritical' as const,
+          title: i.home.inventoryCritical,
+          value: String(c.inventoryCritical.urgentCount),
+          hint:
+            language === 'pt'
+              ? `${c.inventoryCritical.soonCount} em janela`
+              : language === 'es'
+                ? `${c.inventoryCritical.soonCount} en ventana`
+                : `${c.inventoryCritical.soonCount} in window`,
+          href: '/app/inventory',
+          icon: <AlertTriangle className="h-4 w-4" />,
+          tone: 'red' as const,
+        },
+        {
+          key: 'deliveriesOpen' as const,
+          title: i.home.deliveriesOpen,
+          value: String(c.deliveriesOpen.count),
+          href: '/app/deliveries',
+          icon: <Truck className="h-4 w-4" />,
+          tone: 'blue' as const,
+        },
+        {
+          key: 'deliveriesOverdue' as const,
+          title: i.home.deliveriesOverdue,
+          value: String(c.deliveriesOverdue.count),
+          href: '/app/deliveries',
+          icon: <AlertTriangle className="h-4 w-4" />,
+          tone: 'red' as const,
+        },
+        {
+          key: 'deliveriesShippedToday' as const,
+          title: i.home.deliveriesShippedToday,
+          value: String(c.deliveriesShippedToday.count),
+          href: '/app/deliveries',
+          icon: <PackageCheck className="h-4 w-4" />,
+          tone: 'green' as const,
+        },
+        {
+          key: 'refundsPending' as const,
+          title: i.home.refundsPending,
+          value: String(c.refundsPending.count),
+          href: '/app/finance/refunds',
+          icon: <RotateCcw className="h-4 w-4" />,
+          tone: 'amber' as const,
+        },
+      ].filter((card) => visibleCards.includes(card.key))
+    : []
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-xl font-semibold">{i.home.title}</h1>
-        <p className="text-sm text-neutral-600">{i.home.subtitle}</p>
+      <div className="rounded-2xl border border-theme bg-[var(--surface-2)] px-4 py-4 shadow-[var(--shadow-sm)]">
+        <h1 className="text-xl font-semibold text-[var(--foreground)]">{i.home.title}</h1>
       </div>
 
       {q.isLoading ? <div>{i.homePage.loading}</div> : null}
       {q.error ? <div>{i.homePage.loadError}</div> : null}
 
-      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-        <Card
-          title={i.home.receivablesOpen}
-          value={c ? formatMoney(language, currency, c.receivablesOpen.total) : '-'}
-          hint={c ? countLabel('title', c.receivablesOpen.count) : undefined}
-          href="/app/finance/receivables"
-          icon={<Wallet className="h-4 w-4" />}
-          tone="blue"
-        />
-        <Card
-          title={i.home.receivablesOverdue}
-          value={c ? formatMoney(language, currency, c.receivablesOverdue.total) : '-'}
-          hint={c ? countLabel('title', c.receivablesOverdue.count) : undefined}
-          href="/app/finance/receivables"
-          icon={<AlertTriangle className="h-4 w-4" />}
-          tone="red"
-        />
-        <Card
-          title={i.home.payablesPlanned}
-          value={c ? formatMoney(language, currency, c.payablesPlanned.total) : '-'}
-          hint={c ? countLabel('entry', c.payablesPlanned.count) : undefined}
-          href="/app/finance/payables"
-          icon={<CalendarClock className="h-4 w-4" />}
-          tone="amber"
-        />
-        <Card
-          title={i.home.paymentsToday}
-          value={c ? formatMoney(language, currency, c.paymentsToday.total) : '-'}
-          hint={c ? countLabel('payment', c.paymentsToday.count) : undefined}
-          href="/app/payments"
-          icon={<CreditCard className="h-4 w-4" />}
-          tone="green"
-        />
-
-        <Card
-          title={i.home.salesOrdersOpen}
-          value={c ? String(c.salesOrdersOpen.count) : '-'}
-          href="/app/sales/orders"
-          icon={<ShoppingCart className="h-4 w-4" />}
-          tone="purple"
-        />
-        <Card
-          title={i.home.deliveriesOpen}
-          value={c ? String(c.deliveriesOpen.count) : '-'}
-          href="/app/deliveries"
-          icon={<Truck className="h-4 w-4" />}
-          tone="blue"
-        />
-        <Card
-          title={i.home.deliveriesShippedToday}
-          value={c ? String(c.deliveriesShippedToday.count) : '-'}
-          href="/app/deliveries"
-          icon={<PackageCheck className="h-4 w-4" />}
-          tone="green"
-        />
-        <Card
-          title={i.home.refundsPending}
-          value={c ? String(c.refundsPending.count) : '-'}
-          href="/app/finance/refunds"
-          icon={<RotateCcw className="h-4 w-4" />}
-          tone="amber"
-        />
+      <div className="grid auto-rows-fr gap-3 md:grid-cols-2 lg:grid-cols-4">
+        {cards.map(({ key, ...card }) => (
+          <Card key={key} {...card} />
+        ))}
       </div>
     </div>
   )

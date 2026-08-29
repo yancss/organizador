@@ -3,9 +3,55 @@ import { z } from 'zod'
 
 import { prisma } from '@/lib/prisma'
 import { requireWorkspace } from '@/lib/authz'
+import { ensurePendingApprovalRequest, hasApprovedApprovalRequest, needsPurchaseOrderApproval } from '@/lib/approval-policies'
 import { adjustInventory } from '@/lib/inventory-movements'
+import { consumeInventoryLots } from '@/lib/inventory-lots'
 import { deletePlannedPayableForPurchaseOrder, upsertPayableForPurchaseOrder } from '@/lib/finance-defaults'
+import { cancelPayableForPurchaseOrder, upsertPayableForPurchaseOrder as upsertDedicatedPayable } from '@/lib/payables'
+import { ensureDefaultWarehouse } from '@/lib/stock-locations'
 import { convertQty, convertUnitPrice, isConvertible, normalizeUnit } from '@/lib/unit-conversion'
+
+function roundQty(value: number) {
+  return Math.round(value * 1000) / 1000
+}
+
+function buildReceiptSummary(
+  items: Array<{
+    quantity: unknown
+    receivedQty: unknown
+    acceptedQty: unknown
+    rejectedQty: unknown
+  }>,
+) {
+  const normalizedItems = items.map((item) => {
+    const orderedQty = Number(item.quantity ?? 0)
+    const receivedQty = Number(item.receivedQty ?? 0)
+    const acceptedQty = Number(item.acceptedQty ?? 0)
+    const rejectedQty = Number(item.rejectedQty ?? 0)
+    const pendingQty = Math.max(0, orderedQty - receivedQty)
+    const hasDivergence = rejectedQty > 0.000001
+
+    return {
+      orderedQty,
+      receivedQty,
+      acceptedQty,
+      rejectedQty,
+      pendingQty,
+      hasDivergence,
+    }
+  })
+
+  return {
+    orderedUnits: normalizedItems.reduce((acc, item) => acc + item.orderedQty, 0),
+    receivedUnits: normalizedItems.reduce((acc, item) => acc + item.receivedQty, 0),
+    acceptedUnits: normalizedItems.reduce((acc, item) => acc + item.acceptedQty, 0),
+    rejectedUnits: normalizedItems.reduce((acc, item) => acc + item.rejectedQty, 0),
+    pendingUnits: normalizedItems.reduce((acc, item) => acc + item.pendingQty, 0),
+    pendingItems: normalizedItems.filter((item) => item.pendingQty > 0.000001).length,
+    divergentItems: normalizedItems.filter((item) => item.hasDivergence).length,
+    hasDivergence: normalizedItems.some((item) => item.hasDivergence),
+  }
+}
 
 const ItemSchema = z.object({
   productId: z.string().min(1),
@@ -19,7 +65,7 @@ const PatchSchema = z.object({
   supplierId: z.string().optional(),
   supplier: z.any().optional().nullable(),
   orderedAt: z.string().datetime().optional().nullable(),
-  status: z.enum(['DRAFT', 'CONFIRMED', 'RECEIVED', 'CANCELLED']).optional(),
+  status: z.enum(['DRAFT', 'CONFIRMED', 'PARTIALLY_RECEIVED', 'RECEIVED', 'CANCELLED']).optional(),
   observations: z.string().max(5000).optional().nullable(),
   estimatedCost: z.coerce.number().optional().nullable(),
   items: z.array(ItemSchema).optional(),
@@ -39,7 +85,8 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     return Response.json({ error: 'INVALID_BODY', details: parsed.error.flatten() }, { status: 400 })
   }
 
-  const result = await prisma.$transaction(async (tx) => {
+  try {
+    const result = await prisma.$transaction(async (tx) => {
     const prev = await tx.purchaseOrder.findFirst({
       where: { id, workspaceId: wsId },
       select: {
@@ -47,24 +94,25 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
         code: true,
         status: true,
         receivedAt: true,
-        items: { select: { productId: true, quantity: true, unitCost: true } },
+        items: { select: { productId: true, quantity: true, receivedQty: true, acceptedQty: true, rejectedQty: true, receiptObservation: true, unitCost: true } },
       },
     })
     if (!prev) throw new Error('NOT_FOUND')
 
     // Consolidate items (respect @@unique([purchaseOrderId, productId]))
     // If multiple lines for the same product include unitCost, it must match.
-    const prevItems = new Map<string, { quantity: number; unitCost: number | null }>()
+    const prevItems = new Map<string, { quantity: number; unitCost: number | null; receivedQty: number }>()
     for (const it of prev.items) {
       const prevIt = prevItems.get(it.productId)
       const unitCost = it.unitCost == null ? null : Number(it.unitCost)
+      const receivedQty = Number(it.receivedQty ?? 0)
       if (prevIt) {
         if (prevIt.unitCost != null && unitCost != null && Math.abs(prevIt.unitCost - unitCost) > 0.0001) {
           throw new Error('MIXED_UNIT_COST')
         }
-        prevItems.set(it.productId, { quantity: prevIt.quantity + Number(it.quantity), unitCost: prevIt.unitCost ?? unitCost })
+        prevItems.set(it.productId, { quantity: prevIt.quantity + Number(it.quantity), unitCost: prevIt.unitCost ?? unitCost, receivedQty: prevIt.receivedQty + receivedQty })
       } else {
-        prevItems.set(it.productId, { quantity: Number(it.quantity), unitCost })
+        prevItems.set(it.productId, { quantity: Number(it.quantity), unitCost, receivedQty })
       }
     }
 
@@ -122,9 +170,10 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
     const nextStatus = parsed.data.status ?? prev.status
 
-    const prevCommitted = prev.status === 'CONFIRMED' || prev.status === 'RECEIVED'
-    const nextCommitted = nextStatus === 'CONFIRMED' || nextStatus === 'RECEIVED'
+    const prevCommitted = prev.status === 'CONFIRMED' || prev.status === 'PARTIALLY_RECEIVED' || prev.status === 'RECEIVED'
+    const nextCommitted = nextStatus === 'CONFIRMED' || nextStatus === 'PARTIALLY_RECEIVED' || nextStatus === 'RECEIVED'
 
+    const prevReceiptStarted = prev.status === 'PARTIALLY_RECEIVED' || prev.status === 'RECEIVED' || Array.from(prevItems.values()).some((it) => it.receivedQty > 0)
     const prevReceived = prev.status === 'RECEIVED'
     const nextReceived = nextStatus === 'RECEIVED'
 
@@ -133,6 +182,28 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
         ? parsed.data.estimatedCost
         : (await tx.purchaseOrder.findFirst({ where: { id, workspaceId: wsId }, select: { estimatedCost: true } }))
             ?.estimatedCost ?? null
+
+    if (nextCommitted && nextEstimatedCost != null && needsPurchaseOrderApproval(Number(nextEstimatedCost))) {
+      const approved = await hasApprovedApprovalRequest({
+        workspaceId: wsId,
+        entityType: 'PURCHASE_ORDER',
+        entityId: id,
+        policyKey: 'PURCHASE_ORDER_AMOUNT',
+      })
+      if (!approved) {
+        await ensurePendingApprovalRequest({
+          workspaceId: wsId,
+          entityType: 'PURCHASE_ORDER',
+          entityId: id,
+          policyKey: 'PURCHASE_ORDER_AMOUNT',
+          reason: 'Pedido de compra acima da alcada padrao',
+          amount: Number(nextEstimatedCost),
+          requestedById: auth.user.id,
+          purchaseOrderId: id,
+        })
+        throw new Error('APPROVAL_REQUIRED')
+      }
+    }
 
     // Confirming a PO requires estimated cost so we can create a payable commitment.
     if (nextCommitted && (nextEstimatedCost == null || Number(nextEstimatedCost) <= 0)) {
@@ -153,18 +224,77 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       }
     }
 
-    // If a PO is already received, we don't allow undoing receipt or editing items.
-    // Rationale: avgCost and inventory receipt would become inconsistent without a full cost history recalculation.
-    if (prevReceived) {
-      if (nextStatus !== 'RECEIVED') throw new Error('CANNOT_UNRECEIVE')
+    // Once receipt starts, items become immutable to avoid stock/cost inconsistencies.
+    if (prevReceiptStarted) {
+      if (nextStatus === 'DRAFT' || nextStatus === 'CONFIRMED' || nextStatus === 'CANCELLED') throw new Error('CANNOT_ROLLBACK_RECEIPT')
       if (parsed.data.items) throw new Error('CANNOT_EDIT_RECEIVED_ITEMS')
     }
 
     // Inventory + avg cost adjustments happen ONLY on RECEIVED.
     // - If it WILL be received, apply next items (add to stock) and update avg cost.
     if (prevReceived) {
+      const defaultWarehouse = await ensureDefaultWarehouse(tx as any, wsId, auth.user.id)
       for (const [productId, it] of prevItems.entries()) {
-        await adjustInventory(tx as any, { workspaceId: wsId, productId, delta: -it.quantity })
+        const receiptEvents = await tx.$queryRaw<
+          Array<{
+            lotId: string | null
+            quantity: unknown
+            serialCodes: string[]
+          }>
+        >`
+          SELECT
+            evt."lotId",
+            evt."quantity",
+            evt."serialCodes"
+          FROM "InventoryLotEvent" evt
+          WHERE evt."workspaceId" = ${wsId}
+            AND evt."productId" = ${productId}
+            AND evt."eventType" = 'PURCHASE_RECEIPT'
+            AND evt."referenceType" = 'PurchaseOrder'
+            AND evt."referenceId" = ${prev.id}
+          ORDER BY evt."createdAt" ASC
+        `
+
+        let remainingToReverse = roundQty(it.quantity)
+        for (const event of receiptEvents) {
+          if (remainingToReverse <= 0.000001) break
+          if (!event.lotId) continue
+          const eventQty = Number(event.quantity ?? 0)
+          if (!Number.isFinite(eventQty) || eventQty <= 0.000001) continue
+          const reverseQty = roundQty(Math.min(remainingToReverse, eventQty))
+          const serialCodes = (event.serialCodes ?? []).filter(Boolean)
+
+          await consumeInventoryLots(tx as any, {
+            workspaceId: wsId,
+            productId,
+            warehouseId: defaultWarehouse.id,
+            preferredLotId: event.lotId,
+            preferredSerialCodes: serialCodes.length ? serialCodes.slice(0, Math.max(0, Math.round(reverseQty))) : [],
+            quantity: reverseQty,
+            eventType: 'PURCHASE_RECEIPT_REVERSAL',
+            referenceType: 'PurchaseOrder',
+            referenceId: prev.id,
+            notes: 'Purchase order receipt reversal by original lot trace.',
+          })
+
+          remainingToReverse = roundQty(remainingToReverse - reverseQty)
+        }
+
+        if (remainingToReverse > 0.000001) {
+          throw new Error('PURCHASE_RECEIPT_TRACE_REVERSAL_INCOMPLETE')
+        }
+
+        await adjustInventory(tx as any, {
+          workspaceId: wsId,
+          productId,
+          delta: -it.quantity,
+          userId: auth.user.id,
+          movementType: 'PURCHASE_RECEIPT_REVERSAL',
+          referenceType: 'PurchaseOrder',
+          referenceId: prev.id,
+          observations: 'Purchase order receipt reversal',
+          unitCost: it.unitCost,
+        })
       }
     }
 
@@ -179,7 +309,16 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
         const unitCost = Number(it.unitCost)
 
         // Update inventory first
-        await adjustInventory(tx as any, { workspaceId: wsId, productId, delta: qtyIn })
+        await adjustInventory(tx as any, {
+          workspaceId: wsId,
+          productId,
+          delta: qtyIn,
+          userId: auth.user.id,
+          movementType: 'PURCHASE_RECEIPT',
+          referenceType: 'PurchaseOrder',
+          referenceId: prev.id,
+          unitCost,
+        })
 
         // Weighted average cost
         const denom = currentQty + qtyIn
@@ -234,6 +373,10 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
           select: {
             id: true,
             quantity: true,
+            receivedQty: true,
+            acceptedQty: true,
+            rejectedQty: true,
+            receiptObservation: true,
             unitCost: true,
             product: { select: { id: true, name: true, unit: true } },
           },
@@ -247,6 +390,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     // Finance commitment (payable): create when CONFIRMED or RECEIVED; remove when leaving both.
     if (prevCommitted && !nextCommitted) {
       await deletePlannedPayableForPurchaseOrder(wsId, po.id)
+      await cancelPayableForPurchaseOrder(wsId, po.id)
     }
     if (nextCommitted) {
       await upsertPayableForPurchaseOrder({
@@ -255,12 +399,37 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
         competenceDate: po.orderedAt ?? new Date(),
         value: Number(po.estimatedCost ?? 0),
       })
+      await upsertDedicatedPayable({
+        workspaceId: wsId,
+        purchaseOrderId: po.id,
+        supplierId: po.supplierEntity?.id ?? null,
+        competenceDate: po.orderedAt ?? new Date(),
+        plannedAmount: Number(po.estimatedCost ?? 0),
+        observations: po.observations ?? null,
+      })
     }
 
     return po
-  })
+    })
 
-  return Response.json({ purchaseOrder: result })
+    return Response.json({ purchaseOrder: { ...result, receiptSummary: buildReceiptSummary(result.items) } })
+  } catch (error: any) {
+    const code = String(error?.message ?? error ?? 'UNKNOWN')
+    if (code === 'NOT_FOUND') return Response.json({ error: code }, { status: 404 })
+    if (code === 'APPROVAL_REQUIRED') {
+      return Response.json({ error: code, policyKey: 'PURCHASE_ORDER_AMOUNT' }, { status: 409 })
+    }
+    if (
+      code === 'PURCHASE_RECEIPT_TRACE_REVERSAL_INCOMPLETE' ||
+      code === 'INVALID_SERIAL_SELECTION' ||
+      code === 'SERIAL_SELECTION_QUANTITY_MISMATCH' ||
+      code === 'SERIALIZED_LOT_PARTIAL_CONSUMPTION_UNSUPPORTED' ||
+      code === 'INSUFFICIENT_SOURCE_STOCK'
+    ) {
+      return Response.json({ error: code }, { status: 409 })
+    }
+    return Response.json({ error: code }, { status: 400 })
+  }
 }
 
 export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {

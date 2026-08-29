@@ -201,7 +201,6 @@ export default function EventBoard() {
       <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">{i.board.title}</h1>
-          <p className="text-sm text-neutral-600">{i.board.subtitle}</p>
         </div>
 
         <div className="flex items-center gap-2">

@@ -49,6 +49,11 @@ type Client = {
 
   address?: string | null
   observations?: string | null
+  supplierOrderDays?: Array<'MONDAY' | 'TUESDAY' | 'WEDNESDAY' | 'THURSDAY' | 'FRIDAY' | 'SATURDAY' | 'SUNDAY'>
+  supplierDeliveryDays?: Array<'MONDAY' | 'TUESDAY' | 'WEDNESDAY' | 'THURSDAY' | 'FRIDAY' | 'SATURDAY' | 'SUNDAY'>
+  supplierOrderCutoffHour?: number | null
+  supplierBlockedDates?: string[]
+  supplierMinOrderValue?: string | number | null
 }
 
 type ListMeta = {
@@ -56,6 +61,14 @@ type ListMeta = {
   take: number
   total: number
   totalPages: number
+}
+
+type ClientSummary = {
+  customers: number
+  suppliers: number
+  dualRole: number
+  companies: number
+  people: number
 }
 
 type Draft = {
@@ -96,7 +109,22 @@ type Draft = {
   address: string
 
   observations: string
+  supplierOrderDays: Array<'MONDAY' | 'TUESDAY' | 'WEDNESDAY' | 'THURSDAY' | 'FRIDAY' | 'SATURDAY' | 'SUNDAY'>
+  supplierDeliveryDays: Array<'MONDAY' | 'TUESDAY' | 'WEDNESDAY' | 'THURSDAY' | 'FRIDAY' | 'SATURDAY' | 'SUNDAY'>
+  supplierOrderCutoffHour: string
+  supplierBlockedDates: string
+  supplierMinOrderValue: string
 }
+
+const WEEKDAY_OPTIONS = [
+  { value: 'MONDAY', pt: 'Seg', es: 'Lun', en: 'Mon' },
+  { value: 'TUESDAY', pt: 'Ter', es: 'Mar', en: 'Tue' },
+  { value: 'WEDNESDAY', pt: 'Qua', es: 'Mie', en: 'Wed' },
+  { value: 'THURSDAY', pt: 'Qui', es: 'Jue', en: 'Thu' },
+  { value: 'FRIDAY', pt: 'Sex', es: 'Vie', en: 'Fri' },
+  { value: 'SATURDAY', pt: 'Sab', es: 'Sab', en: 'Sat' },
+  { value: 'SUNDAY', pt: 'Dom', es: 'Dom', en: 'Sun' },
+] as const
 
 function emptyDraft(): Draft {
   return {
@@ -120,6 +148,11 @@ function emptyDraft(): Draft {
     addressComplement: '',
     address: '',
     observations: '',
+    supplierOrderDays: [],
+    supplierDeliveryDays: [],
+    supplierOrderCutoffHour: '',
+    supplierBlockedDates: '',
+    supplierMinOrderValue: '',
   }
 }
 
@@ -180,7 +213,7 @@ export default function ClientsPage() {
 
   const clientsQ = useQuery({
     queryKey: ['clients', deferredQuery, page],
-    queryFn: () => api<{ clients: Client[]; meta: ListMeta }>(`/api/clients?q=${encodeURIComponent(deferredQuery)}&page=${page}&take=25`),
+    queryFn: () => api<{ clients: Client[]; summary: ClientSummary; meta: ListMeta }>(`/api/clients?q=${encodeURIComponent(deferredQuery)}&page=${page}&take=25`),
   })
 
   const createM = useMutation({
@@ -215,6 +248,7 @@ export default function ClientsPage() {
   })
 
   const clients = clientsQ.data?.clients ?? []
+  const summary = clientsQ.data?.summary
   const meta = clientsQ.data?.meta
 
   const auditUserIds = useMemo(() => {
@@ -321,6 +355,11 @@ export default function ClientsPage() {
 
       address: c.address ?? '',
       observations: c.observations ?? '',
+      supplierOrderDays: c.supplierOrderDays ?? [],
+      supplierDeliveryDays: c.supplierDeliveryDays ?? [],
+      supplierOrderCutoffHour: c.supplierOrderCutoffHour == null ? '' : String(c.supplierOrderCutoffHour),
+      supplierBlockedDates: (c.supplierBlockedDates ?? []).join('\n'),
+      supplierMinOrderValue: c.supplierMinOrderValue == null ? '' : String(c.supplierMinOrderValue),
     })
 
     // For edits we don't know if it was auto-found; start unlocked.
@@ -509,6 +548,23 @@ export default function ClientsPage() {
 
       address: draft.address.trim() ? draft.address.trim() : null,
       observations: draft.observations.trim() ? draft.observations.trim() : null,
+      supplierOrderDays: draft.roles.supplier ? draft.supplierOrderDays : [],
+      supplierDeliveryDays: draft.roles.supplier ? draft.supplierDeliveryDays : [],
+      supplierOrderCutoffHour:
+        draft.roles.supplier && draft.supplierOrderCutoffHour.trim()
+          ? Number(draft.supplierOrderCutoffHour)
+          : null,
+      supplierMinOrderValue:
+        draft.roles.supplier && draft.supplierMinOrderValue.trim()
+          ? Number(draft.supplierMinOrderValue.replace(',', '.'))
+          : null,
+      supplierBlockedDates:
+        draft.roles.supplier
+          ? draft.supplierBlockedDates
+              .split(/\r?\n|,/)
+              .map((value) => value.trim())
+              .filter(Boolean)
+          : [],
     }
 
     try {
@@ -549,30 +605,60 @@ export default function ClientsPage() {
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">{i.clients.title}</h1>
-          <p className="text-sm text-neutral-600">{i.clients.subtitle}</p>
-        </div>
+      <header className="rounded-2xl border border-theme bg-[var(--surface-2)] px-5 py-5 shadow-[var(--shadow-sm)]">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-xl font-semibold tracking-tight">{i.clients.title}</h1>
+          </div>
 
-        <button className="btn btn-primary" onClick={openCreate} type="button">
-          {i.clients.new}
-        </button>
+          <button className="btn btn-primary" onClick={openCreate} type="button">
+            {i.clients.new}
+          </button>
+        </div>
       </header>
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="w-full max-w-md">
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={i.table.searchPlaceholder}
-            className="w-full rounded-lg border border-theme bg-transparent px-3 py-2 text-sm"
-          />
+      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="surface rounded-2xl border border-theme p-5">
+          <div className="text-xs uppercase tracking-wide text-[var(--text-muted)]">
+            {language === 'pt' ? 'Clientes' : language === 'es' ? 'Clientes' : 'Customers'}
+          </div>
+          <div className="mt-1 text-2xl font-semibold">{summary?.customers ?? 0}</div>
         </div>
+        <div className="surface rounded-2xl border border-theme p-5">
+          <div className="text-xs uppercase tracking-wide text-[var(--text-muted)]">
+            {language === 'pt' ? 'Fornecedores' : language === 'es' ? 'Proveedores' : 'Suppliers'}
+          </div>
+          <div className="mt-1 text-2xl font-semibold">{summary?.suppliers ?? 0}</div>
+        </div>
+        <div className="surface rounded-2xl border border-theme p-5">
+          <div className="text-xs uppercase tracking-wide text-[var(--text-muted)]">
+            {language === 'pt' ? 'Ambos os papeis' : language === 'es' ? 'Ambos roles' : 'Dual role'}
+          </div>
+          <div className="mt-1 text-2xl font-semibold">{summary?.dualRole ?? 0}</div>
+        </div>
+        <div className="surface rounded-2xl border border-theme p-5">
+          <div className="text-xs uppercase tracking-wide text-[var(--text-muted)]">
+            {language === 'pt' ? 'Empresas' : language === 'es' ? 'Empresas' : 'Companies'}
+          </div>
+          <div className="mt-1 text-2xl font-semibold">{summary?.companies ?? 0}</div>
+        </div>
+      </section>
 
-        <div className="flex items-center gap-2 text-xs text-[var(--muted-foreground)]">
-          <span>{meta ? `${meta.total}` : '0'}</span>
-          <span>{language === 'pt' ? 'registros' : language === 'es' ? 'registros' : 'records'}</span>
+      <div className="surface rounded-2xl border border-theme p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="w-full max-w-md">
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={i.table.searchPlaceholder}
+              className="w-full rounded-lg border border-theme bg-transparent px-3 py-2 text-sm"
+            />
+          </div>
+
+          <div className="rounded-xl bg-[var(--surface-2)] px-3 py-2 text-xs text-[var(--muted-foreground)]">
+            <span>{meta ? `${meta.total}` : '0'}</span>{' '}
+            <span>{language === 'pt' ? 'registros' : language === 'es' ? 'registros' : 'records'}</span>
+          </div>
         </div>
       </div>
 
@@ -701,6 +787,99 @@ export default function ClientsPage() {
 
                   <AuditHistory entityType="Client" entityId={draft.id} />
                 </>
+              ) : null}
+
+              {draft.roles.supplier ? (
+                <div className="grid gap-3 rounded-lg border border-theme p-3">
+                  <div className="text-xs font-medium text-[var(--foreground)]">
+                    {language === 'pt' ? 'Calendario comercial do fornecedor' : language === 'es' ? 'Calendario comercial del proveedor' : 'Supplier commercial calendar'}
+                  </div>
+                  <div className="grid gap-2">
+                    <span className="text-xs text-[var(--muted-foreground)]">
+                      {language === 'pt' ? 'Dias em que podemos emitir compra' : language === 'es' ? 'Dias en que podemos emitir compra' : 'Days when we can place a purchase'}
+                    </span>
+                    <div className="flex flex-wrap gap-2">
+                      {WEEKDAY_OPTIONS.map((day) => (
+                        <label key={`order-${day.value}`} className="flex items-center gap-2 rounded-lg border border-theme px-3 py-2 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={draft.supplierOrderDays.includes(day.value)}
+                            onChange={(e) =>
+                              setDraft((d) => ({
+                                ...d,
+                                supplierOrderDays: e.target.checked
+                                  ? [...d.supplierOrderDays, day.value]
+                                  : d.supplierOrderDays.filter((value) => value !== day.value),
+                              }))
+                            }
+                          />
+                          {language === 'pt' ? day.pt : language === 'es' ? day.es : day.en}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="grid gap-2">
+                    <span className="text-xs text-[var(--muted-foreground)]">
+                      {language === 'pt' ? 'Dias usuais de entrega/recebimento' : language === 'es' ? 'Dias habituales de entrega/recepcion' : 'Typical delivery/receiving days'}
+                    </span>
+                    <div className="flex flex-wrap gap-2">
+                      {WEEKDAY_OPTIONS.map((day) => (
+                        <label key={`delivery-${day.value}`} className="flex items-center gap-2 rounded-lg border border-theme px-3 py-2 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={draft.supplierDeliveryDays.includes(day.value)}
+                            onChange={(e) =>
+                              setDraft((d) => ({
+                                ...d,
+                                supplierDeliveryDays: e.target.checked
+                                  ? [...d.supplierDeliveryDays, day.value]
+                                  : d.supplierDeliveryDays.filter((value) => value !== day.value),
+                              }))
+                            }
+                          />
+                          {language === 'pt' ? day.pt : language === 'es' ? day.es : day.en}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <label className="grid gap-1">
+                      <span className="text-xs text-[var(--muted-foreground)]">
+                        {language === 'pt' ? 'Hora limite do pedido (0-23)' : language === 'es' ? 'Hora limite del pedido (0-23)' : 'Order cutoff hour (0-23)'}
+                      </span>
+                      <input
+                        value={draft.supplierOrderCutoffHour}
+                        onChange={(e) => setDraft((d) => ({ ...d, supplierOrderCutoffHour: e.target.value }))}
+                        placeholder={language === 'pt' ? 'Opcional' : language === 'es' ? 'Opcional' : 'Optional'}
+                        className="w-full rounded-lg border border-theme bg-transparent px-3 py-2"
+                        inputMode="numeric"
+                      />
+                    </label>
+                    <label className="grid gap-1">
+                      <span className="text-xs text-[var(--muted-foreground)]">
+                        {language === 'pt' ? 'Datas bloqueadas (AAAA-MM-DD)' : language === 'es' ? 'Fechas bloqueadas (AAAA-MM-DD)' : 'Blocked dates (YYYY-MM-DD)'}
+                      </span>
+                      <textarea
+                        value={draft.supplierBlockedDates}
+                        onChange={(e) => setDraft((d) => ({ ...d, supplierBlockedDates: e.target.value }))}
+                        placeholder={language === 'pt' ? 'Uma data por linha' : language === 'es' ? 'Una fecha por linea' : 'One date per line'}
+                        className="min-h-24 w-full rounded-lg border border-theme bg-transparent px-3 py-2 text-sm"
+                      />
+                    </label>
+                    <label className="grid gap-1">
+                      <span className="text-xs text-[var(--muted-foreground)]">
+                        {language === 'pt' ? 'Valor minimo do pedido' : language === 'es' ? 'Valor minimo del pedido' : 'Minimum order value'}
+                      </span>
+                      <input
+                        value={draft.supplierMinOrderValue}
+                        onChange={(e) => setDraft((d) => ({ ...d, supplierMinOrderValue: e.target.value }))}
+                        placeholder={language === 'pt' ? 'Opcional' : language === 'es' ? 'Opcional' : 'Optional'}
+                        className="w-full rounded-lg border border-theme bg-transparent px-3 py-2"
+                        inputMode="decimal"
+                      />
+                    </label>
+                  </div>
+                </div>
               ) : null}
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

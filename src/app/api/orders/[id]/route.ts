@@ -2,7 +2,10 @@ import { z } from 'zod'
 
 import { prisma } from '@/lib/prisma'
 import { requireWorkspace } from '@/lib/authz'
+import { ensurePendingApprovalRequest, hasApprovedApprovalRequest, needsSalesOrderDiscountApproval } from '@/lib/approval-policies'
+import { buildSalesOrderReservationSummary, getInventoryReservationSnapshot } from '@/lib/inventory-reservations'
 import { calcOrderTotals } from '@/lib/sales-order-totals'
+import { canTransitionSalesOrderStatus } from '@/lib/sales-order-status'
 import { convertQty, convertUnitPrice, isConvertible, normalizeUnit } from '@/lib/unit-conversion'
 // Finance hooks (recebíveis/pagamentos) serão adicionados no próximo passo.
 
@@ -24,7 +27,7 @@ const UpdateOrderSchema = z.object({
   clientId: z.string().optional().nullable(),
   orderedAt: z.string().datetime().optional().nullable(),
   deliveryAt: z.string().datetime().optional().nullable(),
-  status: z.enum(['DRAFT', 'CONFIRMED', 'IN_PRODUCTION', 'READY', 'SHIPPED', 'DONE', 'CANCELLED']).optional(),
+  status: z.enum(['DRAFT', 'SENT', 'APPROVED', 'REJECTED', 'EXPIRED', 'CONFIRMED', 'IN_PRODUCTION', 'READY', 'SHIPPED', 'DONE', 'CANCELLED']).optional(),
 
   discountMode: z.enum(['SUBTOTAL', 'PER_ITEM']).optional(),
   discountType: z.enum(['VALUE', 'PERCENT']).optional().nullable(),
@@ -81,7 +84,25 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
 
   if (!order) return Response.json({ error: 'NOT_FOUND' }, { status: 404 })
 
-  return Response.json({ order })
+  const reservationSnapshot = await getInventoryReservationSnapshot({
+    workspaceId: wsId,
+    productIds: order.items.map((item) => item.product.id),
+  })
+
+  return Response.json({
+    order: {
+      ...order,
+      reservationSummary: buildSalesOrderReservationSummary({
+        salesOrderId: order.id,
+        orderStatus: order.status,
+        items: order.items.map((item) => ({
+          productId: item.product.id,
+          quantity: Number(item.quantity ?? 0),
+        })),
+        snapshot: reservationSnapshot,
+      }),
+    },
+  })
 }
 
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -114,6 +135,45 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     },
   })
   if (!prev) return Response.json({ error: 'NOT_FOUND' }, { status: 404 })
+
+  const nextStatus = parsed.data.status ?? prev.status
+  if (!canTransitionSalesOrderStatus(prev.status as any, nextStatus as any)) {
+    return Response.json({ error: 'INVALID_STATUS_TRANSITION', from: prev.status, to: nextStatus }, { status: 400 })
+  }
+
+  const policyTotals = calcOrderTotals({
+    items: (parsed.data.items as any) ?? prev.items,
+    discountMode: (parsed.data.discountMode ?? prev.discountMode) as any,
+    discountType: (parsed.data.discountType ?? prev.discountType) as any,
+    discountValue: parsed.data.discountValue ?? prev.discountValue,
+    discountPercent: parsed.data.discountPercent ?? prev.discountPercent,
+  })
+
+  const discountApprovalNeeded = needsSalesOrderDiscountApproval({
+    subtotal: policyTotals.subtotal,
+    total: policyTotals.total,
+  })
+  if (discountApprovalNeeded && nextStatus === 'CONFIRMED') {
+    const approved = await hasApprovedApprovalRequest({
+      workspaceId: wsId,
+      entityType: 'SALES_ORDER',
+      entityId: id,
+      policyKey: 'SALES_ORDER_DISCOUNT',
+    })
+    if (!approved) {
+      await ensurePendingApprovalRequest({
+        workspaceId: wsId,
+        entityType: 'SALES_ORDER',
+        entityId: id,
+        policyKey: 'SALES_ORDER_DISCOUNT',
+        reason: 'Pedido com desconto fora da politica padrao',
+        amount: policyTotals.subtotal - policyTotals.total,
+        requestedById: auth.user.id,
+        salesOrderId: id,
+      })
+      return Response.json({ error: 'APPROVAL_REQUIRED', policyKey: 'SALES_ORDER_DISCOUNT' }, { status: 409 })
+    }
+  }
 
   const data: any = { updatedById: auth.user.id }
   if (parsed.data.name !== undefined) data.name = parsed.data.name
@@ -330,6 +390,19 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     if (prevValue == null || Math.abs(prevValue - nextValue) >= 0.005) {
       await prisma.salesOrder.updateMany({ where: { id, workspaceId: wsId }, data: { value: nextValue, updatedById: auth.user.id } })
     }
+
+    if (needsSalesOrderDiscountApproval({ subtotal: totals.subtotal, total: totals.total })) {
+      await ensurePendingApprovalRequest({
+        workspaceId: wsId,
+        entityType: 'SALES_ORDER',
+        entityId: id,
+        policyKey: 'SALES_ORDER_DISCOUNT',
+        reason: 'Pedido com desconto fora da politica padrao',
+        amount: totals.subtotal - totals.total,
+        requestedById: auth.user.id,
+        salesOrderId: id,
+      })
+    }
   }
 
   const order = await prisma.salesOrder.findFirst({
@@ -369,7 +442,27 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     },
   })
 
-  return Response.json({ order })
+  if (!order) return Response.json({ error: 'NOT_FOUND' }, { status: 404 })
+
+  const reservationSnapshot = await getInventoryReservationSnapshot({
+    workspaceId: wsId,
+    productIds: order.items.map((item) => item.product.id),
+  })
+
+  return Response.json({
+    order: {
+      ...order,
+      reservationSummary: buildSalesOrderReservationSummary({
+        salesOrderId: order.id,
+        orderStatus: order.status,
+        items: order.items.map((item) => ({
+          productId: item.product.id,
+          quantity: Number(item.quantity ?? 0),
+        })),
+        snapshot: reservationSnapshot,
+      }),
+    },
+  })
 }
 
 export async function DELETE(_req: Request, ctx: { params: Promise<{ id: string }> }) {

@@ -158,7 +158,7 @@ export default function DataTable<T>({
     <div className="surface overflow-hidden rounded-xl border border-theme">
       {/* search */}
       {showSearch ? (
-        <div className="grid grid-cols-1 gap-2 border-b border-theme bg-[var(--surface-2)] px-4 py-3 sm:grid-cols-3 sm:items-center">
+        <div className="grid grid-cols-1 gap-3 border-b border-theme bg-[var(--surface-2)] px-5 py-4 sm:grid-cols-3 sm:items-center">
         <div className="hidden sm:block" />
 
         <div className="mx-auto flex w-full max-w-md items-center gap-2">
@@ -166,7 +166,7 @@ export default function DataTable<T>({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={labels.searchPlaceholder}
-            className="w-full rounded-md border border-theme bg-[var(--surface)] px-3 py-2 text-sm text-[var(--foreground)]"
+            className="w-full rounded-lg border border-theme bg-[var(--surface)] px-3 py-2.5 text-sm text-[var(--foreground)]"
           />
           {query.trim() ? (
             <button
@@ -208,7 +208,7 @@ export default function DataTable<T>({
                       <th
                         key={c.key}
                         className={
-                          'whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[var(--muted-foreground)] ' +
+                          'whitespace-nowrap px-5 py-3.5 text-xs font-semibold uppercase tracking-wide text-[var(--muted-foreground)] ' +
                           (c.headerClassName ?? '')
                         }
                       >
@@ -241,7 +241,7 @@ export default function DataTable<T>({
                     onClick={onRowClick ? () => onRowClick(row) : undefined}
                   >
                     {columns.map((c) => (
-                      <td key={c.key} className={'px-4 py-3 align-top ' + (c.className ?? '')}>
+                      <td key={c.key} className={'px-5 py-4 align-top ' + (c.className ?? '')}>
                         {c.render(row)}
                       </td>
                     ))}
@@ -253,7 +253,7 @@ export default function DataTable<T>({
 
           {/* footer/pagination */}
           {showFooter ? (
-            <div className="flex flex-col gap-2 border-t border-theme bg-[var(--surface-2)] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-col gap-3 border-t border-theme bg-[var(--surface-2)] px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between">
               <div className="text-xs text-[var(--muted-foreground)]">
                 {fmt(labels.showing, { start: startIndex, end: endIndex, total: sortedRows.length })}
               </div>

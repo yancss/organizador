@@ -26,10 +26,7 @@ export default async function SettingsPage() {
       <div className="rounded-md border p-6">
         <h1 className="text-xl font-semibold">Entrar</h1>
         <p className="mt-2 text-sm text-[var(--text-muted)]">Faça login para acessar as configurações.</p>
-        <Link
-          href="/login"
-          className="mt-4 inline-flex rounded-md bg-black px-4 py-2 text-white hover:opacity-90"
-        >
+        <Link href="/login" className="btn btn-primary mt-4">
           Ir para login
         </Link>
       </div>

@@ -39,6 +39,16 @@ type Order = {
     discountPercent?: string | number | null
     product: { id: string; name: string; unit: string }
   }>
+  reservationSummary?: {
+    reservedQtyTotal: number
+    orderedQtyTotal: number
+    items: Array<{
+      productId: string
+      orderedQty: number
+      reservedQty: number
+      unreservedQty: number
+    }>
+  }
   createdById: string | null
   updatedById: string | null
   createdAt: string
@@ -205,9 +215,16 @@ export default function SalesOrderDetailsPage() {
     return m
   })()
 
+  const reservationByProductId = (() => {
+    const map = new Map<string, { orderedQty: number; reservedQty: number; unreservedQty: number }>()
+    for (const item of order?.reservationSummary?.items ?? []) map.set(item.productId, item)
+    return map
+  })()
+
   return (
     <div className="space-y-6">
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <header className="rounded-2xl border border-theme bg-[var(--surface-2)] px-5 py-5 shadow-[var(--shadow-sm)]">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="space-y-2">
           <div className="text-sm text-[var(--muted-foreground)]">
             <Link href="/app/sales/orders" className="underline">
@@ -517,10 +534,11 @@ export default function SalesOrderDetailsPage() {
 
           {/** Removed: Edit (modal) - we support inline edits on the details page. */}
         </div>
+        </div>
       </header>
 
       {orderQ.isLoading ? (
-        <p className="text-sm text-neutral-600">Carregando…</p>
+        <p className="text-sm text-[var(--text-muted)]">Carregando...</p>
       ) : orderQ.isError ? (
         <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           Erro ao carregar: {String(orderQ.error)}
@@ -529,7 +547,7 @@ export default function SalesOrderDetailsPage() {
         <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-800">NOT_FOUND</div>
       ) : (
         <div className="grid gap-4">
-          <section className="surface rounded-xl border border-theme p-4">
+          <section className="surface rounded-2xl border border-theme p-4">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="text-sm font-semibold text-[var(--foreground)]">{language === 'pt' ? 'Itens' : language === 'es' ? 'Ítems' : 'Items'}</h2>
@@ -601,6 +619,16 @@ export default function SalesOrderDetailsPage() {
                 {order.value == null ? '' : formatMoneyDisplay(order.value, moneyLocale, currency)}
               </div>
             </div>
+
+            {order.reservationSummary && order.reservationSummary.reservedQtyTotal > 0 ? (
+              <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50/80 px-3 py-2 text-sm text-amber-900">
+                {language === 'pt'
+                  ? `${order.reservationSummary.reservedQtyTotal} itens reservados em estoque para este pedido`
+                  : language === 'es'
+                    ? `${order.reservationSummary.reservedQtyTotal} items reservados en inventario para este pedido`
+                    : `${order.reservationSummary.reservedQtyTotal} items reserved in stock for this order`}
+              </div>
+            ) : null}
 
             {order.items?.length ? (
               <div className="mt-3 overflow-x-auto">
@@ -688,7 +716,18 @@ export default function SalesOrderDetailsPage() {
                                 />
                               </div>
                             ) : (
-                              <div className="min-w-[260px] font-medium text-[var(--foreground)]">{it.product.name}</div>
+                              <div className="min-w-[260px]">
+                                <div className="font-medium text-[var(--foreground)]">{it.product.name}</div>
+                                {reservationByProductId.get(it.product.id)?.reservedQty ? (
+                                  <div className="text-xs text-[var(--text-muted)]">
+                                    {language === 'pt'
+                                      ? `${reservationByProductId.get(it.product.id)?.reservedQty} reservado | ${reservationByProductId.get(it.product.id)?.unreservedQty} pendente`
+                                      : language === 'es'
+                                        ? `${reservationByProductId.get(it.product.id)?.reservedQty} reservado | ${reservationByProductId.get(it.product.id)?.unreservedQty} pendiente`
+                                        : `${reservationByProductId.get(it.product.id)?.reservedQty} reserved | ${reservationByProductId.get(it.product.id)?.unreservedQty} pending`}
+                                  </div>
+                                ) : null}
+                              </div>
                             )}
                           </td>
 
@@ -879,7 +918,7 @@ export default function SalesOrderDetailsPage() {
             )}
           </section>
 
-          <section className="surface rounded-xl border border-theme p-4">
+          <section className="surface rounded-2xl border border-theme p-4">
             <h2 className="text-sm font-semibold text-[var(--foreground)]">{language === 'pt' ? 'Entregas' : language === 'es' ? 'Entregas' : 'Deliveries'}</h2>
             <div className="mt-3 space-y-2">
               {(deliveriesQ.data?.deliveries ?? []).length ? (
@@ -903,7 +942,7 @@ export default function SalesOrderDetailsPage() {
             </div>
           </section>
 
-          <section className="surface rounded-xl border border-theme p-4">
+          <section className="surface rounded-2xl border border-theme p-4">
             <div className="flex items-center justify-between gap-3">
               <h2 className="text-sm font-semibold text-[var(--foreground)]">{language === 'pt' ? 'Recebíveis' : language === 'es' ? 'Por cobrar' : 'Receivables'}</h2>
               <span
@@ -944,7 +983,7 @@ export default function SalesOrderDetailsPage() {
 
           <AuditHistory entityType="SalesOrder" entityId={id ?? ''} />
 
-          <section className="surface rounded-xl border border-theme p-4">
+          <section className="surface rounded-2xl border border-theme p-4">
             <h2 className="text-sm font-semibold text-[var(--foreground)]">{language === 'pt' ? 'Controle' : language === 'es' ? 'Control' : 'Control'}</h2>
             <div className="mt-3 grid gap-2 text-sm text-[var(--muted-foreground)] sm:grid-cols-2">
               <div>

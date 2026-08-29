@@ -12,10 +12,10 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         <AppHeader />
 
         {/* Content area below header */}
-        <div className="flex min-h-0">
+        <div className="mx-auto flex min-h-0 max-w-[1680px]">
           <AppSidebar />
-          <main className="min-w-0 flex-1 px-4 py-6 sm:px-6">
-            <div className="mx-auto max-w-none">{children}</div>
+          <main className="min-w-0 flex-1 px-3 py-4 sm:px-5 sm:py-5 lg:px-6 lg:py-6">
+            <div className="page-shell mx-auto max-w-none rounded-[1.5rem] p-4 sm:p-5 lg:p-6">{children}</div>
           </main>
         </div>
       </div>

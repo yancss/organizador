@@ -1,7 +1,9 @@
 import { z } from 'zod'
 
+import { LOOKUP_MODEL_MODULE } from '@/lib/access-control'
 import { prisma } from '@/lib/prisma'
 import { requireWorkspace } from '@/lib/authz'
+import { hasPermission } from '@/lib/permissions'
 
 const QuerySchema = z.object({
   model: z.enum(['Product', 'Client', 'FinancialAccount', 'FinancialCategory', 'CostCenter']),
@@ -27,6 +29,11 @@ export async function GET(req: Request) {
     .slice(0, 200)
 
   const model = parsed.data.model
+
+  const requiredModule = LOOKUP_MODEL_MODULE[model]
+  if (!hasPermission(auth.user, `${requiredModule}.view`)) {
+    return Response.json({ error: 'FORBIDDEN' }, { status: 403 })
+  }
 
   const selectName = (row: any) => ({ id: row.id, name: row.name ?? null })
 

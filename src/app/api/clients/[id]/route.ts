@@ -3,6 +3,9 @@ import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { requireWorkspace } from '@/lib/authz'
 
+const SupplierWeekdaySchema = z.enum(['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'])
+const BlockedDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
+
 function normalizeE164(input: string) {
   const trimmed = input.trim()
   const hasPlus = trimmed.startsWith('+')
@@ -44,6 +47,11 @@ const UpdateClientSchema = z.object({
 
   address: z.string().max(500).optional().nullable(),
   observations: z.string().max(5000).optional().nullable(),
+  supplierOrderDays: z.array(SupplierWeekdaySchema).optional().nullable(),
+  supplierDeliveryDays: z.array(SupplierWeekdaySchema).optional().nullable(),
+  supplierOrderCutoffHour: z.coerce.number().int().min(0).max(23).optional().nullable(),
+  supplierBlockedDates: z.array(BlockedDateSchema).optional().nullable(),
+  supplierMinOrderValue: z.coerce.number().positive().optional().nullable(),
 })
 
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -95,6 +103,11 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
 
       ...(parsed.data.address !== undefined ? { address: parsed.data.address ?? null } : {}),
       ...(parsed.data.observations !== undefined ? { observations: parsed.data.observations ?? null } : {}),
+      ...(parsed.data.supplierOrderDays !== undefined ? { supplierOrderDays: parsed.data.supplierOrderDays ?? [] } : {}),
+      ...(parsed.data.supplierDeliveryDays !== undefined ? { supplierDeliveryDays: parsed.data.supplierDeliveryDays ?? [] } : {}),
+      ...(parsed.data.supplierOrderCutoffHour !== undefined ? { supplierOrderCutoffHour: parsed.data.supplierOrderCutoffHour ?? null } : {}),
+      ...(parsed.data.supplierBlockedDates !== undefined ? { supplierBlockedDates: parsed.data.supplierBlockedDates ?? [] } : {}),
+      ...(parsed.data.supplierMinOrderValue !== undefined ? { supplierMinOrderValue: parsed.data.supplierMinOrderValue ?? null } : {}),
     },
   })
 
@@ -128,6 +141,11 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       addressComplement: true,
       address: true,
       observations: true,
+      supplierOrderDays: true,
+      supplierDeliveryDays: true,
+      supplierOrderCutoffHour: true,
+      supplierBlockedDates: true,
+      supplierMinOrderValue: true,
     },
   })
 

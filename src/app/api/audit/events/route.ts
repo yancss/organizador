@@ -1,7 +1,9 @@
 import { z } from 'zod'
 
+import { ENTITY_TYPE_MODULE } from '@/lib/access-control'
 import { prisma } from '@/lib/prisma'
 import { requireWorkspace } from '@/lib/authz'
+import { hasPermission } from '@/lib/permissions'
 
 const QuerySchema = z.object({
   take: z.coerce.number().int().min(1).max(200).optional().default(50),
@@ -28,6 +30,11 @@ export async function GET(req: Request) {
   }
 
   const { take, cursor, entityType, entityId, field, from, to } = parsed.data
+
+  const requiredModule = ENTITY_TYPE_MODULE[entityType]
+  if (requiredModule && !hasPermission(auth.user, `${requiredModule}.view`)) {
+    return Response.json({ error: 'FORBIDDEN' }, { status: 403 })
+  }
 
   const where: any = { workspaceId: wsId, category: 'CRUD', entityType, entityId }
   if (from || to) {

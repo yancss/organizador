@@ -1,7 +1,43 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { getToken } from 'next-auth/jwt'
 
+import { getRouteAccessRequirement } from '@/lib/access-control'
 import { hitRateLimit } from '@/lib/rate-limit'
+
+type AuthToken = {
+  sub?: string
+  isSuperadmin?: boolean
+  workspaceRole?: 'USER' | 'ADMIN'
+  permissions?: string[]
+}
+
+function hasPermission(token: AuthToken, perm: string) {
+  if (token.isSuperadmin) return true
+  if (token.workspaceRole === 'ADMIN') return true
+  return Array.isArray(token.permissions) && token.permissions.includes(perm)
+}
+
+function canAccess(token: AuthToken, pathname: string, method: string) {
+  const requirement = getRouteAccessRequirement(pathname)
+  if (!requirement) return true
+  if (requirement.kind === 'admin') {
+    return token.isSuperadmin === true || token.workspaceRole === 'ADMIN'
+  }
+
+  const action = pathname.startsWith('/api/') && !['GET', 'HEAD', 'OPTIONS'].includes(method.toUpperCase()) ? 'edit' : 'view'
+  return hasPermission(token, `${requirement.module}.${action}`)
+}
+
+function forbiddenResponse(req: NextRequest) {
+  if (req.nextUrl.pathname.startsWith('/api/')) {
+    return NextResponse.json({ error: 'FORBIDDEN' }, { status: 403 })
+  }
+
+  const url = req.nextUrl.clone()
+  url.pathname = '/app'
+  url.searchParams.set('forbidden', '1')
+  return NextResponse.redirect(url)
+}
 
 function getIp(req: NextRequest) {
   // NextRequest.ip exists at runtime in some deployments but is not always typed.
@@ -76,6 +112,16 @@ export async function middleware(req: NextRequest) {
       return res
     }
 
+    const secret = process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET
+    const token = (await getToken({ req, secret })) as AuthToken | null
+    const requirement = getRouteAccessRequirement(pathname)
+    if (requirement && !token?.sub) {
+      return NextResponse.json({ error: 'UNAUTHORIZED' }, { status: 401 })
+    }
+    if (requirement && !canAccess(token as AuthToken, pathname, req.method)) {
+      return forbiddenResponse(req)
+    }
+
     return NextResponse.next()
   }
 
@@ -88,6 +134,11 @@ export async function middleware(req: NextRequest) {
     url.pathname = '/login'
     url.searchParams.set('next', pathname)
     return NextResponse.redirect(url)
+  }
+
+  const requirement = getRouteAccessRequirement(pathname)
+  if (requirement && !canAccess(token as AuthToken, pathname, req.method)) {
+    return forbiddenResponse(req)
   }
 
   return NextResponse.next()

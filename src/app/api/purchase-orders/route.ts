@@ -3,7 +3,48 @@ import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { requireWorkspace } from '@/lib/authz'
 import { makeDocCode } from '@/lib/codes'
+import { ensurePendingApprovalRequest, needsPurchaseOrderApproval } from '@/lib/approval-policies'
+import { upsertPayableForPurchaseOrder as upsertDedicatedPayable } from '@/lib/payables'
 import { convertQty, convertUnitPrice, isConvertible, normalizeUnit } from '@/lib/unit-conversion'
+import { upsertPayableForPurchaseOrder } from '@/lib/finance-defaults'
+
+function buildReceiptSummary(
+  items: Array<{
+    quantity: unknown
+    receivedQty: unknown
+    acceptedQty: unknown
+    rejectedQty: unknown
+  }>,
+) {
+  const normalizedItems = items.map((item) => {
+    const orderedQty = Number(item.quantity ?? 0)
+    const receivedQty = Number(item.receivedQty ?? 0)
+    const acceptedQty = Number(item.acceptedQty ?? 0)
+    const rejectedQty = Number(item.rejectedQty ?? 0)
+    const pendingQty = Math.max(0, orderedQty - receivedQty)
+    const hasDivergence = rejectedQty > 0.000001
+
+    return {
+      orderedQty,
+      receivedQty,
+      acceptedQty,
+      rejectedQty,
+      pendingQty,
+      hasDivergence,
+    }
+  })
+
+  return {
+    orderedUnits: normalizedItems.reduce((acc, item) => acc + item.orderedQty, 0),
+    receivedUnits: normalizedItems.reduce((acc, item) => acc + item.receivedQty, 0),
+    acceptedUnits: normalizedItems.reduce((acc, item) => acc + item.acceptedQty, 0),
+    rejectedUnits: normalizedItems.reduce((acc, item) => acc + item.rejectedQty, 0),
+    pendingUnits: normalizedItems.reduce((acc, item) => acc + item.pendingQty, 0),
+    pendingItems: normalizedItems.filter((item) => item.pendingQty > 0.000001).length,
+    divergentItems: normalizedItems.filter((item) => item.hasDivergence).length,
+    hasDivergence: normalizedItems.some((item) => item.hasDivergence),
+  }
+}
 
 export async function GET() {
   const auth = await requireWorkspace()
@@ -28,6 +69,10 @@ export async function GET() {
         select: {
           id: true,
           quantity: true,
+          receivedQty: true,
+          acceptedQty: true,
+          rejectedQty: true,
+          receiptObservation: true,
           unitCost: true,
           product: { select: { id: true, name: true, unit: true } },
         },
@@ -38,7 +83,12 @@ export async function GET() {
     },
   })
 
-  return Response.json({ purchaseOrders })
+  return Response.json({
+    purchaseOrders: purchaseOrders.map((purchaseOrder) => ({
+      ...purchaseOrder,
+      receiptSummary: buildReceiptSummary(purchaseOrder.items),
+    })),
+  })
 }
 
 const ItemSchema = z.object({
@@ -53,7 +103,7 @@ const CreateSchema = z.object({
   supplierId: z.string().min(1),
   supplier: z.any().optional().nullable(),
   orderedAt: z.string().datetime().optional().nullable(),
-  status: z.enum(['DRAFT', 'CONFIRMED', 'RECEIVED', 'CANCELLED']).optional(),
+  status: z.enum(['DRAFT', 'CONFIRMED', 'PARTIALLY_RECEIVED', 'RECEIVED', 'CANCELLED']).optional(),
   observations: z.string().max(5000).optional().nullable(),
   estimatedCost: z.coerce.number().optional().nullable(),
   items: z.array(ItemSchema).optional(),
@@ -118,6 +168,13 @@ export async function POST(req: Request) {
   })
   if (!supplier) return Response.json({ error: 'INVALID_SUPPLIER' }, { status: 400 })
 
+  const desiredStatus = parsed.data.status ?? 'DRAFT'
+  const desiredCommitted =
+    desiredStatus === 'CONFIRMED' || desiredStatus === 'PARTIALLY_RECEIVED' || desiredStatus === 'RECEIVED'
+  const approvalRequired =
+    desiredCommitted && parsed.data.estimatedCost != null && needsPurchaseOrderApproval(Number(parsed.data.estimatedCost))
+  const nextStatus = approvalRequired ? 'DRAFT' : desiredStatus
+
   const po = await prisma.purchaseOrder.create({
     data: {
       workspaceId: wsId,
@@ -127,7 +184,7 @@ export async function POST(req: Request) {
       supplierId: parsed.data.supplierId,
       supplier: null,
       orderedAt: parsed.data.orderedAt ? new Date(parsed.data.orderedAt) : null,
-      status: parsed.data.status ?? 'DRAFT',
+      status: nextStatus,
       observations: parsed.data.observations ?? null,
       estimatedCost: parsed.data.estimatedCost ?? null,
       items: consolidated.size
@@ -150,6 +207,10 @@ export async function POST(req: Request) {
         select: {
           id: true,
           quantity: true,
+          receivedQty: true,
+          acceptedQty: true,
+          rejectedQty: true,
+          receiptObservation: true,
           unitCost: true,
           product: { select: { id: true, name: true, unit: true } },
         },
@@ -160,6 +221,47 @@ export async function POST(req: Request) {
     },
   })
 
-  return Response.json({ purchaseOrder: po }, { status: 201 })
+  if (approvalRequired) {
+    await ensurePendingApprovalRequest({
+      workspaceId: wsId,
+      entityType: 'PURCHASE_ORDER',
+      entityId: po.id,
+      policyKey: 'PURCHASE_ORDER_AMOUNT',
+      reason: 'Pedido de compra acima da alcada padrao',
+      amount: Number(parsed.data.estimatedCost ?? 0),
+      requestedById: auth.user.id,
+      purchaseOrderId: po.id,
+    })
+  }
+
+  if (!approvalRequired && desiredCommitted) {
+    const competenceDate = po.orderedAt ?? new Date()
+    const value = Number(po.estimatedCost ?? 0)
+    await upsertPayableForPurchaseOrder({
+      workspaceId: wsId,
+      purchaseOrderId: po.id,
+      competenceDate,
+      value,
+    })
+    await upsertDedicatedPayable({
+      workspaceId: wsId,
+      purchaseOrderId: po.id,
+      supplierId: po.supplierEntity?.id ?? parsed.data.supplierId,
+      competenceDate,
+      plannedAmount: value,
+      observations: po.observations ?? null,
+    })
+  }
+
+  return Response.json(
+    {
+      purchaseOrder: {
+        ...po,
+        receiptSummary: buildReceiptSummary(po.items),
+      },
+      approvalRequired,
+    },
+    { status: 201 },
+  )
 }
 

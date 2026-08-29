@@ -1,0 +1,2 @@
+ALTER TABLE "InventoryLot"
+ADD COLUMN "serialCodes" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];

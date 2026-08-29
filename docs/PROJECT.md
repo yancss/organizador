@@ -323,4 +323,6 @@ Legado (evitar usar em novos fluxos):
 5) Criar telas em `/app/settings`:
    - Gestão de Usuários
    - Gestão de Perfis/Permissões
+6) Para a evolução ERP a partir do estado atual, usar como referência principal:
+   - `docs/ERP-BACKLOG-MESTRE-2026-06-14.md`
 

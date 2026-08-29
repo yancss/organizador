@@ -11,7 +11,6 @@ export default function SettingsPanel() {
     <div className="space-y-6">
       <header>
         <h1 className="text-xl font-semibold tracking-tight">{i.settings.title}</h1>
-        <p className="mt-1 text-sm text-[var(--text-muted)]">{i.settings.subtitle}</p>
       </header>
 
       <section className="surface rounded-xl border border-theme">

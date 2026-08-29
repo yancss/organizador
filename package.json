@@ -23,6 +23,7 @@
     "bootstrap": "node scripts/bootstrap-support.js",
     "provision:db": "node scripts/provision-db.js",
     "seed:permissions": "node scripts/seed-permissions.mjs",
+    "seed:access-users": "node scripts/seed-access-test-users.mjs",
     "audit:cleanup": "node -e \"fetch('http://localhost:3000/api/cron/audit-cleanup').then(r=>r.json()).then(console.log)\"",
     "test": "vitest",
     "test:run": "vitest run",

@@ -3,6 +3,9 @@ import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { requireWorkspace } from '@/lib/authz'
 
+const SupplierWeekdaySchema = z.enum(['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'])
+const BlockedDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
+
 function parsePositiveInt(value: string | null, fallback: number, max: number) {
   const n = Number(value)
   if (!Number.isFinite(n) || n <= 0) return fallback
@@ -32,8 +35,12 @@ export async function GET(req: Request) {
       : {}),
   }
 
-  const [total, clients] = await prisma.$transaction([
+  const [total, customers, suppliers, dualRole, companies, clients] = await prisma.$transaction([
     prisma.client.count({ where }),
+    prisma.client.count({ where: { ...where, roles: { has: 'CUSTOMER' } } }),
+    prisma.client.count({ where: { ...where, roles: { has: 'SUPPLIER' } } }),
+    prisma.client.count({ where: { ...where, roles: { hasEvery: ['CUSTOMER', 'SUPPLIER'] } } }),
+    prisma.client.count({ where: { ...where, entityType: 'COMPANY' } }),
     prisma.client.findMany({
       where,
       orderBy: [{ name: 'asc' }],
@@ -65,12 +72,24 @@ export async function GET(req: Request) {
         addressComplement: true,
         address: true,
         observations: true,
+        supplierOrderDays: true,
+        supplierDeliveryDays: true,
+        supplierOrderCutoffHour: true,
+        supplierBlockedDates: true,
+        supplierMinOrderValue: true,
       },
     }),
   ])
 
   return Response.json({
     clients,
+    summary: {
+      customers,
+      suppliers,
+      dualRole,
+      companies,
+      people: Math.max(0, total - companies),
+    },
     meta: {
       page,
       take,
@@ -129,6 +148,11 @@ const CreateClientSchema = z
     address: z.string().max(500).optional().nullable(),
 
     observations: z.string().max(5000).optional().nullable(),
+    supplierOrderDays: z.array(SupplierWeekdaySchema).optional().nullable(),
+    supplierDeliveryDays: z.array(SupplierWeekdaySchema).optional().nullable(),
+    supplierOrderCutoffHour: z.coerce.number().int().min(0).max(23).optional().nullable(),
+    supplierBlockedDates: z.array(BlockedDateSchema).optional().nullable(),
+    supplierMinOrderValue: z.coerce.number().positive().optional().nullable(),
   })
   .superRefine((v, ctx) => {
     const hasPhone = !!(v.phone && String(v.phone).trim())
@@ -181,6 +205,11 @@ export async function POST(req: Request) {
 
       address: parsed.data.address ?? null,
       observations: parsed.data.observations ?? null,
+      supplierOrderDays: parsed.data.supplierOrderDays ?? [],
+      supplierDeliveryDays: parsed.data.supplierDeliveryDays ?? [],
+      supplierOrderCutoffHour: parsed.data.supplierOrderCutoffHour ?? null,
+      supplierBlockedDates: parsed.data.supplierBlockedDates ?? [],
+      supplierMinOrderValue: parsed.data.supplierMinOrderValue ?? null,
     },
     select: {
       id: true,
@@ -208,6 +237,11 @@ export async function POST(req: Request) {
       addressComplement: true,
       address: true,
       observations: true,
+      supplierOrderDays: true,
+      supplierDeliveryDays: true,
+      supplierOrderCutoffHour: true,
+      supplierBlockedDates: true,
+      supplierMinOrderValue: true,
     },
   })
 

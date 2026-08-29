@@ -50,10 +50,14 @@ export type I18n = {
     subtitle: string
     receivablesOpen: string
     receivablesOverdue: string
-    payablesPlanned: string
+    payablesCommitted: string
     paymentsToday: string
-    salesOrdersOpen: string
+    quotesPending: string
+    salesOrdersInProgress: string
+    approvalsPending: string
+    inventoryCritical: string
     deliveriesOpen: string
+    deliveriesOverdue: string
     deliveriesShippedToday: string
     refundsPending: string
   }
@@ -599,10 +603,14 @@ const dict: Record<AppLanguage, I18n> = {
       subtitle: 'Resumo do dia e indicadores rápidos.',
       receivablesOpen: 'A receber (aberto)',
       receivablesOverdue: 'A receber (vencido)',
-      payablesPlanned: 'A pagar (planejado)',
+      payablesCommitted: 'A pagar (comprometido)',
       paymentsToday: 'Pagamentos (hoje)',
-      salesOrdersOpen: 'Pedidos (abertos)',
+      quotesPending: 'Orcamentos (pendentes)',
+      salesOrdersInProgress: 'Pedidos (em execucao)',
+      approvalsPending: 'Aprovacoes (pendentes)',
+      inventoryCritical: 'Reposicao critica',
       deliveriesOpen: 'Entregas (em andamento)',
+      deliveriesOverdue: 'Entregas (atrasadas)',
       deliveriesShippedToday: 'Entregas (enviadas hoje)',
       refundsPending: 'Devoluções (pendentes)',
     },
@@ -1141,10 +1149,14 @@ const dict: Record<AppLanguage, I18n> = {
       subtitle: 'Today summary and quick indicators.',
       receivablesOpen: 'Receivables (open)',
       receivablesOverdue: 'Receivables (overdue)',
-      payablesPlanned: 'Payables (planned)',
+      payablesCommitted: 'Payables (committed)',
       paymentsToday: 'Payments (today)',
-      salesOrdersOpen: 'Sales orders (open)',
+      quotesPending: 'Quotes (pending)',
+      salesOrdersInProgress: 'Sales orders (in progress)',
+      approvalsPending: 'Approvals (pending)',
+      inventoryCritical: 'Critical replenishment',
       deliveriesOpen: 'Deliveries (in progress)',
+      deliveriesOverdue: 'Deliveries (overdue)',
       deliveriesShippedToday: 'Deliveries (shipped today)',
       refundsPending: 'Refunds (pending)',
     },
@@ -1683,10 +1695,14 @@ const dict: Record<AppLanguage, I18n> = {
       subtitle: 'Resumen del día e indicadores rápidos.',
       receivablesOpen: 'Cuentas por cobrar (abiertas)',
       receivablesOverdue: 'Cuentas por cobrar (vencidas)',
-      payablesPlanned: 'Cuentas por pagar (planificadas)',
+      payablesCommitted: 'Cuentas por pagar (comprometidas)',
       paymentsToday: 'Pagos (hoy)',
-      salesOrdersOpen: 'Pedidos de venta (abiertos)',
+      quotesPending: 'Presupuestos (pendientes)',
+      salesOrdersInProgress: 'Pedidos de venta (en ejecucion)',
+      approvalsPending: 'Aprobaciones (pendientes)',
+      inventoryCritical: 'Reposicion critica',
       deliveriesOpen: 'Entregas (en curso)',
+      deliveriesOverdue: 'Entregas (atrasadas)',
       deliveriesShippedToday: 'Entregas (enviadas hoy)',
       refundsPending: 'Reembolsos (pendientes)',
     },

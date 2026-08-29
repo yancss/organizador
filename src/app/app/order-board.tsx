@@ -111,7 +111,7 @@ type Order = {
   observations: string | null
   orderedAt: string | null
   deliveryAt: string | null
-  status: 'DRAFT' | 'CONFIRMED' | 'IN_PRODUCTION' | 'READY' | 'SHIPPED' | 'DONE' | 'CANCELLED'
+  status: 'DRAFT' | 'SENT' | 'APPROVED' | 'REJECTED' | 'EXPIRED' | 'CONFIRMED' | 'IN_PRODUCTION' | 'READY' | 'SHIPPED' | 'DONE' | 'CANCELLED'
   orderIndex?: string | null
   value: string | number | null
 
@@ -361,7 +361,7 @@ type Draft = {
   clientId: string
   orderedAt: string
   deliveryAt: string
-  status: 'DRAFT' | 'CONFIRMED' | 'IN_PRODUCTION' | 'READY' | 'SHIPPED' | 'DONE' | 'CANCELLED'
+  status: 'DRAFT' | 'SENT' | 'APPROVED' | 'REJECTED' | 'EXPIRED' | 'CONFIRMED' | 'IN_PRODUCTION' | 'READY' | 'SHIPPED' | 'DONE' | 'CANCELLED'
 
   discountMode: 'SUBTOTAL' | 'PER_ITEM'
   discountType: DiscountType
@@ -390,7 +390,7 @@ function emptyDraft(): Draft {
   }
 }
 
-const STATUS_ORDER: Order['status'][] = ['DRAFT', 'CONFIRMED', 'IN_PRODUCTION', 'READY', 'SHIPPED', 'DONE', 'CANCELLED']
+const STATUS_ORDER: Order['status'][] = ['DRAFT', 'SENT', 'APPROVED', 'REJECTED', 'EXPIRED', 'CONFIRMED', 'IN_PRODUCTION', 'READY', 'SHIPPED', 'DONE', 'CANCELLED']
 const COLUMNS_STORAGE_KEY = 'orders:kanban:visibleStatuses:v1'
 
 export default function OrderBoard() {
@@ -406,6 +406,10 @@ export default function OrderBoard() {
   function statusLabel(s: Order['status']) {
     if (language === 'pt') {
       if (s === 'DRAFT') return 'Rascunho'
+      if (s === 'SENT') return 'Enviado ao cliente'
+      if (s === 'APPROVED') return 'Aprovado'
+      if (s === 'REJECTED') return 'Rejeitado'
+      if (s === 'EXPIRED') return 'Expirado'
       if (s === 'CONFIRMED') return 'Confirmado'
       if (s === 'IN_PRODUCTION') return 'Em produção'
       if (s === 'READY') return 'Pronto'
@@ -415,6 +419,10 @@ export default function OrderBoard() {
     }
     if (language === 'es') {
       if (s === 'DRAFT') return 'Borrador'
+      if (s === 'SENT') return 'Enviado al cliente'
+      if (s === 'APPROVED') return 'Aprobado'
+      if (s === 'REJECTED') return 'Rechazado'
+      if (s === 'EXPIRED') return 'Expirado'
       if (s === 'CONFIRMED') return 'Confirmado'
       if (s === 'IN_PRODUCTION') return 'En producción'
       if (s === 'READY') return 'Listo'
@@ -424,6 +432,10 @@ export default function OrderBoard() {
     }
     // en
     if (s === 'DRAFT') return 'Draft'
+    if (s === 'SENT') return 'Sent'
+    if (s === 'APPROVED') return 'Approved'
+    if (s === 'REJECTED') return 'Rejected'
+    if (s === 'EXPIRED') return 'Expired'
     if (s === 'CONFIRMED') return 'Confirmed'
     if (s === 'IN_PRODUCTION') return 'In production'
     if (s === 'READY') return 'Ready'
@@ -433,6 +445,10 @@ export default function OrderBoard() {
   }
 
   function statusBadgeClass(s: Order['status']) {
+    if (s === 'SENT') return 'bg-sky-100 text-sky-800'
+    if (s === 'APPROVED') return 'bg-lime-100 text-lime-800'
+    if (s === 'REJECTED') return 'bg-rose-100 text-rose-800'
+    if (s === 'EXPIRED') return 'bg-orange-100 text-orange-800'
     if (s === 'CONFIRMED') return 'bg-green-100 text-green-800'
     if (s === 'IN_PRODUCTION') return 'bg-amber-100 text-amber-800'
     if (s === 'READY') return 'bg-purple-100 text-purple-800'
@@ -1001,7 +1017,6 @@ export default function OrderBoard() {
       <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">{i.orders.title}</h1>
-          <p className="text-sm text-neutral-600">{i.orders.subtitle}</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -1689,6 +1704,10 @@ export default function OrderBoard() {
                     className="w-full rounded-lg border border-theme bg-transparent px-3 py-2"
                   >
                     <option value="DRAFT">{statusLabel('DRAFT')}</option>
+                    <option value="SENT">{statusLabel('SENT')}</option>
+                    <option value="APPROVED">{statusLabel('APPROVED')}</option>
+                    <option value="REJECTED">{statusLabel('REJECTED')}</option>
+                    <option value="EXPIRED">{statusLabel('EXPIRED')}</option>
                     <option value="CONFIRMED">{statusLabel('CONFIRMED')}</option>
                     <option value="IN_PRODUCTION">{statusLabel('IN_PRODUCTION')}</option>
                     <option value="READY">{statusLabel('READY')}</option>

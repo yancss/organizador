@@ -95,7 +95,6 @@ export default function CostsPage() {
       <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">{i.costs.title}</h1>
-          <p className="text-sm text-neutral-600">{i.costs.subtitle}</p>
         </div>
 
         <button

@@ -36,8 +36,9 @@ export async function GET() {
   return Response.json({
     users: users.map((u) => ({
       ...u,
+      globalRole: u.role,
+      customRole: u.workspaceUserRoles[0]?.role ?? null,
       workspaceRole: u.memberships[0]?.role ?? 'USER',
-      role: u.workspaceUserRoles[0]?.role ?? null,
       memberships: undefined,
       workspaceUserRoles: undefined,
     })),

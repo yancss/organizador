@@ -42,8 +42,8 @@ export default function AppHeader() {
   }, [open])
 
   return (
-    <header className="sticky top-0 z-10 border-b border-theme surface">
-      <div className="flex w-full items-center gap-3 px-4 py-4 sm:px-6">
+    <header className="sticky top-0 z-20 border-b border-theme bg-[color:var(--surface)]/88 backdrop-blur">
+      <div className="mx-auto flex w-full max-w-[1680px] items-center gap-3 px-4 py-3 sm:px-6">
         <div className="flex min-w-0 items-center gap-3">
           <button
             type="button"
@@ -59,16 +59,18 @@ export default function AppHeader() {
             href="/app"
             className={
               brandFont.className +
-              ' select-none text-xl sm:text-2xl font-bold tracking-[0.06em] leading-[0.92] ' +
-              'drop-shadow-[0_10px_30px_rgba(0,0,0,0.25)]'
+              ' select-none text-xl sm:text-2xl font-bold tracking-[0.04em] leading-[0.92]'
             }
             aria-label="Guardian"
             title="Guardian"
           >
-            <span className="inline-block text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-cyan-300 to-violet-400 drop-shadow-[0_12px_35px_rgba(34,211,238,0.18)] scale-y-[1.08] origin-center">
+            <span className="inline-block scale-y-[1.03] origin-center text-[var(--foreground)]">
               Guardian
             </span>
           </Link>
+          <span className="hidden rounded-full border border-theme bg-[var(--surface-2)] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)] sm:inline-flex">
+            ERP Workspace
+          </span>
         </div>
 
         <nav className="ml-auto flex items-center gap-2">

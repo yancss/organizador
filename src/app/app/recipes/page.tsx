@@ -251,7 +251,6 @@ export default function RecipesPage() {
       <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">{i.recipes.title}</h1>
-          <p className="text-sm text-neutral-600">{i.recipes.subtitle}</p>
         </div>
 
         <button

@@ -22,13 +22,74 @@ type PurchaseOrderItemDraft = { productId: string; quantity: string; unitCost: s
 
 type PurchaseOrder = {
   id: string
+  code?: string | null
   supplier: string | null
-  status: 'DRAFT' | 'CONFIRMED' | 'RECEIVED' | 'CANCELLED'
+  status: 'DRAFT' | 'CONFIRMED' | 'PARTIALLY_RECEIVED' | 'RECEIVED' | 'CANCELLED'
   orderedAt: string | null
   observations: string | null
   estimatedCost: string | number | null
   supplierEntity: Supplier | null
-  items: Array<{ id: string; quantity: string | number; unitCost?: string | number | null; product: Product }>
+  items: Array<{
+    id: string
+    quantity: string | number
+    receivedQty: string | number
+    acceptedQty: string | number
+    rejectedQty: string | number
+    pendingQty?: number
+    hasDivergence?: boolean
+    receiptObservation?: string | null
+    unitCost?: string | number | null
+    product: Product
+  }>
+  receiptSummary?: {
+    orderedUnits: number
+    receivedUnits: number
+    acceptedUnits: number
+    rejectedUnits: number
+    pendingUnits: number
+    pendingItems: number
+    divergentItems: number
+    hasDivergence: boolean
+  }
+}
+
+type ReceiveSummaryItem = {
+  productId: string
+  productName: string
+  unit: string
+  orderedQty: number
+  receivedQty: number
+  acceptedQty: number
+  rejectedQty: number
+  pendingQty: number
+  receiveQty: number
+  receiveAcceptedQty: number
+  receiveRejectedQty: number
+  nextReceivedQty: number
+  nextAcceptedQty: number
+  nextRejectedQty: number
+  nextPendingQty: number
+  divergenceType: 'NONE' | 'REJECTED' | 'EXCESS' | 'HISTORY'
+  hasExcessNow: boolean
+  hasRejectionNow: boolean
+  willHaveDivergence: boolean
+  lotCode: string | null
+  expiresAt: string | null
+  serialCodes?: string[]
+  observation: string | null
+}
+
+type ReceiveSummary = {
+  distinctItems: number
+  totalUnits: number
+  pendingUnitsBefore: number
+  receivingUnitsNow: number
+  pendingUnitsAfter: number
+  estimatedCost: number | null
+  divergentItemsNow: number
+  divergentItemsTotal: number
+  fullyReceived: boolean
+  items: ReceiveSummaryItem[]
 }
 
 type Draft = {
@@ -243,12 +304,14 @@ function ReceiveConfirmModal({
   summary,
   onClose,
   onConfirm,
+  onChangeItem,
   isBusy,
 }: {
   language: string
-  summary: { distinctItems: number; totalUnits: number; estimatedCost: number | null }
+  summary: ReceiveSummary
   onClose: () => void
   onConfirm: () => void
+  onChangeItem: (productId: string, patch: Partial<Pick<ReceiveSummaryItem, 'receiveQty' | 'receiveAcceptedQty' | 'lotCode' | 'expiresAt' | 'serialCodes' | 'observation'>>) => void
   isBusy: boolean
 }) {
   return (
@@ -274,12 +337,152 @@ function ReceiveConfirmModal({
             <span className="text-[var(--text-muted)]">{language === 'pt' ? 'Total de unidades' : 'Total units'}</span>
             <span className="font-medium">{summary.totalUnits}</span>
           </div>
+          <div className="flex items-center justify-between">
+            <span className="text-[var(--text-muted)]">{language === 'pt' ? 'Pendente antes' : 'Pending before'}</span>
+            <span className="font-medium">{summary.pendingUnitsBefore}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-[var(--text-muted)]">{language === 'pt' ? 'Recebendo agora' : 'Receiving now'}</span>
+            <span className="font-medium">{summary.receivingUnitsNow}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-[var(--text-muted)]">{language === 'pt' ? 'Pendente depois' : 'Pending after'}</span>
+            <span className="font-medium">{summary.pendingUnitsAfter}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-[var(--text-muted)]">{language === 'pt' ? 'Divergencias nesta conferencia' : language === 'es' ? 'Divergencias en esta recepcion' : 'Variances in this receipt'}</span>
+            <span className="font-medium">{summary.divergentItemsNow}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-[var(--text-muted)]">{language === 'pt' ? 'Itens com historico de divergencia' : language === 'es' ? 'Items con historial de divergencia' : 'Items with variance history'}</span>
+            <span className="font-medium">{summary.divergentItemsTotal}</span>
+          </div>
           {summary.estimatedCost != null ? (
             <div className="flex items-center justify-between">
               <span className="text-[var(--text-muted)]">{language === 'pt' ? 'Custo estimado' : 'Estimated cost'}</span>
               <span className="font-medium">{summary.estimatedCost}</span>
             </div>
           ) : null}
+        </div>
+
+        <div className="mt-4 grid gap-2">
+          {summary.items
+            .filter((item) => item.pendingQty > 0)
+            .map((item) => (
+              <div key={item.productId} className="grid gap-3 rounded-lg border border-theme p-2 text-sm">
+                <div>
+                  <div className="font-medium">{item.productName}</div>
+                  <div className="text-[var(--text-muted)]">
+                    {language === 'pt' ? 'Pedido' : 'Ordered'}: {item.orderedQty} {item.unit} | {language === 'pt' ? 'Recebido' : 'Received'}:{' '}
+                    {item.receivedQty} {item.unit} | {language === 'pt' ? 'Aceito' : 'Accepted'}: {item.acceptedQty} {item.unit} |{' '}
+                    {language === 'pt' ? 'Rejeitado' : 'Rejected'}: {item.rejectedQty} {item.unit} | {language === 'pt' ? 'Pendente' : 'Pending'}:{' '}
+                    {item.pendingQty} {item.unit}
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <label className="grid gap-1">
+                    <span className="text-xs text-[var(--text-muted)]">{language === 'pt' ? 'Recebido agora' : 'Receiving now'}</span>
+                    <input
+                      value={String(item.receiveQty)}
+                      onChange={(e) => onChangeItem(item.productId, { receiveQty: Number(e.target.value.replace(',', '.')) || 0 })}
+                      className="w-full rounded-lg border border-theme bg-transparent px-3 py-2 text-sm"
+                      inputMode="decimal"
+                      disabled={isBusy}
+                    />
+                  </label>
+                  <label className="grid gap-1">
+                    <span className="text-xs text-[var(--text-muted)]">{language === 'pt' ? 'Aceito em estoque' : 'Accepted into stock'}</span>
+                    <input
+                      value={String(item.receiveAcceptedQty)}
+                      onChange={(e) => onChangeItem(item.productId, { receiveAcceptedQty: Number(e.target.value.replace(',', '.')) || 0 })}
+                      className="w-full rounded-lg border border-theme bg-transparent px-3 py-2 text-sm"
+                      inputMode="decimal"
+                      disabled={isBusy}
+                    />
+                  </label>
+                </div>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <label className="grid gap-1">
+                    <span className="text-xs text-[var(--text-muted)]">{language === 'pt' ? 'Lote (opcional)' : language === 'es' ? 'Lote (opcional)' : 'Lot (optional)'}</span>
+                    <input
+                      value={item.lotCode ?? ''}
+                      onChange={(e) => onChangeItem(item.productId, { lotCode: e.target.value })}
+                      className="w-full rounded-lg border border-theme bg-transparent px-3 py-2 text-sm"
+                      disabled={isBusy}
+                      placeholder={language === 'pt' ? 'Ex.: LOTE-240614' : language === 'es' ? 'Ej.: LOTE-240614' : 'Ex.: LOT-240614'}
+                    />
+                  </label>
+                  <label className="grid gap-1">
+                    <span className="text-xs text-[var(--text-muted)]">{language === 'pt' ? 'Validade (opcional)' : language === 'es' ? 'Caducidad (opcional)' : 'Expiry (optional)'}</span>
+                    <input
+                      type="date"
+                      value={item.expiresAt ? item.expiresAt.slice(0, 10) : ''}
+                      onChange={(e) => onChangeItem(item.productId, { expiresAt: e.target.value ? new Date(`${e.target.value}T00:00:00.000Z`).toISOString() : null })}
+                      className="w-full rounded-lg border border-theme bg-transparent px-3 py-2 text-sm"
+                      disabled={isBusy}
+                    />
+                  </label>
+                </div>
+                <label className="grid gap-1">
+                  <span className="text-xs text-[var(--text-muted)]">{language === 'pt' ? 'Seriais (1 por linha)' : language === 'es' ? 'Seriales (1 por línea)' : 'Serials (1 per line)'}</span>
+                  <textarea
+                    value={(item.serialCodes ?? []).join('\n')}
+                    onChange={(e) =>
+                      onChangeItem(item.productId, {
+                        serialCodes: e.target.value.split(/\r?\n|,/).map((entry) => entry.trim()).filter(Boolean),
+                      })
+                    }
+                    className="min-h-20 w-full rounded-lg border border-theme bg-transparent px-3 py-2 text-sm"
+                    disabled={isBusy}
+                    placeholder={language === 'pt' ? 'Use para itens serializados.' : language === 'es' ? 'Usa para items serializados.' : 'Use for serialized items.'}
+                  />
+                </label>
+                <div className="text-xs text-[var(--text-muted)]">
+                  {language === 'pt' ? 'Rejeitado nesta conferência' : 'Rejected in this receipt'}: {item.receiveRejectedQty} {item.unit}
+                  {item.receiveQty > item.pendingQty ? ` | ${language === 'pt' ? 'Excesso detectado' : 'Excess detected'}` : ''}
+                  {item.receiveAcceptedQty < item.receiveQty ? ` | ${language === 'pt' ? 'Divergência com rejeição' : 'Rejected variance'}` : ''}
+                  {item.lotCode ? ` | ${language === 'pt' ? `lote ${item.lotCode}` : language === 'es' ? `lote ${item.lotCode}` : `lot ${item.lotCode}`}` : ''}
+                </div>
+                <div className="flex flex-wrap gap-2 text-[11px]">
+                  {item.hasExcessNow ? (
+                    <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-amber-700">
+                      {language === 'pt' ? 'Excesso nesta conferência' : language === 'es' ? 'Exceso en esta recepción' : 'Excess in this receipt'}
+                    </span>
+                  ) : null}
+                  {item.hasRejectionNow ? (
+                    <span className="rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-rose-700">
+                      {language === 'pt' ? 'Rejeição nesta conferência' : language === 'es' ? 'Rechazo en esta recepción' : 'Rejected in this receipt'}
+                    </span>
+                  ) : null}
+                  {item.willHaveDivergence && !item.hasExcessNow && !item.hasRejectionNow ? (
+                    <span className="rounded-full border border-theme bg-[var(--surface-2)] px-2 py-0.5 text-[var(--text-muted)]">
+                      {language === 'pt' ? 'Divergência histórica' : language === 'es' ? 'Divergencia histórica' : 'Historical variance'}
+                    </span>
+                  ) : null}
+                </div>
+                <div className="text-xs text-[var(--text-muted)]">
+                  {language === 'pt' ? 'Depois desta conferência' : language === 'es' ? 'Después de esta recepción' : 'After this receipt'}:
+                  {' '}
+                  {language === 'pt' ? 'recebido' : language === 'es' ? 'recibido' : 'received'} {item.nextReceivedQty} {item.unit} |{' '}
+                  {language === 'pt' ? 'aceito' : language === 'es' ? 'aceptado' : 'accepted'} {item.nextAcceptedQty} {item.unit} |{' '}
+                  {language === 'pt' ? 'rejeitado' : language === 'es' ? 'rechazado' : 'rejected'} {item.nextRejectedQty} {item.unit} |{' '}
+                  {language === 'pt' ? 'pendente' : language === 'es' ? 'pendiente' : 'pending'} {item.nextPendingQty} {item.unit}
+                </div>
+                <textarea
+                  value={item.observation ?? ''}
+                  onChange={(e) => onChangeItem(item.productId, { observation: e.target.value })}
+                  className="min-h-20 w-full rounded-lg border border-theme bg-transparent px-3 py-2 text-sm"
+                  placeholder={
+                    language === 'pt'
+                      ? 'Observação da conferência: falta, excesso, avaria...'
+                      : language === 'es'
+                        ? 'Observación de la recepción: falta, exceso, avería...'
+                        : 'Receipt note: shortage, excess, damage...'
+                  }
+                  disabled={isBusy}
+                />
+              </div>
+            ))}
         </div>
 
         <div className="mt-5 flex gap-2">
@@ -303,7 +506,7 @@ export default function PurchaseOrdersPage() {
 
   const [isOpen, setIsOpen] = useState(false)
   const [scanOpen, setScanOpen] = useState(false)
-  const [receiveSummary, setReceiveSummary] = useState<{ distinctItems: number; totalUnits: number; estimatedCost: number | null } | null>(null)
+  const [receiveSummary, setReceiveSummary] = useState<ReceiveSummary | null>(null)
 
   const draftStore = useDraftStorage<Draft>('draft:purchaseOrders', emptyDraft)
   const draft = draftStore.value
@@ -359,7 +562,13 @@ export default function PurchaseOrdersPage() {
   })
 
   const receiveM = useMutation({
-    mutationFn: ({ id, payload }: { id: string; payload: { dryRun?: boolean } }) =>
+    mutationFn: ({
+      id,
+      payload,
+    }: {
+      id: string
+      payload: { dryRun?: boolean; items?: Array<{ productId: string; quantity: number; acceptedQty?: number; rejectedQty?: number; observation?: string | null }> }
+    }) =>
       api<any>(`/api/purchase-orders/${id}/receive`, { method: 'POST', body: JSON.stringify(payload) }),
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ['purchaseOrders'] })
@@ -367,22 +576,33 @@ export default function PurchaseOrdersPage() {
   })
 
   const rows = q.data?.purchaseOrders ?? []
+  const currentOrder = draft.id ? rows.find((row) => row.id === draft.id) ?? null : null
+  const overview = useMemo(() => {
+    const active = rows.filter((row) => row.status !== 'RECEIVED' && row.status !== 'CANCELLED').length
+    const withPending = rows.filter((row) => (row.receiptSummary?.pendingUnits ?? 0) > 0).length
+    const divergent = rows.filter((row) => (row.receiptSummary?.divergentItems ?? 0) > 0).length
+    const estimated = rows.reduce((acc, row) => acc + Number(row.estimatedCost ?? 0), 0)
+    return { total: rows.length, active, withPending, divergent, estimated }
+  }, [rows])
 
   function statusLabel(s: PurchaseOrder['status']) {
     if (language === 'pt') {
       if (s === 'DRAFT') return 'Rascunho'
       if (s === 'CONFIRMED') return 'Confirmado'
+      if (s === 'PARTIALLY_RECEIVED') return 'Recebido parcial'
       if (s === 'RECEIVED') return 'Recebido'
       return 'Cancelado'
     }
     if (language === 'es') {
       if (s === 'DRAFT') return 'Borrador'
       if (s === 'CONFIRMED') return 'Confirmado'
+      if (s === 'PARTIALLY_RECEIVED') return 'Recibido parcial'
       if (s === 'RECEIVED') return 'Recibido'
       return 'Cancelado'
     }
     if (s === 'DRAFT') return 'Draft'
     if (s === 'CONFIRMED') return 'Confirmed'
+    if (s === 'PARTIALLY_RECEIVED') return 'Partially received'
     if (s === 'RECEIVED') return 'Received'
     return 'Cancelled'
   }
@@ -524,18 +744,95 @@ export default function PurchaseOrdersPage() {
   }
 
   async function confirmReceive() {
-    if (!draft.id) return
+    if (!draft.id || !receiveSummary) return
     try {
-      await receiveM.mutateAsync({ id: draft.id, payload: { dryRun: false } })
+      const res = await receiveM.mutateAsync({
+        id: draft.id,
+        payload: {
+          dryRun: false,
+          items: receiveSummary.items
+            .filter((item) => item.receiveQty > 0)
+            .map((item) => ({
+              productId: item.productId,
+              quantity: item.receiveQty,
+              acceptedQty: item.receiveAcceptedQty,
+              rejectedQty: item.receiveRejectedQty,
+              lotCode: item.lotCode?.trim() ? item.lotCode.trim() : null,
+              expiresAt: item.expiresAt ?? null,
+              serialCodes: item.serialCodes ?? [],
+              observation: item.observation?.trim() ? item.observation.trim() : null,
+            })),
+        },
+      })
       toastUpdated(i, 'purchaseOrder')
       setReceiveSummary(null)
-
-      // Keep modal open, but refresh local status.
-      setDraft((d) => ({ ...d, status: 'RECEIVED' }))
+      if (res?.purchaseOrder?.status) {
+        setDraft((d) => ({ ...d, status: res.purchaseOrder.status as Draft['status'] }))
+      }
     } catch (e: any) {
       toastFailedToSave(i, String(e?.message ?? ''))
       throw e
     }
+  }
+
+  function updateReceiveItem(productId: string, patch: Partial<Pick<ReceiveSummaryItem, 'receiveQty' | 'receiveAcceptedQty' | 'lotCode' | 'expiresAt' | 'serialCodes' | 'observation'>>) {
+    setReceiveSummary((current) => {
+      if (!current) return current
+      const nextItems = current.items.map((item) => {
+        if (item.productId !== productId) return item
+
+        const requestedReceiveQty = patch.receiveQty
+        const requestedAcceptedQty = patch.receiveAcceptedQty
+
+        const receiveQty = requestedReceiveQty == null ? item.receiveQty : Math.max(0, Number.isFinite(requestedReceiveQty) ? requestedReceiveQty : 0)
+        const acceptedQtyInput = requestedAcceptedQty == null ? item.receiveAcceptedQty : Math.max(0, Number.isFinite(requestedAcceptedQty) ? requestedAcceptedQty : 0)
+        const receiveAcceptedQty = Math.min(receiveQty, acceptedQtyInput)
+        const receiveRejectedQty = Math.max(0, receiveQty - receiveAcceptedQty)
+        const nextReceivedQty = item.receivedQty + receiveQty
+        const nextAcceptedQty = item.acceptedQty + receiveAcceptedQty
+        const nextRejectedQty = item.rejectedQty + receiveRejectedQty
+        const nextPendingQty = Math.max(0, item.orderedQty - nextReceivedQty)
+        const hasExcessNow = receiveQty > item.pendingQty + 0.000001
+        const hasRejectionNow = receiveRejectedQty > 0.000001
+        const willHaveDivergence = nextRejectedQty > 0.000001
+        const divergenceType: ReceiveSummaryItem['divergenceType'] = hasExcessNow
+          ? 'EXCESS'
+          : hasRejectionNow
+            ? 'REJECTED'
+            : willHaveDivergence
+              ? 'HISTORY'
+              : 'NONE'
+
+        return {
+          ...item,
+          receiveQty,
+          receiveAcceptedQty,
+          receiveRejectedQty,
+          nextReceivedQty,
+          nextAcceptedQty,
+          nextRejectedQty,
+          nextPendingQty,
+          hasExcessNow,
+          hasRejectionNow,
+          willHaveDivergence,
+          divergenceType,
+          lotCode: patch.lotCode === undefined ? item.lotCode : patch.lotCode,
+          expiresAt: patch.expiresAt === undefined ? item.expiresAt : patch.expiresAt,
+          serialCodes: patch.serialCodes === undefined ? item.serialCodes : patch.serialCodes,
+          observation: patch.observation === undefined ? item.observation : patch.observation,
+        }
+      })
+      const receivingUnitsNow = nextItems.reduce((acc, item) => acc + item.receiveQty, 0)
+      return {
+        ...current,
+        items: nextItems,
+        receivingUnitsNow,
+        pendingUnitsAfter: Math.max(0, current.pendingUnitsBefore - receivingUnitsNow),
+        divergentItemsNow: nextItems.filter((item) => item.hasExcessNow || item.hasRejectionNow).length,
+        divergentItemsTotal: nextItems.filter((item) => item.willHaveDivergence).length,
+        fullyReceived: Math.max(0, current.pendingUnitsBefore - receivingUnitsNow) <= 0.000001,
+      }
+    })
   }
 
   const columns = useMemo<ColumnDef<PurchaseOrder>[]>(
@@ -578,7 +875,19 @@ export default function PurchaseOrdersPage() {
         key: 'items',
         header: language === 'pt' ? 'Itens' : language === 'es' ? 'Ítems' : 'Items',
         sortValue: (r) => r.items.length,
-        render: (r) => <div className="text-[var(--muted-foreground)]">{r.items.length}</div>,
+        render: (r) => {
+          const pending = r.receiptSummary?.pendingUnits ?? (r.items ?? []).reduce((acc, item) => acc + Math.max(0, Number(item.quantity) - Number(item.receivedQty ?? 0)), 0)
+          const rejected = r.receiptSummary?.rejectedUnits ?? (r.items ?? []).reduce((acc, item) => acc + Number(item.rejectedQty ?? 0), 0)
+          const divergentItems = r.receiptSummary?.divergentItems ?? 0
+          return (
+            <div className="text-[var(--muted-foreground)]">
+              {r.items.length}
+              {pending > 0 ? ` | ${pending} pend.` : ''}
+              {rejected > 0 ? ` | ${rejected} rej.` : ''}
+              {divergentItems > 0 ? ` | ${divergentItems} div.` : ''}
+            </div>
+          )
+        },
       },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -595,28 +904,69 @@ export default function PurchaseOrdersPage() {
 
   return (
     <div className="space-y-4">
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl font-semibold">
+      <header className="rounded-2xl border border-theme bg-[var(--surface-2)] px-5 py-5 shadow-[var(--shadow-sm)]">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-foreground)]">
+              Procurement flow
+            </div>
+            <h1 className="mt-2 text-xl font-semibold">
             {language === 'pt' ? 'Pedidos de compra' : language === 'es' ? 'Pedidos de compra' : 'Purchase orders'}
-          </h1>
-          <p className="text-sm text-neutral-600">
+            </h1>
+            <p className="mt-1 max-w-3xl text-sm text-[var(--text-muted)]">
             {language === 'pt'
               ? 'Crie e acompanhe pedidos de compra.'
               : language === 'es'
                 ? 'Crea y gestiona pedidos de compra.'
                 : 'Create and manage purchase orders.'}
-          </p>
-        </div>
+            </p>
+          </div>
 
-        <button
-          className="btn btn-primary"
-          onClick={openCreate}
-          type="button"
-        >
-          {language === 'pt' ? 'Novo pedido' : language === 'es' ? 'Nuevo pedido' : 'New'}
-        </button>
+          <button
+            className="btn btn-primary"
+            onClick={openCreate}
+            type="button"
+          >
+            {language === 'pt' ? 'Novo pedido' : language === 'es' ? 'Nuevo pedido' : 'New'}
+          </button>
+        </div>
       </header>
+
+      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="surface rounded-2xl border border-theme p-4">
+          <div className="text-xs uppercase tracking-wide text-[var(--text-muted)]">
+            {language === 'pt' ? 'Pedidos' : language === 'es' ? 'Pedidos' : 'Orders'}
+          </div>
+          <div className="mt-1 text-2xl font-semibold">{overview.total}</div>
+        </div>
+        <div className="surface rounded-2xl border border-theme p-4">
+          <div className="text-xs uppercase tracking-wide text-[var(--text-muted)]">
+            {language === 'pt' ? 'Em aberto' : language === 'es' ? 'Abiertos' : 'Open'}
+          </div>
+          <div className="mt-1 text-2xl font-semibold">{overview.active}</div>
+        </div>
+        <div className="surface rounded-2xl border border-theme p-4">
+          <div className="text-xs uppercase tracking-wide text-[var(--text-muted)]">
+            {language === 'pt' ? 'Com pendencia' : language === 'es' ? 'Con pendiente' : 'With pending receipt'}
+          </div>
+          <div className="mt-1 text-2xl font-semibold">{overview.withPending}</div>
+        </div>
+        <div className="surface rounded-2xl border border-theme p-4">
+          <div className="text-xs uppercase tracking-wide text-[var(--text-muted)]">
+            {language === 'pt' ? 'Custo estimado' : language === 'es' ? 'Costo estimado' : 'Estimated cost'}
+          </div>
+          <div className="mt-1 text-2xl font-semibold">{formatMoneyDisplay(overview.estimated, moneyLocale, currency)}</div>
+          {overview.divergent > 0 ? (
+            <div className="mt-2 text-xs text-amber-700">
+              {language === 'pt'
+                ? `${overview.divergent} pedidos com divergencia`
+                : language === 'es'
+                  ? `${overview.divergent} pedidos con divergencia`
+                  : `${overview.divergent} orders with variance`}
+            </div>
+          ) : null}
+        </div>
+      </section>
 
       <DataTable
         rows={rows}
@@ -701,6 +1051,7 @@ export default function PurchaseOrdersPage() {
                   >
                     <option value="DRAFT">{statusLabel('DRAFT')}</option>
                     <option value="CONFIRMED">{statusLabel('CONFIRMED')}</option>
+                    <option value="PARTIALLY_RECEIVED">{statusLabel('PARTIALLY_RECEIVED')}</option>
                     <option value="RECEIVED">{statusLabel('RECEIVED')}</option>
                     <option value="CANCELLED">{statusLabel('CANCELLED')}</option>
                   </select>
@@ -727,6 +1078,59 @@ export default function PurchaseOrdersPage() {
                   className="min-h-24 w-full rounded-lg border border-theme bg-transparent px-3 py-2"
                 />
               </label>
+
+              {currentOrder?.receiptSummary ? (
+                <div className="rounded-lg border border-theme bg-[var(--surface-2)] p-3">
+                  <div className="text-sm font-medium">
+                    {language === 'pt' ? 'Resumo de recebimento' : language === 'es' ? 'Resumen de recepción' : 'Receiving summary'}
+                  </div>
+                  <div className="mt-2 grid gap-2 text-sm sm:grid-cols-3">
+                    <div>
+                      <div className="text-[11px] uppercase tracking-wide text-[var(--text-muted)]">
+                        {language === 'pt' ? 'Recebido' : language === 'es' ? 'Recibido' : 'Received'}
+                      </div>
+                      <div className="font-medium">{currentOrder.receiptSummary.receivedUnits}</div>
+                    </div>
+                    <div>
+                      <div className="text-[11px] uppercase tracking-wide text-[var(--text-muted)]">
+                        {language === 'pt' ? 'Pendente' : language === 'es' ? 'Pendiente' : 'Pending'}
+                      </div>
+                      <div className="font-medium">{currentOrder.receiptSummary.pendingUnits}</div>
+                    </div>
+                    <div>
+                      <div className="text-[11px] uppercase tracking-wide text-[var(--text-muted)]">
+                        {language === 'pt' ? 'Rejeitado' : language === 'es' ? 'Rechazado' : 'Rejected'}
+                      </div>
+                      <div className="font-medium">{currentOrder.receiptSummary.rejectedUnits}</div>
+                    </div>
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
+                    {currentOrder.receiptSummary.pendingItems > 0 ? (
+                      <span className="rounded-full border border-theme bg-white px-2 py-0.5 text-[var(--text-muted)]">
+                        {language === 'pt'
+                          ? `${currentOrder.receiptSummary.pendingItems} itens pendentes`
+                          : language === 'es'
+                            ? `${currentOrder.receiptSummary.pendingItems} items pendientes`
+                            : `${currentOrder.receiptSummary.pendingItems} pending items`}
+                      </span>
+                    ) : null}
+                    {currentOrder.receiptSummary.divergentItems > 0 ? (
+                      <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-amber-700">
+                        {language === 'pt'
+                          ? `${currentOrder.receiptSummary.divergentItems} itens com divergência`
+                          : language === 'es'
+                            ? `${currentOrder.receiptSummary.divergentItems} items con divergencia`
+                            : `${currentOrder.receiptSummary.divergentItems} items with variance`}
+                      </span>
+                    ) : null}
+                    {!currentOrder.receiptSummary.hasDivergence && currentOrder.receiptSummary.pendingUnits <= 0 ? (
+                      <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-emerald-700">
+                        {language === 'pt' ? 'Recebimento limpo' : language === 'es' ? 'Recepción limpia' : 'Clean receipt'}
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
 
               <div className="mt-2 rounded-lg border border-theme p-3">
                 <div className="flex items-center justify-between gap-3">
@@ -877,6 +1281,7 @@ export default function PurchaseOrdersPage() {
           summary={receiveSummary}
           onClose={() => setReceiveSummary(null)}
           onConfirm={() => void confirmReceive()}
+          onChangeItem={updateReceiveItem}
           isBusy={receiveM.isPending}
         />
       ) : null}

@@ -35,8 +35,13 @@ export async function GET(req: Request) {
       : {}),
   }
 
-  const [total, products] = await prisma.$transaction([
+  const [total, rawCount, intermediateCount, finishedCount, brandedCount, pricedCount, products] = await prisma.$transaction([
     prisma.product.count({ where }),
+    prisma.product.count({ where: { ...where, kind: 'RAW' } }),
+    prisma.product.count({ where: { ...where, kind: 'INTERMEDIATE' } }),
+    prisma.product.count({ where: { ...where, kind: 'FINISHED' } }),
+    prisma.product.count({ where: { ...where, brand: { not: null } } }),
+    prisma.product.count({ where: { ...where, avgCost: { not: null } } }),
     prisma.product.findMany({
       where,
       orderBy: [{ name: 'asc' }],
@@ -48,6 +53,13 @@ export async function GET(req: Request) {
 
   return Response.json({
     products,
+    summary: {
+      rawCount,
+      intermediateCount,
+      finishedCount,
+      brandedCount,
+      pricedCount,
+    },
     meta: {
       page,
       take,
@@ -84,7 +96,7 @@ export async function POST(req: Request) {
       kind: parsed.data.kind ?? 'RAW',
       unit: parsed.data.unit,
       // Estoque é principalmente para matéria-prima; para produto final pode ficar 0 também.
-      inventory: { create: { workspaceId: wsId, quantity: 0 } },
+      inventory: { create: { workspaceId: wsId, quantity: 0, reorderTarget: null, criticality: 'MEDIUM' } },
     },
     select: { id: true, name: true, brand: true, kind: true, unit: true },
   })

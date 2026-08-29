@@ -3,10 +3,12 @@ import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { requireWorkspace } from '@/lib/authz'
 import { nextSalesOrderCode } from '@/lib/sales/sales-order-codes'
+import { buildSalesOrderReservationSummary, getInventoryReservationSnapshot } from '@/lib/inventory-reservations'
 import { convertQty, convertUnitPrice, isConvertible, normalizeUnit } from '@/lib/unit-conversion'
 // Finance hooks (recebíveis/pagamentos) serão adicionados no próximo passo.
 
 import { buildSalesOrdersWhere } from '@/lib/orders-query'
+import { ensurePendingApprovalRequest, needsSalesOrderDiscountApproval } from '@/lib/approval-policies'
 import { calcOrderTotals } from '@/lib/sales-order-totals'
 
 function parsePositiveInt(value: string | null, fallback: number, max: number) {
@@ -73,8 +75,24 @@ export async function GET(req: Request) {
       }),
     ])
 
+    const reservationSnapshot = await getInventoryReservationSnapshot({
+      workspaceId: wsId,
+      productIds: orders.flatMap((order) => order.items.map((item) => item.product.id)),
+    })
+
     return Response.json({
-      orders,
+      orders: orders.map((order) => ({
+        ...order,
+        reservationSummary: buildSalesOrderReservationSummary({
+          salesOrderId: order.id,
+          orderStatus: order.status,
+          items: order.items.map((item) => ({
+            productId: item.product.id,
+            quantity: Number(item.quantity ?? 0),
+          })),
+          snapshot: reservationSnapshot,
+        }),
+      })),
       meta: {
         page,
         take,
@@ -90,7 +108,25 @@ export async function GET(req: Request) {
     select: orderSelect,
   })
 
-  return Response.json({ orders })
+  const reservationSnapshot = await getInventoryReservationSnapshot({
+    workspaceId: wsId,
+    productIds: orders.flatMap((order) => order.items.map((item) => item.product.id)),
+  })
+
+  return Response.json({
+    orders: orders.map((order) => ({
+      ...order,
+      reservationSummary: buildSalesOrderReservationSummary({
+        salesOrderId: order.id,
+        orderStatus: order.status,
+        items: order.items.map((item) => ({
+          productId: item.product.id,
+          quantity: Number(item.quantity ?? 0),
+        })),
+        snapshot: reservationSnapshot,
+      }),
+    })),
+  })
 }
 
 const OrderItemSchema = z.object({
@@ -285,6 +321,19 @@ export async function POST(req: Request) {
   })
 
   // NOTE: Recebível real por expedição + pagamentos antecipados serão implementados no módulo novo.
+
+  if (needsSalesOrderDiscountApproval({ subtotal: totals.subtotal, total: totals.total })) {
+    await ensurePendingApprovalRequest({
+      workspaceId: wsId,
+      entityType: 'SALES_ORDER',
+      entityId: order.id,
+      policyKey: 'SALES_ORDER_DISCOUNT',
+      reason: 'Pedido com desconto fora da politica padrao',
+      amount: totals.subtotal - totals.total,
+      requestedById: auth.user.id,
+      salesOrderId: order.id,
+    })
+  }
 
   return Response.json({ order }, { status: 201 })
 }

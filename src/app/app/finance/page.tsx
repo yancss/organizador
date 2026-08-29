@@ -296,37 +296,38 @@ export default function FinancePage() {
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">{i.financePage.title}</h1>
-          <p className="text-sm text-neutral-600">{i.financePage.subtitle}</p>
-        </div>
+      <header className="rounded-2xl border border-theme bg-[var(--surface-2)] px-5 py-5 shadow-[var(--shadow-sm)]">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-xl font-semibold tracking-tight">{i.financePage.title}</h1>
+          </div>
 
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <a
-            href="/app/finance/accounts"
-            className="btn btn-secondary"
-          >
-            {i.financePage.accounts}
-          </a>
-          <a
-            href="/app/finance/categories"
-            className="btn btn-secondary"
-          >
-            {i.financePage.categories}
-          </a>
-          <button
-            className="btn btn-primary"
-            onClick={openCreate}
-            type="button"
-          >
-            {i.financePage.newEntry}
-          </button>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <a
+              href="/app/finance/accounts"
+              className="btn btn-secondary"
+            >
+              {i.financePage.accounts}
+            </a>
+            <a
+              href="/app/finance/categories"
+              className="btn btn-secondary"
+            >
+              {i.financePage.categories}
+            </a>
+            <button
+              className="btn btn-primary"
+              onClick={openCreate}
+              type="button"
+            >
+              {i.financePage.newEntry}
+            </button>
+          </div>
         </div>
       </header>
 
       <section className="grid gap-3 sm:grid-cols-3">
-        <div className="surface rounded-xl border border-theme p-4 sm:col-span-3">
+        <div className="surface rounded-2xl border border-theme p-4 sm:col-span-3">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div className="text-xs text-[var(--muted-foreground)]">{i.financePage.view}</div>
             <div className="flex flex-wrap gap-2">
@@ -360,7 +361,8 @@ export default function FinancePage() {
             </div>
           </div>
 
-          <div className="mt-3 grid gap-2 sm:grid-cols-5">
+          <div className="mt-3 rounded-2xl bg-[var(--surface-2)] p-3">
+            <div className="grid gap-2 sm:grid-cols-5">
             <label className="grid gap-1">
               <span className="text-[10px] text-[var(--muted-foreground)]">{i.financePage.filters.from}</span>
               <input
@@ -416,7 +418,7 @@ export default function FinancePage() {
             <div className="grid items-end justify-items-end">
               <button
                 type="button"
-                className="w-fit rounded-lg border border-theme bg-neutral-50 px-3 py-2 text-xs text-neutral-700 hover:bg-neutral-100"
+                className="btn btn-secondary btn-sm"
                 onClick={() => {
                   setFrom('')
                   setTo('')
@@ -428,18 +430,19 @@ export default function FinancePage() {
               </button>
             </div>
           </div>
+          </div>
         </div>
-        <div className="surface rounded-xl border border-theme p-4">
+        <div className="surface rounded-2xl border border-theme p-4">
           <div className="text-xs text-[var(--muted-foreground)]">{i.financePage.cards.income}</div>
-          <div className="mt-1 text-lg font-semibold">{fmtMoney(language, currency, moneyTotals.income)}</div>
+          <div className="mt-1 text-2xl font-semibold">{fmtMoney(language, currency, moneyTotals.income)}</div>
         </div>
-        <div className="surface rounded-xl border border-theme p-4">
+        <div className="surface rounded-2xl border border-theme p-4">
           <div className="text-xs text-[var(--muted-foreground)]">{i.financePage.cards.expense}</div>
-          <div className="mt-1 text-lg font-semibold">{fmtMoney(language, currency, moneyTotals.expense)}</div>
+          <div className="mt-1 text-2xl font-semibold">{fmtMoney(language, currency, moneyTotals.expense)}</div>
         </div>
-        <div className="surface rounded-xl border border-theme p-4">
+        <div className="surface rounded-2xl border border-theme p-4">
           <div className="text-xs text-[var(--muted-foreground)]">{i.financePage.cards.net}</div>
-          <div className="mt-1 text-lg font-semibold">{fmtMoney(language, currency, moneyTotals.net)}</div>
+          <div className="mt-1 text-2xl font-semibold">{fmtMoney(language, currency, moneyTotals.net)}</div>
         </div>
       </section>
 

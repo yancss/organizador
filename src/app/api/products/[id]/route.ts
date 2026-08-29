@@ -32,7 +32,20 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
       updatedAt: true,
       createdById: true,
       updatedById: true,
-      inventory: { select: { id: true, quantity: true, minimum: true } },
+      inventory: {
+        select: {
+          id: true,
+          quantity: true,
+          minimum: true,
+          reorderTarget: true,
+          criticality: true,
+          supplierLeadTimeDays: true,
+          supplierMinOrderQty: true,
+          supplierOrderMultiple: true,
+          preferredSupplierId: true,
+          preferredSupplier: { select: { id: true, name: true } },
+        },
+      },
       barcodes: { select: { id: true, code: true, source: true, externalRef: true, createdAt: true }, orderBy: { createdAt: 'asc' } },
     },
   })

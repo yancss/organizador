@@ -8,6 +8,7 @@ import DataTable, { type ColumnDef } from '../../ui/data-table'
 import { api } from '../../api-client'
 import { useSettings } from '../../settings-context'
 import { t } from '../../i18n'
+import { formatMoneyDisplay, localeFromLanguage } from '../../money'
 
 type Receivable = {
   id: string
@@ -28,17 +29,14 @@ type Receivable = {
   updatedAt: string
 }
 
-// (moved to api-client.ts)
-
-
 function sumApplied(apps: Receivable['applications']) {
   return apps.reduce((acc, a) => acc + Number(a.value ?? 0), 0)
 }
 
 export default function FinanceReceivablesPage() {
-  const { language } = useSettings()
+  const { language, currency } = useSettings()
   const i = t(language)
-
+  const moneyLocale = localeFromLanguage(language)
   const router = useRouter()
 
   const q = useQuery({
@@ -47,6 +45,16 @@ export default function FinanceReceivablesPage() {
   })
 
   const rows = q.data?.receivables ?? []
+  const overview = useMemo(() => {
+    const total = rows.reduce((acc, row) => acc + Number(row.value ?? 0), 0)
+    const applied = rows.reduce((acc, row) => acc + sumApplied(row.applications), 0)
+    return {
+      totalCount: rows.length,
+      total,
+      applied,
+      open: Math.max(0, total - applied),
+    }
+  }, [rows])
 
   const columns = useMemo<ColumnDef<Receivable>[]>(
     () => [
@@ -61,13 +69,13 @@ export default function FinanceReceivablesPage() {
         key: 'value',
         header: 'Valor',
         sortValue: (r) => Number(r.value),
-        render: (r) => String(r.value),
+        render: (r) => formatMoneyDisplay(r.value, moneyLocale, currency),
       },
       {
         key: 'applied',
         header: 'Aplicado',
         sortValue: (r) => sumApplied(r.applications),
-        render: (r) => sumApplied(r.applications).toFixed(2),
+        render: (r) => formatMoneyDisplay(sumApplied(r.applications), moneyLocale, currency),
       },
       {
         key: 'issuedAt',
@@ -79,29 +87,46 @@ export default function FinanceReceivablesPage() {
         key: 'salesOrderId',
         header: 'PV',
         searchValue: (r) => r.salesOrderId,
-        render: (r) => <code className="text-xs">{r.salesOrderId.slice(0, 8)}…</code>,
+        render: (r) => <code className="text-xs">{r.salesOrderId.slice(0, 8)}...</code>,
       },
       {
         key: 'deliveryId',
         header: 'Entrega',
         searchValue: (r) => r.deliveryId,
-        render: (r) => <code className="text-xs">{r.deliveryId.slice(0, 8)}…</code>,
+        render: (r) => <code className="text-xs">{r.deliveryId.slice(0, 8)}...</code>,
       },
     ],
-    [],
+    [currency, moneyLocale],
   )
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-xl font-semibold">Recebíveis</h1>
-        <p className="text-sm text-neutral-600">Contas a receber reais (por expedição).</p>
+      <div className="rounded-2xl border border-theme bg-[var(--surface-2)] px-5 py-5 shadow-[var(--shadow-sm)]">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-foreground)]">Receivables ledger</div>
+        <h1 className="mt-2 text-xl font-semibold">Recebiveis</h1>
+        <p className="mt-1 max-w-3xl text-sm text-[var(--text-muted)]">Contas a receber reais por expedicao.</p>
       </div>
+
+      <section className="grid gap-3 md:grid-cols-3">
+        <div className="surface rounded-2xl border border-theme p-4">
+          <div className="text-xs uppercase tracking-wide text-[var(--text-muted)]">Titulos</div>
+          <div className="mt-1 text-2xl font-semibold">{overview.totalCount}</div>
+        </div>
+        <div className="surface rounded-2xl border border-theme p-4">
+          <div className="text-xs uppercase tracking-wide text-[var(--text-muted)]">Valor total</div>
+          <div className="mt-1 text-2xl font-semibold">{formatMoneyDisplay(overview.total, moneyLocale, currency)}</div>
+        </div>
+        <div className="surface rounded-2xl border border-theme p-4">
+          <div className="text-xs uppercase tracking-wide text-[var(--text-muted)]">Em aberto</div>
+          <div className="mt-1 text-2xl font-semibold">{formatMoneyDisplay(overview.open, moneyLocale, currency)}</div>
+          <div className="mt-2 text-xs text-[var(--text-muted)]">Aplicado: {formatMoneyDisplay(overview.applied, moneyLocale, currency)}</div>
+        </div>
+      </section>
 
       <DataTable
         rows={rows}
         columns={columns}
-        empty={q.isLoading ? 'Carregando…' : q.error ? 'Erro ao carregar.' : 'Sem recebíveis.'}
+        empty={q.isLoading ? 'Carregando...' : q.error ? 'Erro ao carregar.' : 'Sem recebiveis.'}
         labels={i.table}
         initialSort={{ key: 'issuedAt', dir: 'desc' }}
         pageSize={20}

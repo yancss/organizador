@@ -55,7 +55,7 @@ export default function AvatarMenu() {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="grid size-10 place-items-center rounded-full border border-theme bg-[var(--surface)] text-sm font-semibold text-[var(--foreground)] hover:bg-[var(--muted)]"
+        className="grid size-10 place-items-center rounded-full border border-theme bg-[var(--surface-2)] text-sm font-semibold text-[var(--foreground)] shadow-[var(--shadow-sm)] transition hover:bg-[var(--surface)]"
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={profileLabel}
@@ -66,12 +66,16 @@ export default function AvatarMenu() {
 
       {open ? (
         <div
-          className="surface absolute right-0 mt-2 w-56 overflow-hidden rounded-xl border border-theme shadow-[0_10px_30px_rgba(0,0,0,0.18)]"
+          className="surface absolute right-0 mt-2 w-64 overflow-hidden rounded-2xl border border-theme shadow-[var(--shadow-lg)]"
           role="menu"
         >
+          <div className="border-b border-theme bg-[var(--surface-2)] px-4 py-3">
+            <div className="truncate text-sm font-semibold text-[var(--foreground)]">{user?.name || 'Guardian user'}</div>
+            <div className="truncate text-xs text-[var(--text-muted)]">{user?.email || 'Workspace account'}</div>
+          </div>
           <Link
             href="/app/profile"
-            className="flex items-center gap-3 px-4 py-3 text-sm text-[var(--foreground)] hover:bg-[var(--muted)]"
+            className="flex items-center gap-3 px-4 py-3 text-sm text-[var(--foreground)] transition hover:bg-[var(--muted)]"
             role="menuitem"
             onClick={() => setOpen(false)}
           >
@@ -80,7 +84,7 @@ export default function AvatarMenu() {
           </Link>
           <Link
             href="/app/settings"
-            className="flex items-center gap-3 px-4 py-3 text-sm text-[var(--foreground)] hover:bg-[var(--muted)]"
+            className="flex items-center gap-3 px-4 py-3 text-sm text-[var(--foreground)] transition hover:bg-[var(--muted)]"
             role="menuitem"
             onClick={() => setOpen(false)}
           >
@@ -89,7 +93,7 @@ export default function AvatarMenu() {
           </Link>
           <Link
             href="/api/auth/signout"
-            className="flex items-center gap-3 px-4 py-3 text-sm text-[var(--danger)] hover:bg-[var(--danger-bg)]"
+            className="flex items-center gap-3 px-4 py-3 text-sm text-[var(--danger)] transition hover:bg-[var(--danger-bg)]"
             role="menuitem"
             onClick={() => setOpen(false)}
           >

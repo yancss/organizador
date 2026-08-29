@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+import { ROLE_PERMISSION_MODULES } from '@/lib/access-control'
+import { ensureDefaultWorkspaceRoles } from '@/lib/default-workspace-roles'
 import { prisma } from '@/lib/prisma'
 import { requireAdmin } from '@/lib/authz'
 
@@ -8,6 +10,12 @@ export async function GET() {
   if (!auth.ok) return Response.json({ error: auth.error }, { status: auth.status })
 
   const wsId = auth.user.workspaceId
+
+  await ensureDefaultWorkspaceRoles({
+    db: prisma,
+    workspaceId: wsId,
+    actorUserId: auth.user.id,
+  })
 
   const roles = await prisma.workspaceRoleModel.findMany({
     where: { workspaceId: wsId },
@@ -24,6 +32,7 @@ export async function GET() {
   })
 
   const permissions = await prisma.permission.findMany({
+    where: { module: { in: [...ROLE_PERMISSION_MODULES] } },
     orderBy: [{ module: 'asc' }, { action: 'asc' }, { key: 'asc' }],
     select: { id: true, key: true, module: true, action: true, description: true },
   })
@@ -41,6 +50,12 @@ export async function POST(req: Request) {
   if (!auth.ok) return Response.json({ error: auth.error }, { status: auth.status })
 
   const wsId = auth.user.workspaceId
+
+  await ensureDefaultWorkspaceRoles({
+    db: prisma,
+    workspaceId: wsId,
+    actorUserId: auth.user.id,
+  })
 
   const body = await req.json().catch(() => null)
   const parsed = CreateSchema.safeParse(body)
