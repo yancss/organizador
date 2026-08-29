@@ -69,6 +69,15 @@ Evitar:
 
 ## Andamento atual
 
+### 2026-08-29
+
+- Trabalho ERP acumulado consolidado no commit `57bcc80` (branch `develop`, enviado para `origin`).
+- Validação ponta a ponta executada em dev-local. Relatório: `docs/ERP-VALIDACAO-E2E-2026-08-29.md`.
+  - Todos os fluxos da Fase 1 + 1a camada de Comercial/Financeiro/Workflow aprovados.
+  - Lacunas registradas (G1-G11). G1/G2 (carga de saldo legado) adiadas: viram rotina de
+    importação (JSON/planilha) no futuro, não backfill.
+  - Fila de tratamento: G3 (alçadas por workspace) -> G9/G10/G11 (polimento) -> G4-G8 (decisão).
+
 ### 2026-06-14
 
 - `F1-02` iniciado e entregue na primeira camada:
