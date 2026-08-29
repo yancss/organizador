@@ -82,6 +82,11 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ productId: st
     return Response.json({ error: 'ADJUSTMENT_REASON_REQUIRED' }, { status: 400 })
   }
 
+  // G6: um ajuste/contagem formal não pode resultar em saldo físico negativo.
+  if (qtyBase !== undefined && qtyBase < -0.000001) {
+    return Response.json({ error: 'NEGATIVE_QUANTITY_NOT_ALLOWED' }, { status: 400 })
+  }
+
   const updated = await prisma.inventory.update({
     where: { id: inv.id },
     data: {
