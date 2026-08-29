@@ -20,17 +20,32 @@ export async function GET() {
   })
 
   const settings = coerceSalesQuoteSettings(row?.value)
+  const d = DEFAULT_SALES_QUOTE_SETTINGS
+  const isCustom =
+    row != null &&
+    (settings.defaultValidityDays !== d.defaultValidityDays ||
+      settings.allowApproveFromDraft !== d.allowApproveFromDraft ||
+      settings.convertedOrderStatus !== d.convertedOrderStatus ||
+      settings.autoExpire !== d.autoExpire ||
+      settings.reminderDaysBefore !== d.reminderDaysBefore)
+
   return Response.json({
     settings,
     defaults: DEFAULT_SALES_QUOTE_SETTINGS,
-    isCustom: row != null && settings.defaultValidityDays !== DEFAULT_SALES_QUOTE_SETTINGS.defaultValidityDays,
+    isCustom,
     updatedAt: row?.updatedAt ?? null,
   })
 }
 
-const PatchSchema = z.object({
-  defaultValidityDays: z.coerce.number().int().min(0).max(3650),
-})
+const PatchSchema = z
+  .object({
+    defaultValidityDays: z.coerce.number().int().min(0).max(3650),
+    allowApproveFromDraft: z.coerce.boolean(),
+    convertedOrderStatus: z.enum(['DRAFT', 'CONFIRMED']),
+    autoExpire: z.coerce.boolean(),
+    reminderDaysBefore: z.coerce.number().int().min(0).max(365),
+  })
+  .partial()
 
 export async function PATCH(req: Request) {
   const auth = await requireAdmin()
@@ -48,7 +63,8 @@ export async function PATCH(req: Request) {
     select: { value: true },
   })
 
-  const nextValue = parsed.data
+  // Sempre grava o objeto completo (merge do atual com o que veio no PATCH).
+  const nextValue = coerceSalesQuoteSettings({ ...coerceSalesQuoteSettings(before?.value), ...parsed.data })
 
   await prisma.workspaceSetting.upsert({
     where: { workspaceId_key: { workspaceId: wsId, key: SALES_QUOTE_SETTINGS_KEY } },

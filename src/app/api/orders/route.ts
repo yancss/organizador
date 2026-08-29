@@ -8,7 +8,7 @@ import { convertQty, convertUnitPrice, isConvertible, normalizeUnit } from '@/li
 // Finance hooks (recebíveis/pagamentos) serão adicionados no próximo passo.
 
 import { buildSalesOrdersWhere } from '@/lib/orders-query'
-import { ensurePendingApprovalRequest, getApprovalPolicy, needsSalesOrderDiscountApproval } from '@/lib/approval-policies'
+import { ensurePendingApprovalRequest, evaluateSalesDiscount, getApprovalPolicy, type WorkspaceActorRole } from '@/lib/approval-policies'
 import { calcOrderTotals } from '@/lib/sales-order-totals'
 
 function parsePositiveInt(value: string | null, fallback: number, max: number) {
@@ -250,6 +250,20 @@ export async function POST(req: Request) {
     discountPercent: parsed.data.discountPercent,
   })
 
+  const approvalPolicy = await getApprovalPolicy(wsId)
+  const actorRole: WorkspaceActorRole = auth.user.isSuperadmin
+    ? 'SUPERADMIN'
+    : auth.user.workspaceRole === 'ADMIN'
+      ? 'ADMIN'
+      : 'USER'
+  const discountEval = evaluateSalesDiscount({ subtotal: totals.subtotal, total: totals.total }, actorRole, approvalPolicy)
+  if (discountEval.decision === 'BLOCKED') {
+    return Response.json(
+      { error: 'DISCOUNT_EXCEEDS_HARD_CAP', hardCapPercent: discountEval.hardCapPercent, discountPercent: discountEval.discountPercent },
+      { status: 400 },
+    )
+  }
+
   const code = await nextSalesOrderCode(wsId)
 
   const order = await prisma.salesOrder.create({
@@ -322,15 +336,14 @@ export async function POST(req: Request) {
 
   // NOTE: Recebível real por expedição + pagamentos antecipados serão implementados no módulo novo.
 
-  const approvalPolicy = await getApprovalPolicy(wsId)
-  if (needsSalesOrderDiscountApproval({ subtotal: totals.subtotal, total: totals.total }, approvalPolicy)) {
+  if (discountEval.decision === 'NEEDS_APPROVAL') {
     await ensurePendingApprovalRequest({
       workspaceId: wsId,
       entityType: 'SALES_ORDER',
       entityId: order.id,
       policyKey: 'SALES_ORDER_DISCOUNT',
-      reason: 'Pedido com desconto fora da politica padrao',
-      amount: totals.subtotal - totals.total,
+      reason: 'Pedido com desconto acima da alçada do responsável',
+      amount: discountEval.discountValue,
       requestedById: auth.user.id,
       salesOrderId: order.id,
     })

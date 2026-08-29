@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { requireWorkspace } from '@/lib/authz'
 import { nextSalesOrderCode } from '@/lib/sales/sales-order-codes'
+import { getSalesQuoteSettings } from '@/lib/sales/sales-quote-settings'
 
 const ORDER_SELECT = {
   id: true,
@@ -70,6 +71,8 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
     return Response.json({ error: 'QUOTE_WITHOUT_ITEMS' }, { status: 409 })
   }
 
+  const settings = await getSalesQuoteSettings(wsId)
+  const orderStatus = settings.convertedOrderStatus
   const code = await nextSalesOrderCode(wsId)
 
   const order = await prisma.$transaction(async (tx) => {
@@ -83,7 +86,7 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
         name: quote.name,
         observations: quote.observations ?? null,
         clientId: quote.clientId,
-        status: 'DRAFT',
+        status: orderStatus,
         discountMode: quote.discountMode,
         discountType: quote.discountType,
         discountValue: quote.discountValue,
@@ -139,6 +142,23 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
       },
       select: { id: true },
     })
+
+    if (orderStatus !== 'DRAFT') {
+      await tx.auditEvent.create({
+        data: {
+          workspaceId: wsId,
+          category: 'CRUD',
+          action: 'UPDATE',
+          actorUserId: auth.user.id,
+          entityType: 'SalesOrder',
+          entityId: created.id,
+          summary: `STATUS SalesOrder#${created.id}`,
+          changes: { create: [{ field: 'status', from: 'DRAFT', to: orderStatus }] },
+          meta: { via: 'api/quotes/[id]/convert' },
+        },
+        select: { id: true },
+      })
+    }
 
     return created
   })

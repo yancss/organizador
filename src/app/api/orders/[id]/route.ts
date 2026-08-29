@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 import { prisma } from '@/lib/prisma'
 import { requireWorkspace } from '@/lib/authz'
-import { ensurePendingApprovalRequest, getApprovalPolicy, hasApprovedApprovalRequest, needsSalesOrderDiscountApproval } from '@/lib/approval-policies'
+import { ensurePendingApprovalRequest, evaluateSalesDiscount, getApprovalPolicy, hasApprovedApprovalRequest, type WorkspaceActorRole } from '@/lib/approval-policies'
 import { buildSalesOrderReservationSummary, getInventoryReservationSnapshot } from '@/lib/inventory-reservations'
 import { calcOrderTotals } from '@/lib/sales-order-totals'
 import { canTransitionSalesOrderStatus } from '@/lib/sales-order-status'
@@ -151,14 +151,23 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     discountPercent: parsed.data.discountPercent ?? prev.discountPercent,
   })
 
-  const discountApprovalNeeded = needsSalesOrderDiscountApproval(
-    {
-      subtotal: policyTotals.subtotal,
-      total: policyTotals.total,
-    },
+  const actorRole: WorkspaceActorRole = auth.user.isSuperadmin
+    ? 'SUPERADMIN'
+    : auth.user.workspaceRole === 'ADMIN'
+      ? 'ADMIN'
+      : 'USER'
+  const discountEval = evaluateSalesDiscount(
+    { subtotal: policyTotals.subtotal, total: policyTotals.total },
+    actorRole,
     approvalPolicy,
   )
-  if (discountApprovalNeeded && nextStatus === 'CONFIRMED') {
+  if (discountEval.decision === 'BLOCKED' && nextStatus === 'CONFIRMED') {
+    return Response.json(
+      { error: 'DISCOUNT_EXCEEDS_HARD_CAP', hardCapPercent: discountEval.hardCapPercent, discountPercent: discountEval.discountPercent },
+      { status: 400 },
+    )
+  }
+  if (discountEval.decision === 'NEEDS_APPROVAL' && nextStatus === 'CONFIRMED') {
     const approved = await hasApprovedApprovalRequest({
       workspaceId: wsId,
       entityType: 'SALES_ORDER',
@@ -171,8 +180,8 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
         entityType: 'SALES_ORDER',
         entityId: id,
         policyKey: 'SALES_ORDER_DISCOUNT',
-        reason: 'Pedido com desconto fora da politica padrao',
-        amount: policyTotals.subtotal - policyTotals.total,
+        reason: 'Pedido com desconto acima da alçada do responsável',
+        amount: discountEval.discountValue,
         requestedById: auth.user.id,
         salesOrderId: id,
       })
@@ -396,14 +405,14 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       await prisma.salesOrder.updateMany({ where: { id, workspaceId: wsId }, data: { value: nextValue, updatedById: auth.user.id } })
     }
 
-    if (needsSalesOrderDiscountApproval({ subtotal: totals.subtotal, total: totals.total }, approvalPolicy)) {
+    if (evaluateSalesDiscount({ subtotal: totals.subtotal, total: totals.total }, actorRole, approvalPolicy).decision === 'NEEDS_APPROVAL') {
       await ensurePendingApprovalRequest({
         workspaceId: wsId,
         entityType: 'SALES_ORDER',
         entityId: id,
         policyKey: 'SALES_ORDER_DISCOUNT',
-        reason: 'Pedido com desconto fora da politica padrao',
-        amount: totals.subtotal - totals.total,
+        reason: 'Pedido com desconto acima da alçada do responsável',
+        amount: Math.max(0, totals.subtotal - totals.total),
         requestedById: auth.user.id,
         salesOrderId: id,
       })

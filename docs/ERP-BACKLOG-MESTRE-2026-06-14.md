@@ -87,6 +87,11 @@ Evitar:
   `docs/F2-01-ORCAMENTO-DESIGN.md`.
   - Fase 2 restante: F2-03 (tabela de preço), F2-04 (condições de pagamento), F2-05 completo,
     F2-06 (histórico comercial), F2-07 (pós-venda).
+- Configurações comerciais adicionais (2026-08-29, 2ª rodada), em `docs/F2-01-ORCAMENTO-DESIGN.md`:
+  - orçamento: prazo de validade padrão, reabrir só por ADMIN, aprovar direto do rascunho,
+    status do pedido na conversão, auto-expirar + lembrete de vencimento por e-mail (cron).
+  - `F2-05` (alçada comercial): desconto por papel (vendedor/admin) + teto rígido que recusa
+    de vez. Substituiu o limite único de desconto em `approval.policies`.
 
 ### 2026-06-14
 

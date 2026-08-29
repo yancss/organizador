@@ -57,6 +57,7 @@ function copy(language: string) {
     save: 'Salvar',
     cancel: 'Cancelar',
     edit: 'Editar',
+    reopen: 'Reabrir',
     send: 'Enviar',
     approve: 'Aprovar',
     reject: 'Rejeitar',
@@ -92,6 +93,7 @@ function copy(language: string) {
     save: 'Guardar',
     cancel: 'Cancelar',
     edit: 'Editar',
+    reopen: 'Reabrir',
     send: 'Enviar',
     approve: 'Aprobar',
     reject: 'Rechazar',
@@ -127,6 +129,7 @@ function copy(language: string) {
     save: 'Save',
     cancel: 'Cancel',
     edit: 'Edit',
+    reopen: 'Reopen',
     send: 'Send',
     approve: 'Approve',
     reject: 'Reject',
@@ -205,6 +208,11 @@ export default function SalesQuotesPage() {
     queryKey: ['quotes'],
     queryFn: () => api<{ quotes: Quote[] }>('/api/quotes?take=100'),
   })
+  const meQ = useQuery({
+    queryKey: ['me'],
+    queryFn: () => api<{ workspace?: { role?: 'USER' | 'ADMIN'; isSuperadmin?: boolean } }>('/api/me'),
+  })
+  const isAdmin = Boolean(meQ.data?.workspace?.isSuperadmin) || meQ.data?.workspace?.role === 'ADMIN'
   const productsQ = useQuery({ queryKey: ['quote-products'], queryFn: () => api<{ products: Product[] }>('/api/products?kind=FINISHED&take=200') })
   const clientsQ = useQuery({ queryKey: ['quote-clients'], queryFn: () => api<{ clients: Client[] }>('/api/clients?take=200') })
 
@@ -514,9 +522,9 @@ export default function SalesQuotesPage() {
                             {c.convert}
                           </button>
                         ) : null}
-                        {(q.status === 'REJECTED' || q.status === 'EXPIRED') ? (
+                        {(q.status === 'REJECTED' || q.status === 'EXPIRED') && isAdmin ? (
                           <button className="btn btn-secondary btn-sm" onClick={() => statusM.mutate({ id: q.id, status: 'DRAFT' })}>
-                            {c.edit}
+                            {c.reopen}
                           </button>
                         ) : null}
                       </div>

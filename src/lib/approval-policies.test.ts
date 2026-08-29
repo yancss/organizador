@@ -3,8 +3,8 @@ import { describe, it, expect } from 'vitest'
 import {
   DEFAULT_APPROVAL_POLICY,
   coerceApprovalPolicy,
+  evaluateSalesDiscount,
   needsPurchaseOrderApproval,
-  needsSalesOrderDiscountApproval,
 } from '@/lib/approval-policies'
 
 describe('coerceApprovalPolicy', () => {
@@ -16,13 +16,20 @@ describe('coerceApprovalPolicy', () => {
   })
 
   it('keeps valid overrides and falls back per-field', () => {
-    expect(
-      coerceApprovalPolicy({ purchaseOrderAmountThreshold: 5000, salesDiscountPercentThreshold: 'x' }),
-    ).toEqual({
-      purchaseOrderAmountThreshold: 5000,
-      salesDiscountPercentThreshold: DEFAULT_APPROVAL_POLICY.salesDiscountPercentThreshold,
-      salesDiscountValueThreshold: DEFAULT_APPROVAL_POLICY.salesDiscountValueThreshold,
-    })
+    const p = coerceApprovalPolicy({ purchaseOrderAmountThreshold: 5000, salesDiscountHardCapPercent: 999 })
+    expect(p.purchaseOrderAmountThreshold).toBe(5000)
+    expect(p.salesDiscountHardCapPercent).toBe(DEFAULT_APPROVAL_POLICY.salesDiscountHardCapPercent)
+  })
+
+  it('mapeia a chave legada salesDiscountPercentThreshold para o limite do papel USER', () => {
+    const p = coerceApprovalPolicy({ salesDiscountPercentThreshold: 7 })
+    expect(p.salesDiscountMaxByRole.USER).toBe(7)
+    expect(p.salesDiscountMaxByRole.ADMIN).toBe(DEFAULT_APPROVAL_POLICY.salesDiscountMaxByRole.ADMIN)
+  })
+
+  it('aceita salesDiscountMaxByRole explícito', () => {
+    const p = coerceApprovalPolicy({ salesDiscountMaxByRole: { USER: 5, ADMIN: 20 } })
+    expect(p.salesDiscountMaxByRole).toEqual({ USER: 5, ADMIN: 20 })
   })
 })
 
@@ -39,20 +46,37 @@ describe('needsPurchaseOrderApproval', () => {
   })
 })
 
-describe('needsSalesOrderDiscountApproval', () => {
-  it('no discount never needs approval', () => {
-    expect(needsSalesOrderDiscountApproval({ subtotal: 100, total: 100 })).toBe(false)
+describe('evaluateSalesDiscount', () => {
+  const policy = coerceApprovalPolicy({
+    salesDiscountMaxByRole: { USER: 10, ADMIN: 25 },
+    salesDiscountValueThreshold: 200,
+    salesDiscountHardCapPercent: 40,
   })
 
-  it('default: over 10% or over 200 absolute triggers approval', () => {
-    expect(needsSalesOrderDiscountApproval({ subtotal: 100, total: 91 })).toBe(false) // 9%
-    expect(needsSalesOrderDiscountApproval({ subtotal: 100, total: 89 })).toBe(true) // 11%
-    expect(needsSalesOrderDiscountApproval({ subtotal: 10000, total: 9750 })).toBe(true) // 2.5% but 250 abs
+  it('sem desconto sempre libera', () => {
+    expect(evaluateSalesDiscount({ subtotal: 100, total: 100 }, 'USER', policy).decision).toBe('ALLOW')
   })
 
-  it('respects custom per-workspace thresholds', () => {
-    const policy = coerceApprovalPolicy({ salesDiscountPercentThreshold: 30, salesDiscountValueThreshold: 100000 })
-    expect(needsSalesOrderDiscountApproval({ subtotal: 100, total: 80 }, policy)).toBe(false) // 20% < 30%
-    expect(needsSalesOrderDiscountApproval({ subtotal: 100, total: 60 }, policy)).toBe(true) // 40% > 30%
+  it('vendedor: dentro do limite libera, acima escala', () => {
+    expect(evaluateSalesDiscount({ subtotal: 100, total: 92 }, 'USER', policy).decision).toBe('ALLOW') // 8%
+    expect(evaluateSalesDiscount({ subtotal: 100, total: 85 }, 'USER', policy).decision).toBe('NEEDS_APPROVAL') // 15%
+  })
+
+  it('admin tem alçada maior que o vendedor', () => {
+    expect(evaluateSalesDiscount({ subtotal: 100, total: 85 }, 'ADMIN', policy).decision).toBe('ALLOW') // 15% <= 25%
+    expect(evaluateSalesDiscount({ subtotal: 100, total: 70 }, 'ADMIN', policy).decision).toBe('NEEDS_APPROVAL') // 30% > 25%
+  })
+
+  it('acima do teto rígido é bloqueado para qualquer papel (é limite de negócio, não de permissão)', () => {
+    expect(evaluateSalesDiscount({ subtotal: 100, total: 55 }, 'ADMIN', policy).decision).toBe('BLOCKED') // 45% > 40%
+    expect(evaluateSalesDiscount({ subtotal: 100, total: 55 }, 'SUPERADMIN', policy).decision).toBe('BLOCKED')
+  })
+
+  it('superadmin não escala por % abaixo do teto', () => {
+    expect(evaluateSalesDiscount({ subtotal: 100, total: 65 }, 'SUPERADMIN', policy).decision).toBe('ALLOW') // 35% < 40%
+  })
+
+  it('valor absoluto acima do limite escala mesmo com % baixo', () => {
+    expect(evaluateSalesDiscount({ subtotal: 10000, total: 9700 }, 'USER', policy).decision).toBe('NEEDS_APPROVAL') // 3% mas 300 abs
   })
 })

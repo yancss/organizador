@@ -159,5 +159,31 @@ Pendente da Fase 2: F2-03 (tabela de preço), F2-04 (condições de pagamento), 
   `PATCH ... status=SENT` se ainda estiver sem data (contado do envio).
 - `GET/PATCH /api/admin/settings/sales-quote` (requireAdmin, audit) + card "Validade padrão
   do orçamento" na tela de Orçamentos (admin, pt/es/en).
-- Auto-expiração (mover `SENT`/`APPROVED` vencidos para `EXPIRED` via cron) continua fora de
-  escopo — hoje é manual + aviso "(vencido)" na UI quando `validUntil < hoje`.
+### Ciclo de vida, vencimento e alçada escalonada (2026-08-29, 2ª rodada)
+
+Config `sales.quote` estendida:
+- `allowApproveFromDraft` (bool, default false) — pular `SENT` e aprovar direto do rascunho.
+- `convertedOrderStatus` (`DRAFT`|`CONFIRMED`, default `DRAFT`) — status do pedido gerado na conversão.
+- `autoExpire` (bool, default true) e `reminderDaysBefore` (int, default 3, 0 = sem lembrete).
+
+- **Reabrir** (`REJECTED`/`EXPIRED` → `DRAFT`): exige papel ADMIN do workspace
+  (`isReopenTransition` + `403 REOPEN_REQUIRES_ADMIN`). Botão "Reabrir" na UI só aparece para admin.
+- **Cron** `GET /api/cron/quote-lifecycle` (em `vercel.json`, 03:30): move `SENT`/`APPROVED`
+  vencidos para `EXPIRED` (auditado) e envia lembrete por e-mail ao dono do orçamento X dias
+  antes do vencimento (`SalesQuote.reminderSentAt` evita reenvio). Migration
+  `sales_quote_reminder_sent_at`.
+
+**Alçada comercial escalonada** (`approval.policies`, substitui o limite único de desconto):
+- `salesDiscountMaxByRole: { USER, ADMIN }` — % de desconto que cada papel concede sem aprovação
+  (default USER 10, ADMIN 25). Chave antiga `salesDiscountPercentThreshold` é mapeada para `USER`.
+- `salesDiscountHardCapPercent` (default 40) — acima disso é recusado de vez (`400
+  DISCOUNT_EXCEEDS_HARD_CAP`), inclusive para superadmin (é limite de negócio, não de permissão).
+- `salesDiscountValueThreshold` (absoluto) mantido: acima dele sempre escala.
+- `evaluateSalesDiscount(args, role, policy)` → `ALLOW | NEEDS_APPROVAL | BLOCKED`. Aplicado em
+  criar/confirmar pedido de venda e em aprovar orçamento. `needsSalesOrderDiscountApproval`
+  mantido só por retrocompatibilidade.
+- Card "Política de alçadas" em `/app/workflow/approvals` atualizado com os campos por papel + teto.
+
+Ainda fora de escopo: F2-03 (tabela de preço), F2-05 completo (papéis customizados além de
+USER/ADMIN), template de e-mail do orçamento ao cliente, markup padrão, prazo de entrega padrão,
+prefixo de numeração configurável.

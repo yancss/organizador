@@ -429,10 +429,11 @@ model SalesQuote {
   // Valor final (subtotal - desconto)
   value Decimal? @db.Decimal(12, 2)
 
-  sentAt      DateTime?
-  decidedAt   DateTime?
-  decidedById String?
-  convertedAt DateTime?
+  sentAt         DateTime?
+  decidedAt      DateTime?
+  decidedById    String?
+  convertedAt    DateTime?
+  reminderSentAt DateTime?
 
   // Pedido gerado na conversão (F2-02)
   salesOrderId String? @unique

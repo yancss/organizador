@@ -4,13 +4,14 @@ import { prisma } from '@/lib/prisma'
 import { requireWorkspace } from '@/lib/authz'
 import { calcOrderTotals } from '@/lib/sales-order-totals'
 import { normalizeSalesItems } from '@/lib/sales/sales-item-normalization'
-import { canTransitionSalesQuoteStatus, isEditableQuoteStatus } from '@/lib/sales/sales-quote-status'
+import { canTransitionSalesQuoteStatus, isEditableQuoteStatus, isReopenTransition } from '@/lib/sales/sales-quote-status'
 import { computeQuoteValidUntil, getSalesQuoteSettings } from '@/lib/sales/sales-quote-settings'
 import {
   ensurePendingApprovalRequest,
+  evaluateSalesDiscount,
   getApprovalPolicy,
   hasApprovedApprovalRequest,
-  needsSalesOrderDiscountApproval,
+  type WorkspaceActorRole,
 } from '@/lib/approval-policies'
 
 const QUOTE_SELECT = {
@@ -128,9 +129,20 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     return Response.json({ error: 'QUOTE_NOT_EDITABLE', status: prev.status }, { status: 409 })
   }
 
+  const quoteSettings = await getSalesQuoteSettings(wsId)
+  const isAdmin = auth.user.workspaceRole === 'ADMIN' || auth.user.isSuperadmin === true
+
   const nextStatus = parsed.data.status ?? prev.status
-  if (nextStatus !== prev.status && !canTransitionSalesQuoteStatus(prev.status, nextStatus)) {
+  if (
+    nextStatus !== prev.status &&
+    !canTransitionSalesQuoteStatus(prev.status, nextStatus, { allowApproveFromDraft: quoteSettings.allowApproveFromDraft })
+  ) {
     return Response.json({ error: 'INVALID_STATUS_TRANSITION', from: prev.status, to: nextStatus }, { status: 400 })
+  }
+
+  // Reabrir orçamento recusado/vencido exige perfil de administrador do workspace.
+  if (isReopenTransition(prev.status, nextStatus) && !isAdmin) {
+    return Response.json({ error: 'REOPEN_REQUIRES_ADMIN' }, { status: 403 })
   }
 
   // Recompute item/discount data (edit only happens in DRAFT).
@@ -165,11 +177,23 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     discountPercent: discountPercent as number | null,
   })
 
-  // F2-05 (parcial): orçamento com desconto fora da política precisa de aprovação
-  // antes de ir para APPROVED.
+  // F2-05: alçada comercial escalonada de desconto ao ir para APPROVED.
   if (prev.status !== 'APPROVED' && nextStatus === 'APPROVED') {
     const policy = await getApprovalPolicy(wsId)
-    if (needsSalesOrderDiscountApproval({ subtotal: totals.subtotal, total: totals.total }, policy)) {
+    const actorRole: WorkspaceActorRole = auth.user.isSuperadmin
+      ? 'SUPERADMIN'
+      : auth.user.workspaceRole === 'ADMIN'
+        ? 'ADMIN'
+        : 'USER'
+    const evalResult = evaluateSalesDiscount({ subtotal: totals.subtotal, total: totals.total }, actorRole, policy)
+
+    if (evalResult.decision === 'BLOCKED') {
+      return Response.json(
+        { error: 'DISCOUNT_EXCEEDS_HARD_CAP', hardCapPercent: evalResult.hardCapPercent, discountPercent: evalResult.discountPercent },
+        { status: 400 },
+      )
+    }
+    if (evalResult.decision === 'NEEDS_APPROVAL') {
       const approved = await hasApprovedApprovalRequest({
         workspaceId: wsId,
         entityType: 'SALES_QUOTE',
@@ -182,8 +206,8 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
           entityType: 'SALES_QUOTE',
           entityId: id,
           policyKey: 'SALES_QUOTE_DISCOUNT',
-          reason: 'Orçamento com desconto fora da política padrão',
-          amount: totals.subtotal - totals.total,
+          reason: 'Orçamento com desconto acima da alçada do responsável',
+          amount: evalResult.discountValue,
           requestedById: auth.user.id,
           salesQuoteId: id,
         })
@@ -197,8 +221,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   // Ao enviar sem validade definida, aplica o prazo padrão do workspace (contado do envio).
   let sentValidUntil: Date | null | undefined
   if (nextStatus === 'SENT' && prev.status !== 'SENT' && prev.validUntil == null && parsed.data.validUntil == null) {
-    const s = await getSalesQuoteSettings(wsId)
-    sentValidUntil = computeQuoteValidUntil(s.defaultValidityDays, now)
+    sentValidUntil = computeQuoteValidUntil(quoteSettings.defaultValidityDays, now)
   }
 
   const updated = await prisma.$transaction(async (tx) => {

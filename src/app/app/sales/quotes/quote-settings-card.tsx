@@ -7,18 +7,28 @@ import { api } from '../../api-client'
 import { useSettings } from '../../settings-context'
 import { toast } from '../../toast'
 
-type Resp = {
-  settings: { defaultValidityDays: number }
-  defaults: { defaultValidityDays: number }
-  isCustom: boolean
+type Settings = {
+  defaultValidityDays: number
+  allowApproveFromDraft: boolean
+  convertedOrderStatus: 'DRAFT' | 'CONFIRMED'
+  autoExpire: boolean
+  reminderDaysBefore: number
 }
+type Resp = { settings: Settings; defaults: Settings; isCustom: boolean }
 
 function copy(language: string) {
   if (language === 'pt') {
     return {
-      title: 'Validade padrão do orçamento',
-      hint: 'Aplicada quando um orçamento é criado sem data. 0 = sem validade automática.',
-      days: 'Dias',
+      title: 'Configuração de orçamentos',
+      validity: 'Validade padrão (dias)',
+      validityHint: '0 = sem validade automática',
+      approveFromDraft: 'Permitir aprovar direto do rascunho (pular "Enviado")',
+      convertStatus: 'Status do pedido gerado na conversão',
+      autoExpire: 'Expirar automaticamente orçamentos vencidos',
+      reminder: 'Lembrete de vencimento (dias antes)',
+      reminderHint: '0 = sem lembrete',
+      draft: 'Rascunho',
+      confirmed: 'Confirmado',
       save: 'Salvar',
       saving: 'Salvando...',
       saved: 'Configuração atualizada',
@@ -29,9 +39,16 @@ function copy(language: string) {
   }
   if (language === 'es') {
     return {
-      title: 'Validez por defecto del presupuesto',
-      hint: 'Se aplica cuando un presupuesto se crea sin fecha. 0 = sin validez automática.',
-      days: 'Días',
+      title: 'Configuración de presupuestos',
+      validity: 'Validez por defecto (días)',
+      validityHint: '0 = sin validez automática',
+      approveFromDraft: 'Permitir aprobar directo del borrador (saltar "Enviado")',
+      convertStatus: 'Estado del pedido generado en la conversión',
+      autoExpire: 'Vencer automáticamente presupuestos caducados',
+      reminder: 'Recordatorio de vencimiento (días antes)',
+      reminderHint: '0 = sin recordatorio',
+      draft: 'Borrador',
+      confirmed: 'Confirmado',
       save: 'Guardar',
       saving: 'Guardando...',
       saved: 'Configuración actualizada',
@@ -41,9 +58,16 @@ function copy(language: string) {
     }
   }
   return {
-    title: 'Default quote validity',
-    hint: 'Applied when a quote is created without a date. 0 = no automatic validity.',
-    days: 'Days',
+    title: 'Quote settings',
+    validity: 'Default validity (days)',
+    validityHint: '0 = no automatic validity',
+    approveFromDraft: 'Allow approving straight from draft (skip "Sent")',
+    convertStatus: 'Order status on conversion',
+    autoExpire: 'Auto-expire overdue quotes',
+    reminder: 'Expiry reminder (days before)',
+    reminderHint: '0 = no reminder',
+    draft: 'Draft',
+    confirmed: 'Confirmed',
     save: 'Save',
     saving: 'Saving...',
     saved: 'Settings updated',
@@ -52,6 +76,8 @@ function copy(language: string) {
     standard: 'Default',
   }
 }
+
+const numInput = 'mt-1 h-10 w-24 rounded-md border border-theme bg-transparent px-3 text-sm'
 
 export default function QuoteSettingsCard() {
   const { language } = useSettings()
@@ -64,13 +90,13 @@ export default function QuoteSettingsCard() {
     retry: false,
   })
 
-  const [days, setDays] = useState<string | null>(null)
+  const [form, setForm] = useState<Settings | null>(null)
   useEffect(() => {
-    if (q.data && days === null) setDays(String(q.data.settings.defaultValidityDays))
-  }, [q.data, days])
+    if (q.data && !form) setForm(q.data.settings)
+  }, [q.data, form])
 
   const saveM = useMutation({
-    mutationFn: (v: number) => api('/api/admin/settings/sales-quote', { method: 'PATCH', body: JSON.stringify({ defaultValidityDays: v }) }),
+    mutationFn: (v: Settings) => api('/api/admin/settings/sales-quote', { method: 'PATCH', body: JSON.stringify(v) }),
     onSuccess: () => {
       toast.success(c.saved)
       void qc.invalidateQueries({ queryKey: ['quote-settings'] })
@@ -78,37 +104,74 @@ export default function QuoteSettingsCard() {
     onError: () => toast.error(c.error),
   })
 
-  if (q.isError || !q.data || days === null) return null
-
-  const n = Math.max(0, Math.min(3650, Math.floor(Number(days) || 0)))
+  if (q.isError || !q.data || !form) return null
 
   return (
-    <div className="surface rounded-2xl border border-theme p-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h2 className="text-sm font-semibold">{c.title}</h2>
-          <p className="mt-1 text-xs text-[var(--text-muted)]">{c.hint}</p>
-        </div>
-        <span className="rounded-lg bg-[var(--surface-2)] px-2 py-1 text-xs text-[var(--text-muted)]">
+    <details className="surface rounded-2xl border border-theme p-4">
+      <summary className="flex cursor-pointer items-center justify-between text-sm font-semibold">
+        {c.title}
+        <span className="rounded-lg bg-[var(--surface-2)] px-2 py-1 text-xs font-normal text-[var(--text-muted)]">
           {q.data.isCustom ? c.custom : c.standard}
         </span>
-      </div>
-      <div className="mt-3 flex flex-wrap items-end gap-2">
+      </summary>
+
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <label className="text-xs font-medium">
-          {c.days}
+          {c.validity}
           <input
-            className="mt-1 h-10 w-24 rounded-md border border-theme bg-transparent px-3 text-sm"
+            className={numInput}
             type="number"
             min={0}
             max={3650}
-            value={days}
-            onChange={(e) => setDays(e.target.value)}
+            value={form.defaultValidityDays}
+            onChange={(e) => setForm({ ...form, defaultValidityDays: Math.max(0, Math.floor(Number(e.target.value) || 0)) })}
           />
+          <span className="ml-2 text-[var(--text-muted)]">{c.validityHint}</span>
         </label>
-        <button className="btn btn-primary btn-sm" disabled={saveM.isPending} onClick={() => saveM.mutate(n)}>
-          {saveM.isPending ? c.saving : c.save}
-        </button>
+
+        <label className="text-xs font-medium">
+          {c.reminder}
+          <input
+            className={numInput}
+            type="number"
+            min={0}
+            max={365}
+            value={form.reminderDaysBefore}
+            onChange={(e) => setForm({ ...form, reminderDaysBefore: Math.max(0, Math.floor(Number(e.target.value) || 0)) })}
+          />
+          <span className="ml-2 text-[var(--text-muted)]">{c.reminderHint}</span>
+        </label>
+
+        <label className="flex items-center gap-2 text-xs font-medium">
+          <input
+            type="checkbox"
+            checked={form.allowApproveFromDraft}
+            onChange={(e) => setForm({ ...form, allowApproveFromDraft: e.target.checked })}
+          />
+          {c.approveFromDraft}
+        </label>
+
+        <label className="flex items-center gap-2 text-xs font-medium">
+          <input type="checkbox" checked={form.autoExpire} onChange={(e) => setForm({ ...form, autoExpire: e.target.checked })} />
+          {c.autoExpire}
+        </label>
+
+        <label className="text-xs font-medium">
+          {c.convertStatus}
+          <select
+            className="mt-1 h-10 w-full rounded-md border border-theme bg-transparent px-3 text-sm"
+            value={form.convertedOrderStatus}
+            onChange={(e) => setForm({ ...form, convertedOrderStatus: e.target.value as 'DRAFT' | 'CONFIRMED' })}
+          >
+            <option value="DRAFT">{c.draft}</option>
+            <option value="CONFIRMED">{c.confirmed}</option>
+          </select>
+        </label>
       </div>
-    </div>
+
+      <button className="btn btn-primary btn-sm mt-3" disabled={saveM.isPending} onClick={() => saveM.mutate(form)}>
+        {saveM.isPending ? c.saving : c.save}
+      </button>
+    </details>
   )
 }

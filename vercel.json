@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/audit-cleanup",
       "schedule": "15 3 * * *"
+    },
+    {
+      "path": "/api/cron/quote-lifecycle",
+      "schedule": "30 3 * * *"
     }
   ]
 }

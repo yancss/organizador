@@ -16,9 +16,18 @@ describe('coerceSalesQuoteSettings', () => {
   })
 
   it('aceita override válido e trunca decimais', () => {
-    expect(coerceSalesQuoteSettings({ defaultValidityDays: 30 })).toEqual({ defaultValidityDays: 30 })
-    expect(coerceSalesQuoteSettings({ defaultValidityDays: 7.9 })).toEqual({ defaultValidityDays: 7 })
-    expect(coerceSalesQuoteSettings({ defaultValidityDays: 0 })).toEqual({ defaultValidityDays: 0 })
+    expect(coerceSalesQuoteSettings({ defaultValidityDays: 30 }).defaultValidityDays).toBe(30)
+    expect(coerceSalesQuoteSettings({ defaultValidityDays: 7.9 }).defaultValidityDays).toBe(7)
+    expect(coerceSalesQuoteSettings({ defaultValidityDays: 0 }).defaultValidityDays).toBe(0)
+  })
+
+  it('aceita os toggles de ciclo de vida', () => {
+    const s = coerceSalesQuoteSettings({ allowApproveFromDraft: true, convertedOrderStatus: 'CONFIRMED', autoExpire: false, reminderDaysBefore: 7 })
+    expect(s).toMatchObject({ allowApproveFromDraft: true, convertedOrderStatus: 'CONFIRMED', autoExpire: false, reminderDaysBefore: 7 })
+  })
+
+  it('convertedOrderStatus inválido volta ao default', () => {
+    expect(coerceSalesQuoteSettings({ convertedOrderStatus: 'BOGUS' }).convertedOrderStatus).toBe('DRAFT')
   })
 })
 
