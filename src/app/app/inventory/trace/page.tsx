@@ -36,13 +36,27 @@ type InventoryTraceEventRow = {
 
 const REFERENCE_TYPES = ['PurchaseOrder', 'Delivery', 'Transfer', 'Production', 'Inventory']
 
+// G9: deep-link — hidrata os filtros a partir da query string (?productId=&lotCode=&referenceType=&referenceId=).
+function initialFilters() {
+  const empty = { productId: '', lotCode: '', referenceType: '', referenceId: '' }
+  if (typeof window === 'undefined') return empty
+  const p = new URLSearchParams(window.location.search)
+  return {
+    productId: p.get('productId') ?? '',
+    lotCode: p.get('lotCode') ?? '',
+    referenceType: p.get('referenceType') ?? '',
+    referenceId: p.get('referenceId') ?? '',
+  }
+}
+
 export default function InventoryTracePage() {
   const { language } = useSettings()
   const i = t(language)
-  const [productId, setProductId] = useState('')
-  const [lotCode, setLotCode] = useState('')
-  const [referenceType, setReferenceType] = useState('')
-  const [referenceId, setReferenceId] = useState('')
+  const init = useMemo(initialFilters, [])
+  const [productId, setProductId] = useState(init.productId)
+  const [lotCode, setLotCode] = useState(init.lotCode)
+  const [referenceType, setReferenceType] = useState(init.referenceType)
+  const [referenceId, setReferenceId] = useState(init.referenceId)
 
   const ui = useMemo(
     () => ({

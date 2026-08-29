@@ -351,6 +351,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   }
 
   if (result.purchaseOrder && result.summary.estimatedCost != null && result.summary.totalUnits > 0) {
+    // G5 (decisão 2026-08-29): o valor a pagar acumula pelo RECEBIDO físico, não pelo aceito.
+    // Tudo que chegou gera obrigação; divergência de avaria/rejeição é resolvida depois com o
+    // fornecedor (nota de crédito etc.), não abatendo o payable automaticamente.
     const receivedRatio =
       (result.summary.totalUnits - result.summary.pendingUnitsAfter) / result.summary.totalUnits
     await upsertDedicatedPayable({

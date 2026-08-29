@@ -1,5 +1,21 @@
-import 'dotenv/config'
+import fs from 'node:fs'
+import path from 'node:path'
+import dotenv from 'dotenv'
 import { PrismaClient } from '@prisma/client'
+
+// Mesma ordem de precedência do prisma.config.ts: dev-local vence.
+// Assim `npm run seed:demo` usa o Postgres local sem depender do wrapper de envfile.
+// `.env.development.local` usa override:true porque o @prisma/client já pode ter
+// autocarregado o `.env` (Neon) no import. Um DATABASE_URL exportado no shell
+// deve ser respeitado, então quem exporta deve também setar SEED_ENV_FROM_SHELL=1.
+const root = process.cwd()
+const fromShell = process.env.SEED_ENV_FROM_SHELL === '1'
+for (const file of ['.env.development.local', '.env.local', '.env']) {
+  const full = path.join(root, file)
+  if (!fs.existsSync(full)) continue
+  const override = !fromShell && file === '.env.development.local'
+  dotenv.config({ path: full, override })
+}
 
 const prisma = new PrismaClient()
 
@@ -186,11 +202,11 @@ async function ensureAccountsAndCategories(wsId, userId) {
 
 async function upsertProducts(wsId, userId) {
   const raws = [
-    { name: '[DEMO] Farinha de Trigo', unit: 'kg', avgCost: 1.2 },
-    { name: '[DEMO] Açúcar', unit: 'kg', avgCost: 0.95 },
-    { name: '[DEMO] Manteiga', unit: 'kg', avgCost: 6.5 },
-    { name: '[DEMO] Ovos', unit: 'un', avgCost: 0.25 },
-    { name: '[DEMO] Leite', unit: 'l', avgCost: 0.9 },
+    { name: '[DEMO] Farinha de Trigo', unit: 'kg', avgCost: 1.2, startQty: 150, minimum: 60, reorderTarget: 200 },
+    { name: '[DEMO] Açúcar', unit: 'kg', avgCost: 0.95, startQty: 90, minimum: 40, reorderTarget: 150 },
+    { name: '[DEMO] Manteiga', unit: 'kg', avgCost: 6.5, startQty: 40, minimum: 20, reorderTarget: 80 },
+    { name: '[DEMO] Ovos', unit: 'un', avgCost: 0.25, startQty: 600, minimum: 200, reorderTarget: 900 },
+    { name: '[DEMO] Leite', unit: 'l', avgCost: 0.9, startQty: 120, minimum: 50, reorderTarget: 180 },
   ]
 
   const finished = [
@@ -210,7 +226,14 @@ async function upsertProducts(wsId, userId) {
 
     await prisma.inventory.upsert({
       where: { productId: prod.id },
-      create: { workspaceId: wsId, productId: prod.id, createdById: userId, quantity: 0, minimum: 0 },
+      create: {
+        workspaceId: wsId,
+        productId: prod.id,
+        createdById: userId,
+        quantity: money(p.startQty ?? 0),
+        minimum: money(p.minimum ?? 0),
+        reorderTarget: p.reorderTarget != null ? money(p.reorderTarget) : null,
+      },
       update: { updatedById: userId },
       select: { id: true },
     })
@@ -393,6 +416,44 @@ async function createSalesFlow(wsId, userId, customerId, rawProducts, finProduct
     const inv = await prisma.inventory.findUnique({ where: { productId: pid }, select: { quantity: true } })
     const current = inv?.quantity == null ? 0 : Number(inv.quantity)
     await prisma.inventory.update({ where: { productId: pid }, data: { quantity: current + Number(delta), updatedById: userId } })
+  }
+
+  // G11: consumo recente (últimos ~20 dias) para a reposição preditiva ter dados
+  // (avgDailyConsumption / coverageDays / daysToMinimum usam janela de 30 dias em Consumption.date).
+  const recentConsumption = []
+  const dailyByRaw = [
+    [rawProducts[0].id, 3.5],
+    [rawProducts[1].id, 2.0],
+    [rawProducts[2].id, 1.2],
+  ]
+  for (let daysAgo = 1; daysAgo <= 20; daysAgo++) {
+    for (const [pid, perDay] of dailyByRaw) {
+      const jitter = 0.8 + Math.random() * 0.4
+      recentConsumption.push({
+        workspaceId: wsId,
+        createdById: userId,
+        updatedById: userId,
+        productId: pid,
+        quantity: money(Number((perDay * jitter).toFixed(3))),
+        date: nowMinus(daysAgo),
+        observations: 'Seed demo (consumo recente)',
+      })
+    }
+  }
+  await prisma.consumption.createMany({ data: recentConsumption })
+
+  // Reflect recent consumption in inventory (mantém saldo coerente com o histórico)
+  const recentByProduct = new Map()
+  for (const row of recentConsumption) {
+    recentByProduct.set(row.productId, (recentByProduct.get(row.productId) ?? 0) + Number(row.quantity))
+  }
+  for (const [pid, total] of recentByProduct) {
+    const inv = await prisma.inventory.findUnique({ where: { productId: pid }, select: { quantity: true } })
+    const current = inv?.quantity == null ? 0 : Number(inv.quantity)
+    await prisma.inventory.update({
+      where: { productId: pid },
+      data: { quantity: Math.max(0, current - total), updatedById: userId },
+    })
   }
 
   // Delivery + receivable + payment
