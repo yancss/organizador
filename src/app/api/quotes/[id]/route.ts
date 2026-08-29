@@ -5,6 +5,7 @@ import { requireWorkspace } from '@/lib/authz'
 import { calcOrderTotals } from '@/lib/sales-order-totals'
 import { normalizeSalesItems } from '@/lib/sales/sales-item-normalization'
 import { canTransitionSalesQuoteStatus, isEditableQuoteStatus } from '@/lib/sales/sales-quote-status'
+import { computeQuoteValidUntil, getSalesQuoteSettings } from '@/lib/sales/sales-quote-settings'
 import {
   ensurePendingApprovalRequest,
   getApprovalPolicy,
@@ -102,6 +103,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       id: true,
       code: true,
       status: true,
+      validUntil: true,
       discountMode: true,
       discountType: true,
       discountValue: true,
@@ -191,6 +193,14 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   }
 
   const now = new Date()
+
+  // Ao enviar sem validade definida, aplica o prazo padrão do workspace (contado do envio).
+  let sentValidUntil: Date | null | undefined
+  if (nextStatus === 'SENT' && prev.status !== 'SENT' && prev.validUntil == null && parsed.data.validUntil == null) {
+    const s = await getSalesQuoteSettings(wsId)
+    sentValidUntil = computeQuoteValidUntil(s.defaultValidityDays, now)
+  }
+
   const updated = await prisma.$transaction(async (tx) => {
     if (newItems) {
       await tx.salesQuoteItem.deleteMany({ where: { salesQuoteId: id } })
@@ -222,6 +232,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
         value: totals.total,
         ...(nextStatus !== prev.status ? { status: nextStatus } : {}),
         ...(nextStatus === 'SENT' && prev.status !== 'SENT' ? { sentAt: now } : {}),
+        ...(sentValidUntil !== undefined ? { validUntil: sentValidUntil } : {}),
         ...((nextStatus === 'APPROVED' || nextStatus === 'REJECTED') && prev.status !== nextStatus
           ? { decidedAt: now, decidedById: auth.user.id }
           : {}),

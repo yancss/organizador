@@ -5,6 +5,7 @@ import { requireWorkspace } from '@/lib/authz'
 import { calcOrderTotals } from '@/lib/sales-order-totals'
 import { normalizeSalesItems } from '@/lib/sales/sales-item-normalization'
 import { nextSalesQuoteCode } from '@/lib/sales/sales-quote-codes'
+import { computeQuoteValidUntil, getSalesQuoteSettings } from '@/lib/sales/sales-quote-settings'
 
 const QUOTE_SELECT = {
   id: true,
@@ -142,6 +143,12 @@ export async function POST(req: Request) {
     discountPercent: parsed.data.discountPercent,
   })
 
+  // Validade: usa a data explícita; senão aplica o prazo padrão do workspace.
+  const quoteSettings = await getSalesQuoteSettings(wsId)
+  const validUntil = parsed.data.validUntil
+    ? new Date(parsed.data.validUntil)
+    : computeQuoteValidUntil(quoteSettings.defaultValidityDays)
+
   const code = await nextSalesQuoteCode(wsId)
 
   const quote = await prisma.salesQuote.create({
@@ -154,7 +161,7 @@ export async function POST(req: Request) {
       name: parsed.data.name,
       observations: parsed.data.observations ?? null,
       clientId: parsed.data.clientId,
-      validUntil: parsed.data.validUntil ? new Date(parsed.data.validUntil) : null,
+      validUntil,
       status: 'DRAFT',
       discountMode,
       discountType: parsed.data.discountType ?? null,

@@ -148,5 +148,16 @@ inclui **F2-05 parcial** (aprovação de desconto no orçamento).
 - Não mexeu no `SalesOrderStatus` nem no board de pedidos.
 
 Pendente da Fase 2: F2-03 (tabela de preço), F2-04 (condições de pagamento), F2-05 completo
-(matriz de alçada comercial), F2-06 (histórico comercial), F2-07 (pós-venda). Auto-expiração
-de orçamento por cron também fica para depois (hoje é manual + aviso na UI).
+(matriz de alçada comercial), F2-06 (histórico comercial), F2-07 (pós-venda).
+
+### Prazo de validade padrão (2026-08-29)
+
+- Configurável por workspace: `WorkspaceSetting` chave `sales.quote` -> `{ defaultValidityDays }`,
+  default **15 dias**, `0` = sem validade automática.
+- `src/lib/sales/sales-quote-settings.ts` (`getSalesQuoteSettings`, `computeQuoteValidUntil`, + teste).
+- Aplicado em `POST /api/quotes` quando não vem `validUntil` (contado da criação) e em
+  `PATCH ... status=SENT` se ainda estiver sem data (contado do envio).
+- `GET/PATCH /api/admin/settings/sales-quote` (requireAdmin, audit) + card "Validade padrão
+  do orçamento" na tela de Orçamentos (admin, pt/es/en).
+- Auto-expiração (mover `SENT`/`APPROVED` vencidos para `EXPIRED` via cron) continua fora de
+  escopo — hoje é manual + aviso "(vencido)" na UI quando `validUntil < hoje`.

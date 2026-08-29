@@ -8,6 +8,7 @@ import { api } from '../../api-client'
 import { useSettings } from '../../settings-context'
 import { toast } from '../../toast'
 import { formatMoneyDisplay, localeFromLanguage } from '../../money'
+import QuoteSettingsCard from './quote-settings-card'
 
 type QuoteStatus = 'DRAFT' | 'SENT' | 'APPROVED' | 'REJECTED' | 'EXPIRED' | 'CONVERTED' | 'CANCELLED'
 
@@ -304,6 +305,8 @@ export default function SalesQuotesPage() {
           </button>
         ) : null}
       </div>
+
+      <QuoteSettingsCard />
 
       {draft ? (
         <div className="surface rounded-2xl border border-theme p-4 space-y-3">
