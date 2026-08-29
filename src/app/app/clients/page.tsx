@@ -14,6 +14,7 @@ import FieldLabel from '../ui/field-label'
 import { toastCreated, toastUpdated, toastDeleted, toastFailedToSave, toastFailedToDelete, toast } from '../toast'
 import { api } from '../api-client'
 import { AuditHistory } from '../audit-history'
+import { CustomFieldsSection } from '../custom-fields-section'
 
 type Client = {
   id: string
@@ -1169,6 +1170,12 @@ export default function ClientsPage() {
                 />
               </label>
             </div>
+
+            {draft.id ? (
+              <div className="mt-4">
+                <CustomFieldsSection entity="CLIENT" entityId={draft.id} />
+              </div>
+            ) : null}
 
             <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
               <button

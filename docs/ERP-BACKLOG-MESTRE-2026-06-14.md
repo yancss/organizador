@@ -92,6 +92,10 @@ Evitar:
     status do pedido na conversão, auto-expirar + lembrete de vencimento por e-mail (cron).
   - `F2-05` (alçada comercial): desconto por papel (vendedor/admin) + teto rígido que recusa
     de vez. Substituiu o limite único de desconto em `approval.policies`.
+- Campos personalizados (2026-08-29), `docs/CAMPOS-PERSONALIZADOS-DESIGN.md`:
+  `CustomFieldDefinition` + `CustomFieldValue`, 22 objetos de negócio, 6 tipos
+  (string/number/currency/date/boolean/select). Aba em `/app/admin/settings` +
+  `<CustomFieldsSection>`. Ligado em Produto e Cliente; demais objetos entram por telas de detalhe.
 
 ### 2026-06-14
 

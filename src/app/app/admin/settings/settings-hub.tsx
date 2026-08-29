@@ -1,13 +1,14 @@
 'use client'
 
 import { useState } from 'react'
-import { FileText, ShieldCheck } from 'lucide-react'
+import { FileText, ShieldCheck, ListPlus } from 'lucide-react'
 
 import { useSettings } from '../../settings-context'
 import ApprovalPolicyCard from './approval-policy-card'
 import QuoteSettingsCard from './quote-settings-card'
+import CustomFieldsPanel from './custom-fields-panel'
 
-type TabKey = 'quotes' | 'approvals'
+type TabKey = 'quotes' | 'approvals' | 'fields'
 
 function copy(language: string) {
   if (language === 'pt') {
@@ -16,8 +17,10 @@ function copy(language: string) {
       subtitle: 'Regras e parâmetros que valem para todos os usuários deste workspace.',
       quotes: 'Orçamentos',
       approvals: 'Alçadas de aprovação',
+      fields: 'Campos personalizados',
       quotesDesc: 'Validade padrão, ciclo de vida e vencimento dos orçamentos.',
       approvalsDesc: 'Limites de compra e de desconto que disparam aprovação.',
+      fieldsDesc: 'Campos extras nos objetos do sistema.',
     }
   }
   if (language === 'es') {
@@ -26,8 +29,10 @@ function copy(language: string) {
       subtitle: 'Reglas y parámetros que aplican a todos los usuarios de este workspace.',
       quotes: 'Presupuestos',
       approvals: 'Umbrales de aprobación',
+      fields: 'Campos personalizados',
       quotesDesc: 'Validez por defecto, ciclo de vida y vencimiento de los presupuestos.',
       approvalsDesc: 'Límites de compra y de descuento que disparan aprobación.',
+      fieldsDesc: 'Campos extra en los objetos del sistema.',
     }
   }
   return {
@@ -35,14 +40,17 @@ function copy(language: string) {
     subtitle: 'Rules and parameters that apply to every user of this workspace.',
     quotes: 'Quotes',
     approvals: 'Approval thresholds',
+    fields: 'Custom fields',
     quotesDesc: 'Default validity, lifecycle and expiry of quotes.',
     approvalsDesc: 'Purchase and discount limits that trigger an approval.',
+    fieldsDesc: 'Extra fields on system objects.',
   }
 }
 
 const TABS: Array<{ key: TabKey; icon: typeof FileText }> = [
   { key: 'quotes', icon: FileText },
   { key: 'approvals', icon: ShieldCheck },
+  { key: 'fields', icon: ListPlus },
 ]
 
 export default function SettingsHub() {
@@ -74,8 +82,10 @@ export default function SettingsHub() {
       </div>
 
       <div className="space-y-2">
-        <p className="text-xs text-[var(--text-muted)]">{tab === 'quotes' ? c.quotesDesc : c.approvalsDesc}</p>
-        {tab === 'quotes' ? <QuoteSettingsCard /> : <ApprovalPolicyCard />}
+        <p className="text-xs text-[var(--text-muted)]">
+          {tab === 'quotes' ? c.quotesDesc : tab === 'approvals' ? c.approvalsDesc : c.fieldsDesc}
+        </p>
+        {tab === 'quotes' ? <QuoteSettingsCard /> : tab === 'approvals' ? <ApprovalPolicyCard /> : <CustomFieldsPanel />}
       </div>
     </div>
   )

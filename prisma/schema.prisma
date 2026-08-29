@@ -156,6 +156,9 @@ model Workspace {
   workspaceSettings WorkspaceSetting[]
   auditEvents       AuditEvent[]
 
+  customFieldDefinitions CustomFieldDefinition[]
+  customFieldValues      CustomFieldValue[]
+
   // Fiscal
   companies           Company[]
   companyBranches     CompanyBranch[]
@@ -1175,6 +1178,68 @@ model WorkspaceSetting {
 
   @@id([workspaceId, key])
   @@index([workspaceId])
+}
+
+// ============================
+// Campos personalizados (custom fields)
+// ============================
+
+enum CustomFieldType {
+  STRING
+  NUMBER
+  CURRENCY
+  DATE
+  BOOLEAN
+  SELECT
+}
+
+model CustomFieldDefinition {
+  id          String @id @default(cuid())
+  workspaceId String
+
+  // Objeto alvo (registry em src/lib/custom-fields/registry.ts), ex.: "PRODUCT", "CLIENT"
+  entity String @db.VarChar(64)
+  // Slug estável gerado do label, imutável depois de criado
+  key    String @db.VarChar(64)
+  label  String @db.VarChar(120)
+  type   CustomFieldType
+
+  required Boolean  @default(false)
+  active   Boolean  @default(true)
+  helpText String?  @db.VarChar(400)
+  options  String[] @default([]) // usado quando type = SELECT
+  order    Int      @default(0)
+
+  createdById String?
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  values    CustomFieldValue[]
+
+  @@unique([workspaceId, entity, key])
+  @@index([workspaceId, entity])
+}
+
+model CustomFieldValue {
+  id          String @id @default(cuid())
+  workspaceId String
+  fieldId     String
+  entityId    String // id do registro do objeto alvo
+
+  value Json? // string | number | boolean; formatação/validação pelo type da definição
+
+  createdById String?
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  field     CustomFieldDefinition @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+
+  @@unique([fieldId, entityId])
+  @@index([workspaceId, entityId])
 }
 
 model AuditEvent {
