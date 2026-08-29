@@ -92,12 +92,22 @@ backfill de migração.
   são antigos demais para a janela de 30 dias, então `avgDailyConsumption`, `coverageDays` e
   `daysToMinimum` ficam sempre 0/null. Ação: seed de consumo recente.
 
-## Plano de tratamento proposto
+## Tratamento (atualização 2026-08-29)
 
-1. G3 - alçadas parametrizáveis por workspace (maior impacto, alinhado à diretriz)
-2. G9 + G10 + G11 - polimento e seed (rápidos, baixo risco)
-3. G4 a G8 - após decisão de negócio/arquitetura
-4. Próxima frente ERP: Fase 2 (Comercial) ou Fase 3 (Financeiro)
+| Gap | Decisão | Situação | Commit |
+|---|---|---|---|
+| G1/G2 | Adiado - virar rotina de importação (JSON/planilha). Sem dados reais, não há o que migrar. | Adiado | - |
+| G3 | Parametrizável por workspace, defaults atuais como fallback. | **Feito** | alçadas via `WorkspaceSetting` `approval.policies` + `GET/PATCH /api/admin/settings/approval-policies` + card em `/app/workflow/approvals` |
+| G4 | Implementar entidade Orçamento/Proposta separada (F2-01). | Pendente - desenho primeiro | - |
+| G5 | Manter acúmulo pelo recebido físico; divergência tratada depois com o fornecedor. | **Feito** (documentado no código) | comentário em `purchase-orders/[id]/receive` |
+| G6 | Bloquear saldo negativo. Consumo/expedição já bloqueavam via `adjustInventory`; faltava o ajuste/contagem manual. | **Feito** | `400 NEGATIVE_QUANTITY_NOT_ALLOWED` no PATCH de `inventory/[productId]` |
+| G7 | Ao aprovar, auto-avançar o pedido para CONFIRMED + notificar o solicitante. | **Feito** | `src/lib/approval-actions.ts`, chamado no PATCH de `approvals/[id]` |
+| G8 | `lotCode` é código do fornecedor - consolidar por (produto, armazém, lotCode, validade). | **Já implementado** - `registerInventoryLotReceipt` já consolida; sem `@@unique` de propósito | - |
+| G9 | Hidratar filtros da tela de rastreabilidade a partir da URL. | **Feito** | `initialFilters()` em `inventory/trace/page.tsx` |
+| G10 | Descartado - tradução inline (`language === 'pt' ? ...`) é o padrão das telas novas (approvals, trace). | Descartado | - |
+| G11 | Seed de consumo recente para reposição preditiva. | **Feito** | `seed-demo.mjs`: consumo dos últimos ~20 dias + estoque/mínimo inicial nos insumos; passa a usar `.env.development.local` por padrão |
+
+Próxima frente ERP após G4: Fase 2 (Comercial) ou Fase 3 (Financeiro).
 
 ## Dados de teste criados no dev
 

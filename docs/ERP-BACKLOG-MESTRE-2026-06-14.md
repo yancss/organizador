@@ -77,6 +77,9 @@ Evitar:
   - Lacunas registradas (G1-G11). G1/G2 (carga de saldo legado) adiadas: viram rotina de
     importação (JSON/planilha) no futuro, não backfill.
   - Fila de tratamento: G3 (alçadas por workspace) -> G9/G10/G11 (polimento) -> G4-G8 (decisão).
+  - Tratados no mesmo dia: G3, G5, G6, G7, G9, G11 (feitos); G8 já estava implementado;
+    G10 descartado; G1/G2 adiados (viram importação); G4 (entidade Orçamento/Proposta,
+    F2-01) pendente de desenho. Detalhe e commits em `docs/ERP-VALIDACAO-E2E-2026-08-29.md`.
 
 ### 2026-06-14
 
