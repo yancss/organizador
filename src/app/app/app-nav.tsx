@@ -7,6 +7,7 @@ import {
   BookOpen,
   CalendarDays,
   ClipboardList,
+  FileText,
   Home as HomeIcon,
   Package,
   Users,
@@ -117,6 +118,9 @@ export default function AppNav({ onNavigate }: { onNavigate?: () => void }) {
 
       {!hasLoadedPermissions || showSalesSection ? (
         <Section title={i.nav.sales} defaultOpen>
+          {canViewSales ? (
+            <NavItem href="/app/sales/quotes" label={i.nav.salesQuotes} icon={FileText} onNavigate={onNavigate} />
+          ) : null}
           {canViewSales ? (
             <NavItem href="/app/sales/orders" label={i.nav.salesOrders} icon={CalendarDays} onNavigate={onNavigate} />
           ) : null}

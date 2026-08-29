@@ -54,7 +54,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       {
         id: decided.id,
         workspaceId: decided.workspaceId,
-        entityType: decided.entityType as 'PURCHASE_ORDER' | 'SALES_ORDER',
+        entityType: decided.entityType as 'PURCHASE_ORDER' | 'SALES_ORDER' | 'SALES_QUOTE',
         entityId: decided.entityId,
         policyKey: decided.policyKey,
         status: decided.status as 'APPROVED' | 'REJECTED',
@@ -80,6 +80,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       decidedBy: { select: { id: true, name: true, email: true } },
       salesOrder: { select: { id: true, code: true, name: true, status: true } },
       purchaseOrder: { select: { id: true, code: true, status: true, supplierEntity: { select: { name: true } } } },
+        salesQuote: { select: { id: true, code: true, status: true, name: true } },
       createdAt: true,
       updatedAt: true,
     },

@@ -80,6 +80,13 @@ Evitar:
   - Tratados no mesmo dia: G3, G5, G6, G7, G9, G11 (feitos); G8 já estava implementado;
     G10 descartado; G1/G2 adiados (viram importação); G4 (entidade Orçamento/Proposta,
     F2-01) pendente de desenho. Detalhe e commits em `docs/ERP-VALIDACAO-E2E-2026-08-29.md`.
+- `F2-01` + `F2-02` entregues: entidade `SalesQuote` (código `QUO-`), ciclo
+  DRAFT/SENT/APPROVED/REJECTED/EXPIRED, conversão em pedido de venda (nasce em DRAFT) com
+  trilha de auditoria, API `/api/quotes*`, aba "Orçamentos" em Vendas. Inclui `F2-05` parcial:
+  desconto de orçamento acima da alçada exige aprovação antes de `APPROVED`. Desenho em
+  `docs/F2-01-ORCAMENTO-DESIGN.md`.
+  - Fase 2 restante: F2-03 (tabela de preço), F2-04 (condições de pagamento), F2-05 completo,
+    F2-06 (histórico comercial), F2-07 (pós-venda).
 
 ### 2026-06-14
 

@@ -9,6 +9,7 @@ export type I18n = {
 
     home: string
     sales: string
+    salesQuotes: string
     salesOrders: string
     deliveries: string
     payments: string
@@ -562,6 +563,7 @@ const dict: Record<AppLanguage, I18n> = {
 
       home: 'Home',
       sales: 'Vendas',
+      salesQuotes: 'Orçamentos',
       salesOrders: 'Pedidos de venda',
       deliveries: 'Entregas',
       payments: 'Pagamentos',
@@ -1108,6 +1110,7 @@ const dict: Record<AppLanguage, I18n> = {
 
       home: 'Home',
       sales: 'Sales',
+      salesQuotes: 'Quotes',
       salesOrders: 'Sales orders',
       deliveries: 'Deliveries',
       payments: 'Payments',
@@ -1654,6 +1657,7 @@ const dict: Record<AppLanguage, I18n> = {
 
       home: 'Inicio',
       sales: 'Ventas',
+      salesQuotes: 'Presupuestos',
       salesOrders: 'Pedidos de venta',
       deliveries: 'Entregas',
       payments: 'Pagos',

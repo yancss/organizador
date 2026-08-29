@@ -70,7 +70,7 @@ export function needsSalesOrderDiscountApproval(
 
 export async function ensurePendingApprovalRequest(args: {
   workspaceId: string
-  entityType: 'PURCHASE_ORDER' | 'SALES_ORDER'
+  entityType: 'PURCHASE_ORDER' | 'SALES_ORDER' | 'SALES_QUOTE'
   entityId: string
   reason: string
   policyKey: string
@@ -78,6 +78,7 @@ export async function ensurePendingApprovalRequest(args: {
   requestedById?: string | null
   salesOrderId?: string | null
   purchaseOrderId?: string | null
+  salesQuoteId?: string | null
 }) {
   const existing = await prisma.approvalRequest.findFirst({
     where: {
@@ -103,6 +104,7 @@ export async function ensurePendingApprovalRequest(args: {
       requestedById: args.requestedById ?? null,
       salesOrderId: args.salesOrderId ?? null,
       purchaseOrderId: args.purchaseOrderId ?? null,
+      salesQuoteId: args.salesQuoteId ?? null,
     },
     select: { id: true },
   })
@@ -110,7 +112,7 @@ export async function ensurePendingApprovalRequest(args: {
 
 export async function hasApprovedApprovalRequest(args: {
   workspaceId: string
-  entityType: 'PURCHASE_ORDER' | 'SALES_ORDER'
+  entityType: 'PURCHASE_ORDER' | 'SALES_ORDER' | 'SALES_QUOTE'
   entityId: string
   policyKey: string
 }) {

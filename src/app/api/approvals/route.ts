@@ -44,6 +44,7 @@ export async function GET(req: Request) {
         decidedBy: { select: { id: true, name: true, email: true } },
         salesOrder: { select: { id: true, code: true, name: true, status: true } },
         purchaseOrder: { select: { id: true, code: true, status: true, supplierEntity: { select: { name: true } } } },
+        salesQuote: { select: { id: true, code: true, status: true, name: true } },
         createdAt: true,
         updatedAt: true,
       },
