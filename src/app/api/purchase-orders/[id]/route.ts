@@ -3,7 +3,7 @@ import { z } from 'zod'
 
 import { prisma } from '@/lib/prisma'
 import { requireWorkspace } from '@/lib/authz'
-import { ensurePendingApprovalRequest, hasApprovedApprovalRequest, needsPurchaseOrderApproval } from '@/lib/approval-policies'
+import { ensurePendingApprovalRequest, getApprovalPolicy, hasApprovedApprovalRequest, needsPurchaseOrderApproval } from '@/lib/approval-policies'
 import { adjustInventory } from '@/lib/inventory-movements'
 import { consumeInventoryLots } from '@/lib/inventory-lots'
 import { deletePlannedPayableForPurchaseOrder, upsertPayableForPurchaseOrder } from '@/lib/finance-defaults'
@@ -84,6 +84,8 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   if (!parsed.success) {
     return Response.json({ error: 'INVALID_BODY', details: parsed.error.flatten() }, { status: 400 })
   }
+
+  const approvalPolicy = await getApprovalPolicy(wsId)
 
   try {
     const result = await prisma.$transaction(async (tx) => {
@@ -183,7 +185,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
         : (await tx.purchaseOrder.findFirst({ where: { id, workspaceId: wsId }, select: { estimatedCost: true } }))
             ?.estimatedCost ?? null
 
-    if (nextCommitted && nextEstimatedCost != null && needsPurchaseOrderApproval(Number(nextEstimatedCost))) {
+    if (nextCommitted && nextEstimatedCost != null && needsPurchaseOrderApproval(Number(nextEstimatedCost), approvalPolicy)) {
       const approved = await hasApprovedApprovalRequest({
         workspaceId: wsId,
         entityType: 'PURCHASE_ORDER',

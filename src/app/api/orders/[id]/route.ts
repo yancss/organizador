@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 import { prisma } from '@/lib/prisma'
 import { requireWorkspace } from '@/lib/authz'
-import { ensurePendingApprovalRequest, hasApprovedApprovalRequest, needsSalesOrderDiscountApproval } from '@/lib/approval-policies'
+import { ensurePendingApprovalRequest, getApprovalPolicy, hasApprovedApprovalRequest, needsSalesOrderDiscountApproval } from '@/lib/approval-policies'
 import { buildSalesOrderReservationSummary, getInventoryReservationSnapshot } from '@/lib/inventory-reservations'
 import { calcOrderTotals } from '@/lib/sales-order-totals'
 import { canTransitionSalesOrderStatus } from '@/lib/sales-order-status'
@@ -119,6 +119,8 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     return Response.json({ error: 'INVALID_BODY', details: parsed.error.flatten() }, { status: 400 })
   }
 
+  const approvalPolicy = await getApprovalPolicy(wsId)
+
   // Fetch previous order state (needed to decide whether to create/update receivable)
   const prev = await prisma.salesOrder.findFirst({
     where: { id, workspaceId: wsId },
@@ -149,10 +151,13 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     discountPercent: parsed.data.discountPercent ?? prev.discountPercent,
   })
 
-  const discountApprovalNeeded = needsSalesOrderDiscountApproval({
-    subtotal: policyTotals.subtotal,
-    total: policyTotals.total,
-  })
+  const discountApprovalNeeded = needsSalesOrderDiscountApproval(
+    {
+      subtotal: policyTotals.subtotal,
+      total: policyTotals.total,
+    },
+    approvalPolicy,
+  )
   if (discountApprovalNeeded && nextStatus === 'CONFIRMED') {
     const approved = await hasApprovedApprovalRequest({
       workspaceId: wsId,
@@ -391,7 +396,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       await prisma.salesOrder.updateMany({ where: { id, workspaceId: wsId }, data: { value: nextValue, updatedById: auth.user.id } })
     }
 
-    if (needsSalesOrderDiscountApproval({ subtotal: totals.subtotal, total: totals.total })) {
+    if (needsSalesOrderDiscountApproval({ subtotal: totals.subtotal, total: totals.total }, approvalPolicy)) {
       await ensurePendingApprovalRequest({
         workspaceId: wsId,
         entityType: 'SALES_ORDER',

@@ -8,7 +8,7 @@ import { convertQty, convertUnitPrice, isConvertible, normalizeUnit } from '@/li
 // Finance hooks (recebíveis/pagamentos) serão adicionados no próximo passo.
 
 import { buildSalesOrdersWhere } from '@/lib/orders-query'
-import { ensurePendingApprovalRequest, needsSalesOrderDiscountApproval } from '@/lib/approval-policies'
+import { ensurePendingApprovalRequest, getApprovalPolicy, needsSalesOrderDiscountApproval } from '@/lib/approval-policies'
 import { calcOrderTotals } from '@/lib/sales-order-totals'
 
 function parsePositiveInt(value: string | null, fallback: number, max: number) {
@@ -322,7 +322,8 @@ export async function POST(req: Request) {
 
   // NOTE: Recebível real por expedição + pagamentos antecipados serão implementados no módulo novo.
 
-  if (needsSalesOrderDiscountApproval({ subtotal: totals.subtotal, total: totals.total })) {
+  const approvalPolicy = await getApprovalPolicy(wsId)
+  if (needsSalesOrderDiscountApproval({ subtotal: totals.subtotal, total: totals.total }, approvalPolicy)) {
     await ensurePendingApprovalRequest({
       workspaceId: wsId,
       entityType: 'SALES_ORDER',

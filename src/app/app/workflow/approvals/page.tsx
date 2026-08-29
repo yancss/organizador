@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import DataTable, { type ColumnDef } from '../../ui/data-table'
+import ApprovalPolicyCard from './approval-policy-card'
 import { api } from '../../api-client'
 import { t } from '../../i18n'
 import { formatMoneyDisplay, localeFromLanguage } from '../../money'
@@ -173,6 +174,8 @@ export default function WorkflowApprovalsPage() {
               : 'Simple approval queue for purchase thresholds and discount exceptions.'}
         </p>
       </div>
+
+      <ApprovalPolicyCard />
 
       <DataTable
         rows={rows}

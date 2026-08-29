@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { requireWorkspace } from '@/lib/authz'
 import { makeDocCode } from '@/lib/codes'
-import { ensurePendingApprovalRequest, needsPurchaseOrderApproval } from '@/lib/approval-policies'
+import { ensurePendingApprovalRequest, getApprovalPolicy, needsPurchaseOrderApproval } from '@/lib/approval-policies'
 import { upsertPayableForPurchaseOrder as upsertDedicatedPayable } from '@/lib/payables'
 import { convertQty, convertUnitPrice, isConvertible, normalizeUnit } from '@/lib/unit-conversion'
 import { upsertPayableForPurchaseOrder } from '@/lib/finance-defaults'
@@ -171,8 +171,11 @@ export async function POST(req: Request) {
   const desiredStatus = parsed.data.status ?? 'DRAFT'
   const desiredCommitted =
     desiredStatus === 'CONFIRMED' || desiredStatus === 'PARTIALLY_RECEIVED' || desiredStatus === 'RECEIVED'
+  const approvalPolicy = await getApprovalPolicy(wsId)
   const approvalRequired =
-    desiredCommitted && parsed.data.estimatedCost != null && needsPurchaseOrderApproval(Number(parsed.data.estimatedCost))
+    desiredCommitted &&
+    parsed.data.estimatedCost != null &&
+    needsPurchaseOrderApproval(Number(parsed.data.estimatedCost), approvalPolicy)
   const nextStatus = approvalRequired ? 'DRAFT' : desiredStatus
 
   const po = await prisma.purchaseOrder.create({
