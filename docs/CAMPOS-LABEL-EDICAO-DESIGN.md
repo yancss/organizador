@@ -108,4 +108,13 @@ ligado em **Produto, Cliente e Orçamento** (novo detalhe de orçamento).
   Ordem; tabela de personalizados com edição inline de rótulo e ajuda.
 - Nova tela de detalhe do orçamento: `/app/sales/quotes/[id]` (código na lista vira link).
 
-Pendente: ligar `<EntityFieldsSection>` nos demais objetos (mecânico, por tela de detalhe).
+### Rollout (2026-08-30)
+
+`<EntityFieldsSection>` ligado em **8 objetos**:
+- Telas de detalhe: Produto, Orçamento, Pedido de venda, Entrega, Recebível.
+- Modais de edição: Cliente, Pedido de compra, Receita.
+
+Faltam 14 objetos (Compra direta, Armazém, Lote, Pagamento, Devolução, Lançamento/Conta/
+Categoria financeira, Centro de custo, Payable, Empresa, Filial, Documento fiscal, Estoque-item)
+— sem tela/modal de edição próprio óbvio ou de baixo uso. Definir campos já funciona para
+todos; exibir/editar valores é só colocar o componente na tela de edição de cada um.

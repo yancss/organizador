@@ -9,6 +9,7 @@ import { toastUpdated, toastFailedToSave } from '@/app/app/toast'
 import { useSettings } from '@/app/app/settings-context'
 import { t } from '@/app/app/i18n'
 import { formatMoneyDisplay, formatMoneyFromNumber, localeFromLanguage, parseMoneyToNumber } from '@/app/app/money'
+import { EntityFieldsSection } from '@/app/app/entity-fields-section'
 
 type Receivable = {
   id: string
@@ -250,6 +251,8 @@ export default function ReceivableDetailsPage() {
           </div>
         </div>
       </section>
+
+      <EntityFieldsSection entity="RECEIVABLE" entityId={rec.id} />
     </div>
   )
 }

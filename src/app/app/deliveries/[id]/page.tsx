@@ -10,6 +10,7 @@ import { toastUpdated, toastFailedToSave } from '../../toast'
 import { useSettings } from '../../settings-context'
 import { t } from '../../i18n'
 import { formatMoneyDisplay, localeFromLanguage, parseMoneyToNumber, formatMoneyFromNumber } from '../../money'
+import { EntityFieldsSection } from '../../entity-fields-section'
 
 type Delivery = {
   id: string
@@ -306,6 +307,8 @@ export default function DeliveryDetailsPage() {
           )}
         </div>
       </section>
+
+      <EntityFieldsSection entity="DELIVERY" entityId={delivery.id} />
 
       {shipModalOpen ? (
         <div className="fixed inset-0 z-50">

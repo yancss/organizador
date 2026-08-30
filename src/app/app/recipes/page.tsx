@@ -12,6 +12,7 @@ import SearchSelect from '../ui/search-select'
 import FieldLabel from '../ui/field-label'
 import { toast, toastCreated, toastUpdated, toastDeleted, toastFailedToSave, toastFailedToDelete } from '../toast'
 import { api } from '../api-client'
+import { EntityFieldsSection } from '../entity-fields-section'
 import { convertQty, formatConvertedPreview, isConvertible, normalizeUnit } from '@/lib/unit-conversion'
 
 type Product = { id: string; name: string; unit: string; kind: 'RAW' | 'FINISHED' }
@@ -555,7 +556,15 @@ export default function RecipesPage() {
               >
                 {i.recipes.delete}
               </button>
+            </div>
 
+            {draft.id ? (
+              <div className="mt-4">
+                <EntityFieldsSection entity="RECIPE" entityId={draft.id} />
+              </div>
+            ) : null}
+
+            <div className="mt-4 flex items-center justify-end">
               <div className="flex gap-2">
                 <button
                   className="btn btn-secondary"

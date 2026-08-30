@@ -11,6 +11,7 @@ import { useSettings } from '@/app/app/settings-context'
 import { t } from '@/app/app/i18n'
 import { formatMoneyDisplay, localeFromLanguage } from '@/app/app/money'
 import { AuditHistory } from '@/app/app/audit-history'
+import { EntityFieldsSection } from '@/app/app/entity-fields-section'
 import SearchSelect from '@/app/app/ui/search-select'
 import { Pencil, Save, X } from 'lucide-react'
 
@@ -980,6 +981,8 @@ export default function SalesOrderDetailsPage() {
               )}
             </div>
           </section>
+
+          <EntityFieldsSection entity="SALES_ORDER" entityId={id ?? ''} />
 
           <AuditHistory entityType="SalesOrder" entityId={id ?? ''} />
 

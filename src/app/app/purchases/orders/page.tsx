@@ -12,6 +12,7 @@ import { useSettings } from '../../settings-context'
 import { t } from '../../i18n'
 import { formatMoneyDisplay, formatMoneyFromInput, formatMoneyFromNumber, localeFromLanguage, parseMoneyToNumber } from '../../money'
 import { api } from '../../api-client'
+import { EntityFieldsSection } from '../../entity-fields-section'
 import { toast, toastCreated, toastUpdated, toastDeleted, toastFailedToSave, toastFailedToDelete } from '../../toast'
 
 type Supplier = { id: string; name: string }
@@ -1212,6 +1213,12 @@ export default function PurchaseOrdersPage() {
                 )}
               </div>
             </div>
+
+            {draft.id ? (
+              <div className="mt-4">
+                <EntityFieldsSection entity="PURCHASE_ORDER" entityId={draft.id} />
+              </div>
+            ) : null}
 
             <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
               <button
