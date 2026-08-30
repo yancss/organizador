@@ -27,6 +27,7 @@ export type I18n = {
     adminRolesPermissions: string
     adminAudits: string
     adminSettings: string
+    adminObjects: string
 
     finance: string
     financeOverview: string
@@ -582,6 +583,7 @@ const dict: Record<AppLanguage, I18n> = {
       adminRolesPermissions: 'Roles & permissões',
       adminAudits: 'Auditorias',
       adminSettings: 'Configurações',
+      adminObjects: 'Objetos',
 
       finance: 'Financeiro',
       financeOverview: 'Visão geral',
@@ -1130,6 +1132,7 @@ const dict: Record<AppLanguage, I18n> = {
       adminRolesPermissions: 'Roles & permissions',
       adminAudits: 'Audits',
       adminSettings: 'Settings',
+      adminObjects: 'Objects',
 
       finance: 'Finance',
       financeOverview: 'Overview',
@@ -1678,6 +1681,7 @@ const dict: Record<AppLanguage, I18n> = {
       adminRolesPermissions: 'Roles y permisos',
       adminAudits: 'Auditorías',
       adminSettings: 'Configuración',
+      adminObjects: 'Objetos',
 
       finance: 'Finanzas',
       financeOverview: 'Resumen',

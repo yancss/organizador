@@ -102,3 +102,19 @@ toda tabela); tipos **STRING, NUMBER, CURRENCY, DATE, BOOLEAN, SELECT**; **Fase 
 - **Fase B ligada em:** Produto (`/app/products/[id]`) e Cliente (modal). Ligar nos demais
   objetos = só colocar `<CustomFieldsSection>` na tela de detalhe — mecânico, um por vez.
   Orçamento e Estoque ainda não têm tela de detalhe própria; entram quando tiverem.
+
+### Tela "Objetos do sistema" (2ª rodada, 2026-08-29)
+
+Tela dedicada `/app/admin/objects` (item "Objetos" no menu Admin) — visão completa de cada
+objeto, incluindo **os campos nativos que o admin não pode alterar**.
+
+- `src/lib/custom-fields/native-fields.ts` — lê o `Prisma.dmmf` e devolve os campos nativos
+  (escalares + enums) de cada objeto do registry, com tipo amigável (texto/número/moeda/
+  data/lista fixa/JSON), obrigatório/opcional, flag `system` (id, workspace, auditoria) e os
+  relacionamentos à parte. Moeda vs número por heurística de nome (`cost|price|amount|value…`).
+- API: `GET /api/admin/objects` (lista + contagens), `GET /api/admin/objects/[entity]`
+  (nativos + personalizados). CRUD de personalizados continua em `/api/admin/custom-fields*`.
+- UI `objects-manager.tsx`: coluna de objetos agrupados + ficha do objeto com "Campos nativos"
+  (só leitura), "Relacionamentos" (recolhível) e "Campos personalizados" (CRUD).
+- A aba "Campos personalizados" saiu de `/app/admin/settings` (a gestão agora é por objeto
+  nesta tela). `settings-hub` voltou a 2 abas.
