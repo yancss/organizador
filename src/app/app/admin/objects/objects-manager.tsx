@@ -63,6 +63,17 @@ function tr(language: string) {
     editavel: 'Editável',
     notEligible: 'Este campo não pode ser editado pelo usuário.',
     labelPlaceholder: 'Padrão',
+    tabFields: 'Campos',
+    tabRelations: 'Relações',
+    tabLayout: 'Layout',
+    layoutHint: 'Ordem dos campos na tela do usuário. Em breve com arrastar e soltar.',
+    layoutEmpty: 'Nenhum campo visível. Ative "Visível" nos campos ou crie campos personalizados.',
+    moveUp: 'Subir',
+    moveDown: 'Descer',
+    sourceNative: 'nativo',
+    sourceCustom: 'personalizado',
+    relFrom: 'Campo',
+    relTo: 'Aponta para',
     add: 'Adicionar campo',
     label: 'Nome do campo',
     help: 'Texto de ajuda',
@@ -106,6 +117,10 @@ function tr(language: string) {
     groups: { commercial: 'Comercial', purchasing: 'Compras', catalog: 'Catálogo', inventory: 'Inventario', logistics: 'Logística', finance: 'Finanzas', fiscal: 'Fiscal' },
     types: { STRING: 'Texto', NUMBER: 'Número', CURRENCY: 'Moneda', DATE: 'Fecha', BOOLEAN: 'Sí/No', SELECT: 'Lista' },
     nativeKinds: { text: 'Texto', number: 'Número', currency: 'Moneda', boolean: 'Sí/No', date: 'Fecha/hora', enum: 'Lista fija', json: 'JSON', relation: 'Relación' },
+    tabFields: 'Campos', tabRelations: 'Relaciones', tabLayout: 'Layout',
+    layoutHint: 'Orden de los campos en la pantalla del usuario. Pronto con arrastrar y soltar.',
+    layoutEmpty: 'Ningún campo visible. Activa "Visible" o crea campos personalizados.',
+    sourceNative: 'nativo', sourceCustom: 'personalizado', relFrom: 'Campo', relTo: 'Apunta a', moveUp: 'Subir', moveDown: 'Bajar',
   }
   const en: typeof pt = {
     ...pt,
@@ -124,6 +139,10 @@ function tr(language: string) {
     groups: { commercial: 'Commercial', purchasing: 'Purchasing', catalog: 'Catalog', inventory: 'Inventory', logistics: 'Logistics', finance: 'Finance', fiscal: 'Fiscal' },
     types: { STRING: 'Text', NUMBER: 'Number', CURRENCY: 'Currency', DATE: 'Date', BOOLEAN: 'Yes/No', SELECT: 'List' },
     nativeKinds: { text: 'Text', number: 'Number', currency: 'Currency', boolean: 'Yes/No', date: 'Date/time', enum: 'Fixed list', json: 'JSON', relation: 'Relation' },
+    tabFields: 'Fields', tabRelations: 'Relationships', tabLayout: 'Layout',
+    layoutHint: 'Field order on the user screen. Drag & drop coming soon.',
+    layoutEmpty: 'No visible fields. Turn on "Visible" or create custom fields.',
+    sourceNative: 'native', sourceCustom: 'custom', relFrom: 'Field', relTo: 'Points to', moveUp: 'Move up', moveDown: 'Move down',
   }
   return language === 'pt' ? pt : language === 'es' ? es : en
 }
@@ -147,7 +166,7 @@ export default function ObjectsManager() {
     queryFn: () => api<Detail>(`/api/admin/objects/${selected}`),
   })
 
-  const [showRelations, setShowRelations] = useState(false)
+  const [tab, setTab] = useState<'fields' | 'relations' | 'layout'>('fields')
   const [newLabel, setNewLabel] = useState('')
   const [newType, setNewType] = useState<FieldType>('STRING')
   const [newRequired, setNewRequired] = useState(false)
@@ -207,6 +226,30 @@ export default function ObjectsManager() {
 
   const d = detailQ.data
 
+  // Layout: lista unificada dos campos visíveis, ordenada.
+  type LayoutItem = { source: 'native' | 'custom'; id: string; label: string; order: number }
+  const layoutItems: LayoutItem[] = useMemo(() => {
+    if (!d) return []
+    const items: LayoutItem[] = [
+      ...d.native.scalars.filter((f) => f.visible).map((f) => ({ source: 'native' as const, id: f.name, label: f.label, order: f.order })),
+      ...d.custom.filter((f) => f.active).map((f) => ({ source: 'custom' as const, id: f.id, label: f.label, order: f.order })),
+    ]
+    return items.sort((a, b) => a.order - b.order || a.label.localeCompare(b.label))
+  }, [d])
+
+  function moveLayout(index: number, dir: -1 | 1) {
+    const next = [...layoutItems]
+    const j = index + dir
+    if (j < 0 || j >= next.length) return
+    ;[next[index], next[j]] = [next[j], next[index]]
+    // Renumera 0..n-1 e persiste só o que mudou.
+    next.forEach((it, i) => {
+      if (it.order === i) return
+      if (it.source === 'native') nativeCfgM.mutate({ fieldName: it.id, data: { order: i } })
+      else patchM.mutate({ id: it.id, data: { order: i } })
+    })
+  }
+
   return (
     <div className="grid gap-4">
       <div className="rounded-2xl border border-theme bg-[var(--surface-2)] px-5 py-5 shadow-[var(--shadow-sm)]">
@@ -242,6 +285,27 @@ export default function ObjectsManager() {
             <div className="surface rounded-2xl border border-theme p-6 text-sm text-[var(--text-muted)]">…</div>
           ) : (
             <>
+              <div className="rounded-2xl border border-theme bg-[var(--surface-2)] p-2">
+                <div className="flex flex-wrap gap-2">
+                  {([
+                    ['fields', c.tabFields],
+                    ['relations', `${c.tabRelations} (${d.native.relations.length})`],
+                    ['layout', c.tabLayout],
+                  ] as const).map(([k, labelTxt]) => (
+                    <button
+                      key={k}
+                      type="button"
+                      className={`btn btn-sm ${tab === k ? 'btn-primary' : 'btn-secondary'}`}
+                      onClick={() => setTab(k)}
+                    >
+                      {labelTxt}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {tab === 'fields' ? (
+              <>
               <section className="surface rounded-2xl border border-theme p-4">
                 <div className="flex items-center justify-between">
                   <h2 className="text-sm font-semibold">{c.native}</h2>
@@ -311,24 +375,6 @@ export default function ObjectsManager() {
                     </tbody>
                   </table>
                 </div>
-
-                {d.native.relations.length ? (
-                  <div className="mt-3">
-                    <button className="text-xs font-medium text-[var(--primary)] underline" onClick={() => setShowRelations((v) => !v)}>
-                      {c.relations} ({d.native.relations.length})
-                    </button>
-                    {showRelations ? (
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        {d.native.relations.map((r) => (
-                          <span key={r.name} className="rounded-lg bg-[var(--surface-2)] px-2 py-1 text-xs">
-                            {r.name} → {r.rawType}
-                            {r.list ? '[]' : ''}
-                          </span>
-                        ))}
-                      </div>
-                    ) : null}
-                  </div>
-                ) : null}
               </section>
 
               <section className="surface rounded-2xl border border-theme p-4">
@@ -463,6 +509,83 @@ export default function ObjectsManager() {
                   </button>
                 </div>
               </section>
+              </>
+              ) : null}
+
+              {tab === 'relations' ? (
+                <section className="surface rounded-2xl border border-theme p-4">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-sm font-semibold">{c.tabRelations}</h2>
+                    <span className="text-xs text-[var(--text-muted)]">{d.native.relations.length}</span>
+                  </div>
+                  <div className="mt-3 overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-theme text-left text-xs uppercase tracking-wide text-[var(--text-muted)]">
+                          <th className="px-2 py-1.5">{c.relFrom}</th>
+                          <th className="px-2 py-1.5">{c.relTo}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {d.native.relations.map((r) => (
+                          <tr key={r.name} className="border-b border-theme/50">
+                            <td className="px-2 py-1.5"><code>{r.name}</code></td>
+                            <td className="px-2 py-1.5 text-[var(--text-muted)]">
+                              {r.rawType}
+                              {r.list ? '[]' : ''}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+              ) : null}
+
+              {tab === 'layout' ? (
+                <section className="surface rounded-2xl border border-theme p-4">
+                  <h2 className="text-sm font-semibold">{c.tabLayout}</h2>
+                  <p className="mt-1 text-xs text-[var(--text-muted)]">{c.layoutHint}</p>
+                  {layoutItems.length === 0 ? (
+                    <div className="mt-4 text-sm text-[var(--text-muted)]">{c.layoutEmpty}</div>
+                  ) : (
+                    <ol className="mt-3 space-y-1.5">
+                      {layoutItems.map((it, idx) => (
+                        <li
+                          key={`${it.source}:${it.id}`}
+                          className="flex items-center justify-between rounded-xl border border-theme bg-[var(--surface-2)] px-3 py-2"
+                        >
+                          <span className="flex items-center gap-2 text-sm">
+                            <span className="text-xs text-[var(--text-muted)]">{idx + 1}.</span>
+                            {it.label}
+                            <span className="rounded bg-[var(--surface-3)] px-1.5 py-0.5 text-[10px] text-[var(--text-muted)]">
+                              {it.source === 'native' ? c.sourceNative : c.sourceCustom}
+                            </span>
+                          </span>
+                          <span className="flex gap-1">
+                            <button
+                              className="btn btn-secondary btn-sm"
+                              disabled={idx === 0}
+                              title={c.moveUp}
+                              onClick={() => moveLayout(idx, -1)}
+                            >
+                              ▲
+                            </button>
+                            <button
+                              className="btn btn-secondary btn-sm"
+                              disabled={idx === layoutItems.length - 1}
+                              title={c.moveDown}
+                              onClick={() => moveLayout(idx, 1)}
+                            >
+                              ▼
+                            </button>
+                          </span>
+                        </li>
+                      ))}
+                    </ol>
+                  )}
+                </section>
+              ) : null}
             </>
           )}
         </div>

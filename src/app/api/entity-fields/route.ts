@@ -20,6 +20,7 @@ type OutField = {
   required: boolean
   options: string[]
   helpText: string | null
+  order: number
   value: unknown
 }
 
@@ -52,7 +53,7 @@ export async function GET(req: Request) {
     prisma.customFieldDefinition.findMany({
       where: { workspaceId: wsId, entity, active: true },
       orderBy: [{ order: 'asc' }, { createdAt: 'asc' }],
-      select: { id: true, key: true, label: true, type: true, required: true, options: true, helpText: true },
+      select: { id: true, key: true, label: true, type: true, required: true, options: true, helpText: true, order: true },
     }),
     entityId ? loadRecord(def.model, entityId, wsId) : Promise.resolve(null),
   ])
@@ -77,6 +78,7 @@ export async function GET(req: Request) {
         required: f.required && !f.system,
         options: f.enumValues ?? [],
         helpText: null,
+        order: f.order,
         value: record ? nativeValueOut(f.kind, record[f.name]) : null,
       })),
     ...customDefs.map((d) => ({
@@ -88,9 +90,13 @@ export async function GET(req: Request) {
       required: d.required,
       options: d.options,
       helpText: d.helpText,
+      order: d.order,
       value: valueByFieldId.get(d.id) ?? null,
     })),
   ]
+
+  // Layout: ordem unificada entre nativos e personalizados.
+  fields.sort((a, b) => a.order - b.order)
 
   // Resumo de identificação do registro (para telas genéricas).
   let recordSummary: { id: string; title: string; subtitle: string | null } | null = null

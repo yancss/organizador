@@ -123,3 +123,16 @@ Para os objetos sem tela de edição própria: rota universal `/app/records/[ent
 
 Links "Campos → abrir" adicionados nas listas de **Conta a pagar** e **Devolução**. Levar a
 rota para as demais listas é uma linha (`<Link href={/app/records/<ENTITY>/<row.id>}>`).
+
+### Abas na tela "Objetos do sistema" (2026-08-30)
+
+A ficha do objeto passou a ter 3 abas:
+- **Campos** — tabelas de nativos (rótulo/visível/editável/ordem) e personalizados (CRUD).
+- **Relações** — os relacionamentos do objeto (campo → model destino).
+- **Layout** — lista unificada dos campos visíveis, ordenável (▲▼ por ora; arrastar e soltar
+  depois). Reordenar renumera `order` (0..n) e persiste em `EntityFieldConfig` /
+  `CustomFieldDefinition`.
+
+`/api/entity-fields` GET passou a **mesclar** nativos e personalizados numa única ordem
+(`order`), em vez de "nativos primeiro, personalizados depois". É essa ordem que a aba
+Layout controla e que o `<EntityFieldsSection>` respeita.
