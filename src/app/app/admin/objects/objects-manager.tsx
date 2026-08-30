@@ -12,7 +12,22 @@ type NativeKind = 'text' | 'number' | 'currency' | 'boolean' | 'date' | 'enum' |
 
 type Labels = { pt: string; es: string; en: string }
 type ObjectRow = { key: string; group: string; labels: Labels; nativeCount: number; relationCount: number; customCount: number }
-type NativeField = { name: string; kind: NativeKind; rawType: string; required: boolean; list: boolean; system: boolean; enumValues?: string[] }
+type NativeField = {
+  name: string
+  defaultLabel: string
+  label: string
+  configuredLabel: string | null
+  visible: boolean
+  editable: boolean
+  editableEligible: boolean
+  order: number
+  kind: NativeKind
+  rawType: string
+  required: boolean
+  list: boolean
+  system: boolean
+  enumValues?: string[]
+}
 type CustomDef = {
   id: string
   key: string
@@ -32,7 +47,7 @@ function tr(language: string) {
     title: 'Objetos do sistema',
     subtitle: 'Todos os campos de cada objeto — os nativos (só leitura) e os personalizados.',
     native: 'Campos nativos',
-    nativeHint: 'Definidos pela aplicação. O administrador vê, mas não altera.',
+    nativeHint: 'Definidos pela aplicação. Ative "Visível" para mostrar na tela do usuário; ajuste o rótulo e libere a edição (onde possível).',
     relations: 'Relacionamentos',
     custom: 'Campos personalizados',
     system: 'sistema',
@@ -43,6 +58,11 @@ function tr(language: string) {
     type: 'Tipo',
     order: 'Ordem',
     active: 'Ativo',
+    rotulo: 'Rótulo (tela do usuário)',
+    visivel: 'Visível',
+    editavel: 'Editável',
+    notEligible: 'Este campo não pode ser editado pelo usuário.',
+    labelPlaceholder: 'Padrão',
     add: 'Adicionar campo',
     label: 'Nome do campo',
     help: 'Texto de ajuda',
@@ -164,6 +184,12 @@ export default function ObjectsManager() {
     onSuccess: invalidate,
     onError: () => toast.error(c.error),
   })
+  const nativeCfgM = useMutation({
+    mutationFn: ({ fieldName, data }: { fieldName: string; data: Record<string, unknown> }) =>
+      api(`/api/admin/objects/${selected}/fields/${fieldName}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    onSuccess: invalidate,
+    onError: (e: any) => toast.error(String(e?.message ?? '').includes('FIELD_NOT_EDITABLE') ? c.notEligible : c.error),
+  })
   const delM = useMutation({
     mutationFn: (id: string) => api(`/api/admin/custom-fields/${id}`, { method: 'DELETE' }),
     onSuccess: invalidate,
@@ -227,23 +253,59 @@ export default function ObjectsManager() {
                     <thead>
                       <tr className="border-b border-theme text-left text-xs uppercase tracking-wide text-[var(--text-muted)]">
                         <th className="px-2 py-1.5">{c.field}</th>
+                        <th className="px-2 py-1.5">{c.rotulo}</th>
                         <th className="px-2 py-1.5">{c.type}</th>
-                        <th className="px-2 py-1.5">{c.required}</th>
+                        <th className="px-2 py-1.5">{c.visivel}</th>
+                        <th className="px-2 py-1.5">{c.editavel}</th>
+                        <th className="px-2 py-1.5">{c.order}</th>
                       </tr>
                     </thead>
                     <tbody>
                       {d.native.scalars.map((f) => (
-                        <tr key={f.name} className={`border-b border-theme/50 ${f.system ? 'text-[var(--text-muted)]' : ''}`}>
-                          <td className="px-2 py-1.5">
+                        <tr key={f.name} className="border-b border-theme/50">
+                          <td className={`px-2 py-1.5 ${f.system ? 'text-[var(--text-muted)]' : ''}`}>
                             <code>{f.name}</code>
                             {f.system ? <span className="ml-2 rounded bg-[var(--surface-3)] px-1.5 py-0.5 text-[10px]">{c.system}</span> : null}
                             {f.list ? <span className="ml-1 text-xs">[{c.list}]</span> : null}
                           </td>
                           <td className="px-2 py-1.5">
-                            {c.nativeKinds[f.kind]}
-                            {f.enumValues?.length ? <span className="text-xs text-[var(--text-muted)]"> ({f.enumValues.join(', ')})</span> : null}
+                            <input
+                              className="h-8 w-40 rounded border border-theme bg-transparent px-2 text-sm"
+                              defaultValue={f.configuredLabel ?? ''}
+                              placeholder={f.defaultLabel}
+                              onBlur={(e) => {
+                                const v = e.target.value.trim()
+                                if (v !== (f.configuredLabel ?? '')) nativeCfgM.mutate({ fieldName: f.name, data: { label: v || null } })
+                              }}
+                            />
                           </td>
-                          <td className="px-2 py-1.5">{f.required ? c.required : c.optional}</td>
+                          <td className="px-2 py-1.5 text-[var(--text-muted)]">
+                            {c.nativeKinds[f.kind]}
+                            {f.enumValues?.length ? <span className="text-xs"> ({f.enumValues.join(', ')})</span> : null}
+                          </td>
+                          <td className="px-2 py-1.5">
+                            <input type="checkbox" checked={f.visible} onChange={(e) => nativeCfgM.mutate({ fieldName: f.name, data: { visible: e.target.checked } })} />
+                          </td>
+                          <td className="px-2 py-1.5">
+                            <input
+                              type="checkbox"
+                              checked={f.editable}
+                              disabled={!f.editableEligible}
+                              title={!f.editableEligible ? c.notEligible : undefined}
+                              onChange={(e) => nativeCfgM.mutate({ fieldName: f.name, data: { editable: e.target.checked } })}
+                            />
+                          </td>
+                          <td className="px-2 py-1.5">
+                            <input
+                              className="h-8 w-14 rounded border border-theme bg-transparent px-2 text-sm"
+                              type="number"
+                              defaultValue={f.order}
+                              onBlur={(e) => {
+                                const v = Number(e.target.value)
+                                if (Number.isFinite(v) && v !== f.order) nativeCfgM.mutate({ fieldName: f.name, data: { order: v } })
+                              }}
+                            />
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -298,8 +360,24 @@ export default function ObjectsManager() {
                         d.custom.map((f) => (
                           <tr key={f.id} className="border-b border-theme/50">
                             <td className="px-2 py-1.5">
-                              <div className="font-medium">{f.label}</div>
-                              <div className="text-xs text-[var(--text-muted)]">
+                              <input
+                                className="h-8 w-44 rounded border border-theme bg-transparent px-2 text-sm font-medium"
+                                defaultValue={f.label}
+                                onBlur={(e) => {
+                                  const v = e.target.value.trim()
+                                  if (v && v !== f.label) patchM.mutate({ id: f.id, data: { label: v } })
+                                }}
+                              />
+                              <input
+                                className="mt-1 h-7 w-full rounded border border-theme bg-transparent px-2 text-xs"
+                                defaultValue={f.helpText ?? ''}
+                                placeholder={c.help}
+                                onBlur={(e) => {
+                                  const v = e.target.value.trim()
+                                  if (v !== (f.helpText ?? '')) patchM.mutate({ id: f.id, data: { helpText: v || null } })
+                                }}
+                              />
+                              <div className="mt-0.5 text-xs text-[var(--text-muted)]">
                                 <code>{f.key}</code>
                                 {f._count.values ? ` · ${c.inUse(f._count.values)}` : ''}
                               </div>

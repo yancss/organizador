@@ -470,7 +470,11 @@ export default function SalesQuotesPage() {
                 const overdue = q.validUntil && q.validUntil.slice(0, 10) < today && (q.status === 'SENT' || q.status === 'DRAFT')
                 return (
                   <tr key={q.id} className="border-b border-theme/60">
-                    <td className="px-3 py-2 font-mono text-xs">{q.code ?? '—'}</td>
+                    <td className="px-3 py-2 font-mono text-xs">
+                      <Link className="text-[var(--primary)] underline" href={`/app/sales/quotes/${q.id}`}>
+                        {q.code ?? q.id.slice(0, 8)}
+                      </Link>
+                    </td>
                     <td className="px-3 py-2">{q.name}</td>
                     <td className="px-3 py-2">{q.client?.name ?? '—'}</td>
                     <td className="px-3 py-2">

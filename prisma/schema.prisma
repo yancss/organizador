@@ -158,6 +158,7 @@ model Workspace {
 
   customFieldDefinitions CustomFieldDefinition[]
   customFieldValues      CustomFieldValue[]
+  entityFieldConfigs     EntityFieldConfig[]
 
   // Fiscal
   companies           Company[]
@@ -1219,6 +1220,30 @@ model CustomFieldDefinition {
   values    CustomFieldValue[]
 
   @@unique([workspaceId, entity, key])
+  @@index([workspaceId, entity])
+}
+
+// Config de exibição/edição dos campos NATIVOS de um objeto (rótulo, visível, editável).
+// Os campos personalizados já guardam isso em CustomFieldDefinition.
+model EntityFieldConfig {
+  id          String @id @default(cuid())
+  workspaceId String
+
+  entity    String @db.VarChar(64)
+  fieldName String @db.VarChar(64)
+
+  label    String? @db.VarChar(120) // null = usa o rótulo padrão gerado do nome
+  visible  Boolean @default(true)
+  editable Boolean @default(false)
+  order    Int     @default(0)
+
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, entity, fieldName])
   @@index([workspaceId, entity])
 }
 

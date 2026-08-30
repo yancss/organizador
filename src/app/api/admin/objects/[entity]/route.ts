@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { requireAdmin } from '@/lib/authz'
 import { getCustomFieldEntity, isCustomFieldEntity } from '@/lib/custom-fields/registry'
-import { getNativeFields } from '@/lib/custom-fields/native-fields'
+import { getNativeFieldViews } from '@/lib/custom-fields/entity-field-config'
 
 /** Ficha completa de um objeto: campos nativos (somente leitura) + campos personalizados. */
 export async function GET(_req: Request, ctx: { params: Promise<{ entity: string }> }) {
@@ -12,7 +12,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ entity: string
   if (!isCustomFieldEntity(entity)) return Response.json({ error: 'INVALID_ENTITY' }, { status: 404 })
 
   const def = getCustomFieldEntity(entity)!
-  const native = getNativeFields(entity)
+  const native = await getNativeFieldViews(auth.user.workspaceId, entity)
 
   const custom = await prisma.customFieldDefinition.findMany({
     where: { workspaceId: auth.user.workspaceId, entity },

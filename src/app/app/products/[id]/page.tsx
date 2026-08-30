@@ -9,7 +9,7 @@ import { useSettings } from '@/app/app/settings-context'
 import { t } from '@/app/app/i18n'
 import { formatMoneyDisplay, localeFromLanguage } from '@/app/app/money'
 import { AuditHistory } from '@/app/app/audit-history'
-import { CustomFieldsSection } from '@/app/app/custom-fields-section'
+import { EntityFieldsSection } from '@/app/app/entity-fields-section'
 
 type Product = {
   id: string
@@ -151,7 +151,7 @@ export default function ProductDetailsPage() {
             </div>
           </section>
 
-          <CustomFieldsSection entity="PRODUCT" entityId={p.id} />
+          <EntityFieldsSection entity="PRODUCT" entityId={p.id} />
 
           <AuditHistory entityType="Product" entityId={p.id} />
         </div>

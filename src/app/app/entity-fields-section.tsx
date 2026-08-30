@@ -7,12 +7,12 @@ import { api } from './api-client'
 import { useSettings } from './settings-context'
 import { toast } from './toast'
 
-type FieldType = 'STRING' | 'NUMBER' | 'CURRENCY' | 'DATE' | 'BOOLEAN' | 'SELECT'
 type Field = {
-  id: string
+  source: 'native' | 'custom'
   key: string
   label: string
-  type: FieldType
+  kind: string
+  editable: boolean
   required: boolean
   options: string[]
   helpText: string | null
@@ -20,37 +20,44 @@ type Field = {
 }
 
 function copy(language: string) {
-  if (language === 'pt') return { title: 'Campos personalizados', save: 'Salvar campos', saved: 'Campos salvos', error: 'Não foi possível salvar', yes: 'Sim', no: 'Não', pick: 'Selecione' }
-  if (language === 'es') return { title: 'Campos personalizados', save: 'Guardar campos', saved: 'Campos guardados', error: 'No se pudo guardar', yes: 'Sí', no: 'No', pick: 'Selecciona' }
-  return { title: 'Custom fields', save: 'Save fields', saved: 'Fields saved', error: 'Could not save', yes: 'Yes', no: 'No', pick: 'Select' }
+  if (language === 'pt') return { title: 'Campos', save: 'Salvar campos', saved: 'Campos salvos', error: 'Não foi possível salvar', yes: 'Sim', no: 'Não', pick: 'Selecione', empty: '—' }
+  if (language === 'es') return { title: 'Campos', save: 'Guardar campos', saved: 'Campos guardados', error: 'No se pudo guardar', yes: 'Sí', no: 'No', pick: 'Selecciona', empty: '—' }
+  return { title: 'Fields', save: 'Save fields', saved: 'Fields saved', error: 'Could not save', yes: 'Yes', no: 'No', pick: 'Select', empty: '—' }
 }
 
 const inputCls = 'mt-1 h-10 w-full rounded-md border border-theme bg-transparent px-3 text-sm'
+const NUMERIC = new Set(['number', 'currency'])
 
-export function CustomFieldsSection({ entity, entityId }: { entity: string; entityId: string }) {
+function displayValue(f: Field, c: ReturnType<typeof copy>) {
+  if (f.value === null || f.value === undefined || f.value === '') return c.empty
+  if (f.kind === 'boolean') return f.value ? c.yes : c.no
+  return String(f.value)
+}
+
+export function EntityFieldsSection({ entity, entityId }: { entity: string; entityId: string }) {
   const { language } = useSettings()
   const c = copy(language)
   const qc = useQueryClient()
-  const key = ['custom-field-values', entity, entityId]
+  const qk = ['entity-fields', entity, entityId]
 
   const q = useQuery({
-    queryKey: key,
+    queryKey: qk,
     enabled: !!entityId,
-    queryFn: () => api<{ fields: Field[] }>(`/api/custom-fields/values?entity=${entity}&entityId=${entityId}`),
+    queryFn: () => api<{ fields: Field[] }>(`/api/entity-fields?entity=${entity}&entityId=${entityId}`),
   })
 
   const [form, setForm] = useState<Record<string, unknown> | null>(null)
   useEffect(() => {
     if (q.data && !form) {
-      setForm(Object.fromEntries(q.data.fields.map((f) => [f.key, f.value ?? ''])))
+      setForm(Object.fromEntries(q.data.fields.filter((f) => f.editable).map((f) => [f.key, f.value ?? ''])))
     }
   }, [q.data, form])
 
   const saveM = useMutation({
-    mutationFn: () => api('/api/custom-fields/values', { method: 'PUT', body: JSON.stringify({ entity, entityId, values: form ?? {} }) }),
+    mutationFn: () => api('/api/entity-fields', { method: 'PUT', body: JSON.stringify({ entity, entityId, values: form ?? {} }) }),
     onSuccess: () => {
       toast.success(c.saved)
-      void qc.invalidateQueries({ queryKey: key })
+      void qc.invalidateQueries({ queryKey: qk })
     },
     onError: () => toast.error(c.error),
   })
@@ -59,6 +66,7 @@ export function CustomFieldsSection({ entity, entityId }: { entity: string; enti
   if (!q.isLoading && fields.length === 0) return null
   if (!form) return null
 
+  const hasEditable = fields.some((f) => f.editable)
   const set = (k: string, v: unknown) => setForm({ ...form, [k]: v })
 
   return (
@@ -66,16 +74,18 @@ export function CustomFieldsSection({ entity, entityId }: { entity: string; enti
       <h2 className="text-sm font-semibold text-[var(--foreground)]">{c.title}</h2>
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         {fields.map((f) => (
-          <label key={f.id} className="text-xs font-medium">
+          <div key={f.key} className="text-xs font-medium">
             {f.label}
             {f.required ? <span className="text-red-600"> *</span> : null}
-            {f.type === 'BOOLEAN' ? (
+            {!f.editable ? (
+              <div className="mt-1 text-sm font-normal text-[var(--text-muted)]">{displayValue(f, c)}</div>
+            ) : f.kind === 'boolean' ? (
               <select className={inputCls} value={String(form[f.key] ?? '')} onChange={(e) => set(f.key, e.target.value === '' ? '' : e.target.value === 'true')}>
                 <option value="">—</option>
                 <option value="true">{c.yes}</option>
                 <option value="false">{c.no}</option>
               </select>
-            ) : f.type === 'SELECT' ? (
+            ) : f.kind === 'select' && f.options.length ? (
               <select className={inputCls} value={String(form[f.key] ?? '')} onChange={(e) => set(f.key, e.target.value)}>
                 <option value="">{c.pick}</option>
                 {f.options.map((o) => (
@@ -87,19 +97,21 @@ export function CustomFieldsSection({ entity, entityId }: { entity: string; enti
             ) : (
               <input
                 className={inputCls}
-                type={f.type === 'DATE' ? 'date' : f.type === 'NUMBER' || f.type === 'CURRENCY' ? 'number' : 'text'}
-                step={f.type === 'CURRENCY' ? '0.01' : undefined}
+                type={f.kind === 'date' ? 'date' : NUMERIC.has(f.kind) ? 'number' : 'text'}
+                step={f.kind === 'currency' ? '0.01' : undefined}
                 value={String(form[f.key] ?? '')}
                 onChange={(e) => set(f.key, e.target.value)}
               />
             )}
             {f.helpText ? <span className="mt-0.5 block font-normal text-[var(--text-muted)]">{f.helpText}</span> : null}
-          </label>
+          </div>
         ))}
       </div>
-      <button className="btn btn-primary btn-sm mt-3" disabled={saveM.isPending} onClick={() => saveM.mutate()}>
-        {c.save}
-      </button>
+      {hasEditable ? (
+        <button className="btn btn-primary btn-sm mt-3" disabled={saveM.isPending} onClick={() => saveM.mutate()}>
+          {c.save}
+        </button>
+      ) : null}
     </section>
   )
 }
