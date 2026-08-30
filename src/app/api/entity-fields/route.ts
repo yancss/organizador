@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { requireWorkspace } from '@/lib/authz'
 import {
+  CUSTOM_FIELD_ENTITIES,
   assertEntityRecordInWorkspace,
   getCustomFieldEntity,
   isCustomFieldEntity,
@@ -91,7 +92,18 @@ export async function GET(req: Request) {
     })),
   ]
 
-  return Response.json({ fields })
+  // Resumo de identificação do registro (para telas genéricas).
+  let recordSummary: { id: string; title: string; subtitle: string | null } | null = null
+  if (record) {
+    const r = record as Record<string, unknown>
+    const title = String(r.code ?? r.name ?? r.id ?? entityId)
+    const subtitle =
+      r.name && r.code ? String(r.name) : r.status ? String(r.status) : r.createdAt ? new Date(String(r.createdAt)).toLocaleDateString() : null
+    recordSummary = { id: String(r.id ?? entityId), title, subtitle }
+  }
+
+  const entityMeta = CUSTOM_FIELD_ENTITIES.find((e) => e.key === entity)!
+  return Response.json({ fields, record: recordSummary, entity: { key: entity, labels: entityMeta.labels } })
 }
 
 const PutSchema = z.object({

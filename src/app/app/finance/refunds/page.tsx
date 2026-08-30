@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 
@@ -66,6 +67,15 @@ export default function FinanceRefundsPage() {
         header: 'Pagamento',
         searchValue: (r) => r.paymentId ?? '',
         render: (r) => (r.paymentId ? <code className="text-xs">{r.paymentId.slice(0, 8)}...</code> : '-'),
+      },
+      {
+        key: 'fields',
+        header: 'Campos',
+        render: (r) => (
+          <Link className="text-[var(--primary)] underline" href={`/app/records/REFUND/${r.id}`}>
+            abrir
+          </Link>
+        ),
       },
     ],
     [currency, moneyLocale],

@@ -114,7 +114,12 @@ ligado em **Produto, Cliente e Orçamento** (novo detalhe de orçamento).
 - Telas de detalhe: Produto, Orçamento, Pedido de venda, Entrega, Recebível.
 - Modais de edição: Cliente, Pedido de compra, Receita.
 
-Faltam 14 objetos (Compra direta, Armazém, Lote, Pagamento, Devolução, Lançamento/Conta/
-Categoria financeira, Centro de custo, Payable, Empresa, Filial, Documento fiscal, Estoque-item)
-— sem tela/modal de edição próprio óbvio ou de baixo uso. Definir campos já funciona para
-todos; exibir/editar valores é só colocar o componente na tela de edição de cada um.
+### Rota genérica (2026-08-30)
+
+Para os objetos sem tela de edição própria: rota universal `/app/records/[entity]/[id]`
+(qualquer um dos 22) — cabeçalho com o objeto + identificação do registro + `<EntityFieldsSection>`
++ histórico. `/api/entity-fields` GET passa a devolver também `record` (título/subtítulo) e
+`entity` (rótulos).
+
+Links "Campos → abrir" adicionados nas listas de **Conta a pagar** e **Devolução**. Levar a
+rota para as demais listas é uma linha (`<Link href={/app/records/<ENTITY>/<row.id>}>`).

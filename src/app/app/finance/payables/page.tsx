@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 
@@ -109,6 +110,15 @@ export default function FinancePayablesPage() {
         header: language === 'pt' ? 'Obs.' : language === 'es' ? 'Obs.' : 'Notes',
         searchValue: (r) => r.observations ?? '',
         render: (r) => (r.observations ? r.observations.slice(0, 40) : '-'),
+      },
+      {
+        key: 'fields',
+        header: language === 'pt' ? 'Campos' : language === 'es' ? 'Campos' : 'Fields',
+        render: (r) => (
+          <Link className="text-[var(--primary)] underline" href={`/app/records/PAYABLE/${r.id}`}>
+            {language === 'pt' ? 'abrir' : language === 'es' ? 'abrir' : 'open'}
+          </Link>
+        ),
       },
     ]
 
