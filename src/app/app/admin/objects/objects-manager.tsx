@@ -108,6 +108,9 @@ function tr(language: string) {
     save: 'Salvar',
     cancel: 'Cancelar',
     remove: 'Excluir',
+    actions: 'Ações',
+    deleteConfirm: 'Excluir este campo personalizado? Esta ação não pode ser desfeita.',
+    nativeResetConfirm: 'Remover o rótulo personalizado deste campo e voltar ao padrão?',
     none: 'Nenhum campo personalizado neste objeto.',
     noFieldMatch: 'Nenhum campo corresponde à busca.',
     inUse: (n: number) => `${n} valor(es)`,
@@ -138,6 +141,9 @@ function tr(language: string) {
     field: 'Campo', colName: 'Nombre', type: 'Tipo', active: 'Activo',
     add: 'Agregar campo', editTitle: 'Editar campo', label: 'Nombre del campo', help: 'Texto de ayuda', options: 'Opciones (una por línea)',
     edit: 'Editar', save: 'Guardar', cancel: 'Cancelar', remove: 'Eliminar',
+    actions: 'Acciones',
+    deleteConfirm: '¿Eliminar este campo personalizado? Esta acción no se puede deshacer.',
+    nativeResetConfirm: '¿Quitar el rótulo personalizado de este campo y volver al predeterminado?',
     none: 'No hay campos personalizados en este objeto.',
     noFieldMatch: 'Ningún campo coincide con la búsqueda.',
     inUse: (n: number) => `${n} valor(es)`,
@@ -174,6 +180,9 @@ function tr(language: string) {
     field: 'Field', colName: 'Name', type: 'Type', active: 'Active',
     add: 'Add field', editTitle: 'Edit field', label: 'Field name', help: 'Help text', options: 'Options (one per line)',
     edit: 'Edit', save: 'Save', cancel: 'Cancel', remove: 'Delete',
+    actions: 'Actions',
+    deleteConfirm: 'Delete this custom field? This cannot be undone.',
+    nativeResetConfirm: "Remove this field's custom label and revert to the default?",
     none: 'No custom fields on this object.',
     noFieldMatch: 'No field matches the search.',
     inUse: (n: number) => `${n} value(s)`,
@@ -250,6 +259,7 @@ export default function ObjectsManager() {
   const [nativeSort, setNativeSort] = useState<SortState>({ key: 'label', dir: 'asc' })
   const [customSort, setCustomSort] = useState<SortState>({ key: 'label', dir: 'asc' })
   const formRef = useRef<HTMLDivElement>(null)
+  const [editingNative, setEditingNative] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [fLabel, setFLabel] = useState('')
   const [fType, setFType] = useState<FieldType>('STRING')
@@ -515,32 +525,74 @@ export default function ObjectsManager() {
                         <SortTh label={c.field} col="name" sort={nativeSort} onSort={sortToggle(setNativeSort)} />
                         <SortTh label={c.rotulo} col="label" sort={nativeSort} onSort={sortToggle(setNativeSort)} />
                         <SortTh label={c.type} col="type" sort={nativeSort} onSort={sortToggle(setNativeSort)} />
+                        <th className="px-2 py-1.5 text-right text-xs uppercase">{c.actions}</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {nativeRows.map((f) => (
-                        <tr key={f.name} className="border-b border-theme/50">
+                      {nativeRows.map((f) => {
+                        const editing = editingNative === f.name
+                        return (
+                        <tr key={f.name} className={`border-b border-theme/50 ${editing ? 'bg-[var(--surface-2)]' : ''}`}>
                           <td className={`px-2 py-1.5 ${f.system ? 'text-[var(--text-muted)]' : ''}`}>
                             <code>{f.name}</code>
                             {f.system ? <span className="ml-2 rounded bg-[var(--surface-3)] px-1.5 py-0.5 text-[10px]">{c.system}</span> : null}
                             {f.list ? <span className="ml-1 text-xs">[{c.list}]</span> : null}
                           </td>
                           <td className="px-2 py-1.5">
-                            <input
-                              className="h-8 w-44 rounded border border-theme bg-transparent px-2 text-sm"
-                              defaultValue={f.configuredLabel ?? ''}
-                              placeholder={f.defaultLabel}
-                              onBlur={(e) => {
-                                const v = e.target.value.trim()
-                                if (v !== (f.configuredLabel ?? '')) nativeCfgM.mutate({ fieldName: f.name, data: { label: v || null } })
-                              }}
-                            />
+                            {editing ? (
+                              <input
+                                autoFocus
+                                className="h-8 w-44 rounded border border-theme bg-transparent px-2 text-sm"
+                                defaultValue={f.configuredLabel ?? ''}
+                                placeholder={f.defaultLabel}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+                                  if (e.key === 'Escape') setEditingNative(null)
+                                }}
+                                onBlur={(e) => {
+                                  const v = e.target.value.trim()
+                                  if (v !== (f.configuredLabel ?? '')) nativeCfgM.mutate({ fieldName: f.name, data: { label: v || null } })
+                                  setEditingNative(null)
+                                }}
+                              />
+                            ) : (
+                              <span className={f.configuredLabel ? '' : 'text-[var(--text-muted)]'}>
+                                {f.label}
+                                {f.configuredLabel ? null : <span className="ml-1 text-[10px]">({c.labelPlaceholder})</span>}
+                              </span>
+                            )}
                           </td>
                           <td className="px-2 py-1.5 text-[var(--text-muted)]">{c.nativeKinds[f.kind]}</td>
+                          <td className="px-2 py-1.5">
+                            <div className="flex justify-end gap-1">
+                              {editing ? (
+                                <button className="btn btn-secondary btn-sm" onClick={() => setEditingNative(null)}>
+                                  {c.cancel}
+                                </button>
+                              ) : (
+                                <button className="btn btn-secondary btn-sm" onClick={() => setEditingNative(f.name)}>
+                                  {c.edit}
+                                </button>
+                              )}
+                              <button
+                                className="btn btn-danger-soft btn-sm"
+                                disabled={!f.configuredLabel || nativeCfgM.isPending}
+                                title={!f.configuredLabel ? c.labelPlaceholder : undefined}
+                                onClick={() => {
+                                  if (!window.confirm(c.nativeResetConfirm)) return
+                                  setEditingNative(null)
+                                  nativeCfgM.mutate({ fieldName: f.name, data: { label: null } })
+                                }}
+                              >
+                                {c.remove}
+                              </button>
+                            </div>
+                          </td>
                         </tr>
-                      ))}
+                        )
+                      })}
                       {nativeRows.length === 0 ? (
-                        <tr><td colSpan={3} className="px-2 py-4 text-center text-[var(--text-muted)]">{c.noFieldMatch}</td></tr>
+                        <tr><td colSpan={4} className="px-2 py-4 text-center text-[var(--text-muted)]">{c.noFieldMatch}</td></tr>
                       ) : null}
                     </tbody>
                   </table>
@@ -560,7 +612,7 @@ export default function ObjectsManager() {
                         <SortTh label={c.rotulo} col="label" sort={customSort} onSort={sortToggle(setCustomSort)} />
                         <SortTh label={c.colName} col="key" sort={customSort} onSort={sortToggle(setCustomSort)} />
                         <SortTh label={c.type} col="type" sort={customSort} onSort={sortToggle(setCustomSort)} />
-                        <th className="px-2 py-1.5"></th>
+                        <th className="px-2 py-1.5 text-right text-xs uppercase">{c.actions}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -595,9 +647,12 @@ export default function ObjectsManager() {
                                 </button>
                                 <button
                                   className="btn btn-danger-soft btn-sm"
-                                  disabled={f._count.values > 0}
+                                  disabled={f._count.values > 0 || delM.isPending}
                                   title={f._count.values > 0 ? c.hasValues : undefined}
-                                  onClick={() => delM.mutate(f.id)}
+                                  onClick={() => {
+                                    if (!window.confirm(c.deleteConfirm)) return
+                                    delM.mutate(f.id)
+                                  }}
                                 >
                                   {c.remove}
                                 </button>

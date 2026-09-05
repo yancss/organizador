@@ -175,3 +175,9 @@ Layout controla e que o `<EntityFieldsSection>` respeita.
     personalizado → `active=true`; ordem = fim da lista).
   - Esconder um personalizado da tela = desativá-lo (`active=false`); ele continua no
     catálogo da aba Campos para reativar/editar.
+- **Coluna "Ações"** nas duas tabelas de Campos:
+  - Nativos: **Editar** (abre o rótulo inline com Salvar/Cancelar) e **Excluir** (remove só
+    o rótulo personalizado e volta ao padrão — com `window.confirm`; desabilitado se não há
+    personalização).
+  - Personalizados: **Editar** (formulário) e **Excluir** (agora com `window.confirm`;
+    bloqueado se o campo tem valores).
