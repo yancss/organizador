@@ -201,3 +201,6 @@ Layout controla e que o `<EntityFieldsSection>` respeita.
     do objeto alvo, para o seletor. Helpers em `src/lib/custom-fields/entity-records.ts`.
   - `<EntityFieldsSection>` renderiza o campo RELATION como `<select>` (busca as opções sob
     demanda); leitura mostra o `relationLabel`.
+- Modal enxuto (`max-w-lg`, centralizado por flex — padrão do `users-panel`), coluna única,
+  ordem: nome · tipo · [objeto relacionado / opções] · ajuda · [obrigatório/ativo].
+  Fechar por **×** (canto superior direito), clique no fundo ou botão Cancelar.

@@ -113,6 +113,7 @@ function tr(language: string) {
     edit: 'Editar',
     save: 'Salvar',
     cancel: 'Cancelar',
+    close: 'Fechar',
     remove: 'Excluir',
     actions: 'Ações',
     deleteConfirm: 'Excluir este campo personalizado? Esta ação não pode ser desfeita.',
@@ -150,7 +151,7 @@ function tr(language: string) {
     relatedObjectHint: 'El campo apunta a un registro de este objeto.',
     relationNeedsTarget: 'Elige el objeto relacionado.',
     relationLocked: 'Campo con valores — no se puede cambiar el objeto relacionado.',
-    edit: 'Editar', save: 'Guardar', cancel: 'Cancelar', remove: 'Eliminar',
+    edit: 'Editar', save: 'Guardar', cancel: 'Cancelar', close: 'Cerrar', remove: 'Eliminar',
     actions: 'Acciones',
     deleteConfirm: '¿Eliminar este campo personalizado? Esta acción no se puede deshacer.',
     nativeResetConfirm: '¿Quitar el rótulo personalizado de este campo y volver al predeterminado?',
@@ -193,7 +194,7 @@ function tr(language: string) {
     relatedObjectHint: 'The field points to a record of this object.',
     relationNeedsTarget: 'Choose the related object.',
     relationLocked: 'Field has values — the related object cannot be changed.',
-    edit: 'Edit', save: 'Save', cancel: 'Cancel', remove: 'Delete',
+    edit: 'Edit', save: 'Save', cancel: 'Cancel', close: 'Close', remove: 'Delete',
     actions: 'Actions',
     deleteConfirm: 'Delete this custom field? This cannot be undone.',
     nativeResetConfirm: "Remove this field's custom label and revert to the default?",
@@ -805,20 +806,25 @@ export default function ObjectsManager() {
       </div>
 
       {modalOpen ? (
-        <div className="fixed inset-0 z-50">
-          <div className="absolute inset-0 bg-black/40" onClick={closeModal} />
-          <div className="surface modal-safe absolute bottom-0 left-0 right-0 mx-auto w-full max-w-xl rounded-t-2xl border border-theme p-5 shadow-xl sm:bottom-auto sm:top-20 sm:rounded-2xl">
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 p-0 sm:items-center sm:p-4"
+          onClick={closeModal}
+        >
+          <div
+            className="surface modal-safe w-full max-w-lg rounded-t-2xl border border-theme p-5 shadow-xl sm:rounded-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-start justify-between gap-4">
-              <h2 className="text-lg font-semibold">
+              <h2 className="text-base font-semibold">
                 {editingId ? c.editTitle : c.newField}
                 <span className="ml-2 text-sm font-normal text-[var(--text-muted)]">{objNameByKey.get(selected) ?? selected}</span>
               </h2>
-              <button className="btn btn-secondary btn-sm" onClick={closeModal}>
-                {c.cancel}
+              <button aria-label={c.close} className="btn btn-secondary btn-icon" onClick={closeModal} type="button">
+                ×
               </button>
             </div>
 
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div className="mt-4 grid gap-3">
               <label className="text-xs font-medium">
                 {c.label}
                 <input className={`${inputCls} mt-1`} value={fLabel} onChange={(e) => setFLabel(e.target.value)} autoFocus />
@@ -835,7 +841,7 @@ export default function ObjectsManager() {
               </label>
 
               {fType === 'RELATION' ? (
-                <label className="text-xs font-medium sm:col-span-2">
+                <label className="text-xs font-medium">
                   {c.relatedObject}
                   <select className={`${inputCls} mt-1`} value={fRelationEntity} onChange={(e) => setFRelationEntity(e.target.value)}>
                     <option value="">—</option>
@@ -849,26 +855,8 @@ export default function ObjectsManager() {
                 </label>
               ) : null}
 
-              <label className="flex items-center gap-2 text-xs font-medium">
-                <input type="checkbox" checked={fRequired} onChange={(e) => setFRequired(e.target.checked)} />
-                {c.required}
-              </label>
-              {editingId ? (
-                <label className="flex items-center gap-2 text-xs font-medium">
-                  <input type="checkbox" checked={fActive} onChange={(e) => setFActive(e.target.checked)} />
-                  {c.active}
-                </label>
-              ) : (
-                <span />
-              )}
-
-              <label className="text-xs font-medium sm:col-span-2">
-                {c.help}
-                <input className={`${inputCls} mt-1`} value={fHelp} onChange={(e) => setFHelp(e.target.value)} />
-              </label>
-
               {fType === 'SELECT' ? (
-                <label className="text-xs font-medium sm:col-span-2">
+                <label className="text-xs font-medium">
                   {c.options}
                   <textarea
                     className="mt-1 w-full rounded-md border border-theme bg-transparent px-3 py-2 text-sm"
@@ -878,6 +866,24 @@ export default function ObjectsManager() {
                   />
                 </label>
               ) : null}
+
+              <label className="text-xs font-medium">
+                {c.help}
+                <input className={`${inputCls} mt-1`} value={fHelp} onChange={(e) => setFHelp(e.target.value)} />
+              </label>
+
+              <div className="flex flex-wrap gap-4">
+                <label className="flex items-center gap-2 text-xs font-medium">
+                  <input type="checkbox" checked={fRequired} onChange={(e) => setFRequired(e.target.checked)} />
+                  {c.required}
+                </label>
+                {editingId ? (
+                  <label className="flex items-center gap-2 text-xs font-medium">
+                    <input type="checkbox" checked={fActive} onChange={(e) => setFActive(e.target.checked)} />
+                    {c.active}
+                  </label>
+                ) : null}
+              </div>
             </div>
 
             <div className="mt-5 flex justify-end gap-2">
