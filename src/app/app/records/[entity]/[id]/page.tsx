@@ -11,7 +11,7 @@ import { AuditHistory } from '@/app/app/audit-history'
 type Labels = { pt: string; es: string; en: string }
 type Resp = {
   record: { id: string; title: string; subtitle: string | null } | null
-  entity: { key: string; labels: Labels }
+  entity: { key: string; labels: Labels; description: string | null }
 }
 
 // entity key -> nome do model no AuditHistory (PascalCase)
@@ -50,6 +50,7 @@ export default function GenericRecordFieldsPage() {
           {q.data?.record ? ` · ${q.data.record.title}` : ''}
         </h1>
         {q.data?.record?.subtitle ? <p className="text-sm text-[var(--muted-foreground)]">{q.data.record.subtitle}</p> : null}
+        {q.data?.entity.description ? <p className="mt-1 text-sm text-[var(--muted-foreground)]">{q.data.entity.description}</p> : null}
       </header>
 
       {q.isError ? (

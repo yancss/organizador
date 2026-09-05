@@ -136,3 +136,22 @@ A ficha do objeto passou a ter 3 abas:
 `/api/entity-fields` GET passou a **mesclar** nativos e personalizados numa única ordem
 (`order`), em vez de "nativos primeiro, personalizados depois". É essa ordem que a aba
 Layout controla e que o `<EntityFieldsSection>` respeita.
+
+### Nome/descrição do objeto + tabela enxuta (2026-09-05)
+
+- **`EntityConfig`** (migration `entity_config`): `workspaceId + entity → label?, description?`.
+  `null` = usa o rótulo padrão do registry. Helper `getEntityDisplay` /
+  `getEntityDisplayMap` em `src/lib/custom-fields/entity-config.ts`.
+- `PATCH /api/admin/objects/[entity]` (novo) — grava `label`/`description` do objeto
+  (admin-only, com audit `EntityConfig`). `GET` do objeto e da lista devolvem
+  `configuredLabel` + `description`. `/api/entity-fields` GET aplica o override no
+  `entity.labels` e devolve `description` (a rota genérica `/app/records/...` mostra).
+- **Tela "Objetos do sistema"**:
+  - Lista lateral em **ordem alfabética**, sem separação por módulo.
+  - Aba **Campos** com um cartão "Objeto" no topo: nome de exibição + descrição
+    (salva ao sair do campo).
+  - Tabela de **campos personalizados** enxuta: **Rótulo · Nome · Tipo · Editar/Excluir**
+    (sem opções de lista, obrigatório, ordem ou ativar/desativar na grade).
+  - Edição num formulário completo (o de "Adicionar campo" vira Editar): rótulo, tipo,
+    obrigatório, ativo, ajuda e opções. A coluna Tipo dos nativos não mostra mais os
+    valores do enum entre parênteses.

@@ -159,6 +159,7 @@ model Workspace {
   customFieldDefinitions CustomFieldDefinition[]
   customFieldValues      CustomFieldValue[]
   entityFieldConfigs     EntityFieldConfig[]
+  entityConfigs          EntityConfig[]
 
   // Fiscal
   companies           Company[]
@@ -1245,6 +1246,26 @@ model EntityFieldConfig {
 
   @@unique([workspaceId, entity, fieldName])
   @@index([workspaceId, entity])
+}
+
+// Config de exibição de um OBJETO (nome amigável + descrição) por workspace.
+// null = usa o rótulo padrão do registry (src/lib/custom-fields/registry.ts).
+model EntityConfig {
+  id          String @id @default(cuid())
+  workspaceId String
+
+  entity      String  @db.VarChar(64)
+  label       String? @db.VarChar(120)
+  description String? @db.VarChar(400)
+
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, entity])
+  @@index([workspaceId])
 }
 
 model CustomFieldValue {

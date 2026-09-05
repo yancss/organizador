@@ -9,6 +9,7 @@ import {
   isCustomFieldEntity,
 } from '@/lib/custom-fields/registry'
 import { getNativeFieldViews } from '@/lib/custom-fields/entity-field-config'
+import { getEntityDisplay } from '@/lib/custom-fields/entity-config'
 import { validateCustomFieldValues } from '@/lib/custom-fields/field-types'
 
 type OutField = {
@@ -109,7 +110,15 @@ export async function GET(req: Request) {
   }
 
   const entityMeta = CUSTOM_FIELD_ENTITIES.find((e) => e.key === entity)!
-  return Response.json({ fields, record: recordSummary, entity: { key: entity, labels: entityMeta.labels } })
+  const display = await getEntityDisplay(wsId, entity)
+  const labels = display.configuredLabel
+    ? { pt: display.configuredLabel, es: display.configuredLabel, en: display.configuredLabel }
+    : entityMeta.labels
+  return Response.json({
+    fields,
+    record: recordSummary,
+    entity: { key: entity, labels, description: display.description },
+  })
 }
 
 const PutSchema = z.object({
