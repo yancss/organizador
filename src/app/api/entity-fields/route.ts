@@ -10,6 +10,7 @@ import {
 } from '@/lib/custom-fields/registry'
 import { getNativeFieldViews } from '@/lib/custom-fields/entity-field-config'
 import { getEntityDisplay } from '@/lib/custom-fields/entity-config'
+import { resolveEntityLabels } from '@/lib/custom-fields/entity-records'
 import { validateCustomFieldValues } from '@/lib/custom-fields/field-types'
 
 type OutField = {
@@ -23,6 +24,10 @@ type OutField = {
   helpText: string | null
   order: number
   value: unknown
+  /** type RELATION: chave do objeto alvo */
+  relationEntity: string | null
+  /** type RELATION: rótulo do registro apontado (para exibição) */
+  relationLabel: string | null
 }
 
 async function loadRecord(model: string, entityId: string, workspaceId: string) {
@@ -54,7 +59,7 @@ export async function GET(req: Request) {
     prisma.customFieldDefinition.findMany({
       where: { workspaceId: wsId, entity, active: true },
       orderBy: [{ order: 'asc' }, { createdAt: 'asc' }],
-      select: { id: true, key: true, label: true, type: true, required: true, options: true, helpText: true, order: true },
+      select: { id: true, key: true, label: true, type: true, required: true, options: true, helpText: true, order: true, relationEntity: true },
     }),
     entityId ? loadRecord(def.model, entityId, wsId) : Promise.resolve(null),
   ])
@@ -66,6 +71,21 @@ export async function GET(req: Request) {
       })
     : []
   const valueByFieldId = new Map(customValues.map((v) => [v.fieldId, v.value]))
+
+  // Rótulos dos registros apontados por campos RELATION (para exibição).
+  const relByEntity = new Map<string, string[]>()
+  for (const d of customDefs) {
+    if (d.type !== 'RELATION' || !d.relationEntity) continue
+    const v = valueByFieldId.get(d.id)
+    if (typeof v === 'string' && v) relByEntity.set(d.relationEntity, [...(relByEntity.get(d.relationEntity) ?? []), v])
+  }
+  const relLabels = new Map<string, string>()
+  await Promise.all(
+    [...relByEntity.entries()].map(async ([relEntity, ids]) => {
+      const m = await resolveEntityLabels(relEntity, ids, wsId)
+      for (const [id, label] of m) relLabels.set(`${relEntity}:${id}`, label)
+    }),
+  )
 
   const fields: OutField[] = [
     ...scalars
@@ -81,19 +101,30 @@ export async function GET(req: Request) {
         helpText: null,
         order: f.order,
         value: record ? nativeValueOut(f.kind, record[f.name]) : null,
+        relationEntity: null,
+        relationLabel: null,
       })),
-    ...customDefs.map((d) => ({
-      source: 'custom' as const,
-      key: `cf:${d.key}`,
-      label: d.label,
-      kind: d.type.toLowerCase(),
-      editable: true,
-      required: d.required,
-      options: d.options,
-      helpText: d.helpText,
-      order: d.order,
-      value: valueByFieldId.get(d.id) ?? null,
-    })),
+    ...customDefs.map((d) => {
+      const value = valueByFieldId.get(d.id) ?? null
+      const relationLabel =
+        d.type === 'RELATION' && d.relationEntity && typeof value === 'string'
+          ? relLabels.get(`${d.relationEntity}:${value}`) ?? null
+          : null
+      return {
+        source: 'custom' as const,
+        key: `cf:${d.key}`,
+        label: d.label,
+        kind: d.type.toLowerCase(),
+        editable: true,
+        required: d.required,
+        options: d.options,
+        helpText: d.helpText,
+        order: d.order,
+        value,
+        relationEntity: d.type === 'RELATION' ? d.relationEntity : null,
+        relationLabel,
+      }
+    }),
   ]
 
   // Layout: ordem unificada entre nativos e personalizados.
@@ -184,11 +215,22 @@ export async function PUT(req: Request) {
   // --- personalizados ---
   const customDefs = await prisma.customFieldDefinition.findMany({
     where: { workspaceId: wsId, entity, active: true },
-    select: { id: true, key: true, label: true, type: true, required: true, options: true },
+    select: { id: true, key: true, label: true, type: true, required: true, options: true, relationEntity: true },
   })
   const customResult = validateCustomFieldValues(customDefs, customInput)
   if (!customResult.ok) {
     for (const [k, e] of Object.entries(customResult.errors)) errors[`cf:${k}`] = e
+  }
+
+  // Campos RELATION: confirma que o registro apontado existe no workspace e no objeto certo.
+  if (customResult.ok) {
+    for (const d of customDefs) {
+      if (d.type !== 'RELATION') continue
+      const v = customResult.values[d.key]
+      if (typeof v !== 'string' || !v) continue
+      const ok = d.relationEntity && (await assertEntityRecordInWorkspace(d.relationEntity as never, v, wsId))
+      if (!ok) errors[`cf:${d.key}`] = 'INVALID_REFERENCE'
+    }
   }
 
   if (Object.keys(errors).length) return Response.json({ error: 'VALIDATION', errors }, { status: 400 })

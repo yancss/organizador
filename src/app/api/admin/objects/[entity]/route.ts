@@ -33,6 +33,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ entity: string
       helpText: true,
       options: true,
       order: true,
+      relationEntity: true,
       _count: { select: { values: true } },
     },
   })

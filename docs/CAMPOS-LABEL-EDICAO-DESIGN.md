@@ -181,3 +181,23 @@ Layout controla e que o `<EntityFieldsSection>` respeita.
     personalização).
   - Personalizados: **Editar** (formulário) e **Excluir** (agora com `window.confirm`;
     bloqueado se o campo tem valores).
+
+### Modal de campo + tipo RELATION (2026-09-05)
+
+- O formulário de criação/edição saiu do rodapé da tela. Botão **"Novo campo"** à direita
+  da busca de campos (movida para a esquerda) abre um **modal** (mesmo modal serve para
+  editar, pelo botão Editar da linha).
+- Novo tipo **`RELATION`** (migration `custom_field_relation_type`): enum `CustomFieldType`
+  += `RELATION`; `CustomFieldDefinition.relationEntity` (chave do objeto alvo no registry).
+  O valor guardado em `CustomFieldValue` é o **id** do registro apontado.
+  - Criação/edição: exige `relationEntity` válido e **diferente do próprio objeto**
+    (`RELATION_NEEDS_TARGET` / `RELATION_SELF`); trocar o alvo com valores existentes é
+    bloqueado (`RELATION_LOCKED_WITH_VALUES`).
+  - `POST/PATCH /api/admin/custom-fields`, `GET /api/admin/objects/[entity]` e
+    `/api/entity-fields` passam a carregar `relationEntity`.
+  - `/api/entity-fields` GET resolve `relationLabel` (rótulo do registro apontado) e o PUT
+    valida que o id existe no workspace e no objeto certo (`INVALID_REFERENCE`).
+  - Novo `GET /api/entity-fields/options?entity=<key>&q=` — até 100 registros (id + rótulo)
+    do objeto alvo, para o seletor. Helpers em `src/lib/custom-fields/entity-records.ts`.
+  - `<EntityFieldsSection>` renderiza o campo RELATION como `<select>` (busca as opções sob
+    demanda); leitura mostra o `relationLabel`.

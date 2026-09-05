@@ -17,6 +17,8 @@ type Field = {
   options: string[]
   helpText: string | null
   value: unknown
+  relationEntity?: string | null
+  relationLabel?: string | null
 }
 
 function copy(language: string) {
@@ -25,12 +27,44 @@ function copy(language: string) {
   return { title: 'Fields', save: 'Save fields', saved: 'Fields saved', error: 'Could not save', yes: 'Yes', no: 'No', pick: 'Select', empty: '—' }
 }
 
+function RelationSelect({
+  relationEntity,
+  value,
+  onChange,
+  pick,
+}: {
+  relationEntity: string
+  value: string
+  onChange: (v: string) => void
+  pick: string
+}) {
+  const optQ = useQuery({
+    queryKey: ['entity-field-options', relationEntity],
+    queryFn: () => api<{ options: Array<{ id: string; label: string }> }>(`/api/entity-fields/options?entity=${relationEntity}`),
+    staleTime: 60_000,
+  })
+  const options = optQ.data?.options ?? []
+  const hasCurrent = !value || options.some((o) => o.id === value)
+  return (
+    <select className="mt-1 h-10 w-full rounded-md border border-theme bg-transparent px-3 text-sm" value={value} onChange={(e) => onChange(e.target.value)}>
+      <option value="">{pick}</option>
+      {!hasCurrent ? <option value={value}>{value}</option> : null}
+      {options.map((o) => (
+        <option key={o.id} value={o.id}>
+          {o.label}
+        </option>
+      ))}
+    </select>
+  )
+}
+
 const inputCls = 'mt-1 h-10 w-full rounded-md border border-theme bg-transparent px-3 text-sm'
 const NUMERIC = new Set(['number', 'currency'])
 
 function displayValue(f: Field, c: ReturnType<typeof copy>) {
   if (f.value === null || f.value === undefined || f.value === '') return c.empty
   if (f.kind === 'boolean') return f.value ? c.yes : c.no
+  if (f.kind === 'relation') return f.relationLabel ?? String(f.value)
   return String(f.value)
 }
 
@@ -94,6 +128,13 @@ export function EntityFieldsSection({ entity, entityId }: { entity: string; enti
                   </option>
                 ))}
               </select>
+            ) : f.kind === 'relation' && f.relationEntity ? (
+              <RelationSelect
+                relationEntity={f.relationEntity}
+                value={String(form[f.key] ?? '')}
+                onChange={(v) => set(f.key, v)}
+                pick={c.pick}
+              />
             ) : (
               <input
                 className={inputCls}

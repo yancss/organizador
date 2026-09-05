@@ -1193,6 +1193,7 @@ enum CustomFieldType {
   DATE
   BOOLEAN
   SELECT
+  RELATION // aponta para um registro de outro objeto (relationEntity)
 }
 
 model CustomFieldDefinition {
@@ -1211,6 +1212,9 @@ model CustomFieldDefinition {
   helpText String?  @db.VarChar(400)
   options  String[] @default([]) // usado quando type = SELECT
   order    Int      @default(0)
+
+  // usado quando type = RELATION: chave do objeto alvo no registry (ex.: "CLIENT")
+  relationEntity String? @db.VarChar(64)
 
   createdById String?
   updatedById String?

@@ -16,6 +16,7 @@ const DEF_SELECT = {
   helpText: true,
   options: true,
   order: true,
+  relationEntity: true,
   createdAt: true,
   updatedAt: true,
   _count: { select: { values: true } },
@@ -44,11 +45,12 @@ export async function GET(req: Request) {
 const CreateSchema = z.object({
   entity: z.string().min(1),
   label: z.string().min(1).max(120),
-  type: z.enum(['STRING', 'NUMBER', 'CURRENCY', 'DATE', 'BOOLEAN', 'SELECT']),
+  type: z.enum(['STRING', 'NUMBER', 'CURRENCY', 'DATE', 'BOOLEAN', 'SELECT', 'RELATION']),
   required: z.coerce.boolean().optional(),
   helpText: z.string().max(400).optional().nullable(),
   options: z.array(z.string().min(1).max(120)).max(50).optional(),
   order: z.coerce.number().int().min(0).max(9999).optional(),
+  relationEntity: z.string().max(64).optional().nullable(),
 })
 
 export async function POST(req: Request) {
@@ -67,6 +69,16 @@ export async function POST(req: Request) {
   const options = [...new Set((parsed.data.options ?? []).map((o) => o.trim()).filter(Boolean))]
   if (parsed.data.type === 'SELECT' && options.length < 2) {
     return Response.json({ error: 'SELECT_NEEDS_OPTIONS' }, { status: 400 })
+  }
+
+  const relationEntity = parsed.data.relationEntity?.trim() || null
+  if (parsed.data.type === 'RELATION') {
+    if (!relationEntity || !isCustomFieldEntity(relationEntity)) {
+      return Response.json({ error: 'RELATION_NEEDS_TARGET' }, { status: 400 })
+    }
+    if (relationEntity === parsed.data.entity) {
+      return Response.json({ error: 'RELATION_SELF' }, { status: 400 })
+    }
   }
 
   let key = slugifyFieldKey(parsed.data.label) || 'campo'
@@ -92,6 +104,7 @@ export async function POST(req: Request) {
       required: parsed.data.required ?? false,
       helpText: parsed.data.helpText?.trim() || null,
       options: parsed.data.type === 'SELECT' ? options : [],
+      relationEntity: parsed.data.type === 'RELATION' ? relationEntity : null,
       order: parsed.data.order ?? 0,
       createdById: auth.user.id,
       updatedById: auth.user.id,

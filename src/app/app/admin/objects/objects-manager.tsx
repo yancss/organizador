@@ -1,13 +1,13 @@
 'use client'
 
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { api } from '../../api-client'
 import { useSettings } from '../../settings-context'
 import { toast } from '../../toast'
 
-type FieldType = 'STRING' | 'NUMBER' | 'CURRENCY' | 'DATE' | 'BOOLEAN' | 'SELECT'
+type FieldType = 'STRING' | 'NUMBER' | 'CURRENCY' | 'DATE' | 'BOOLEAN' | 'SELECT' | 'RELATION'
 type NativeKind = 'text' | 'number' | 'currency' | 'boolean' | 'date' | 'enum' | 'json' | 'relation'
 
 type Labels = { pt: string; es: string; en: string }
@@ -47,6 +47,7 @@ type CustomDef = {
   helpText: string | null
   options: string[]
   order: number
+  relationEntity: string | null
   _count: { values: number }
 }
 type Detail = {
@@ -100,10 +101,15 @@ function tr(language: string) {
     relFrom: 'Campo',
     relTo: 'Aponta para',
     add: 'Adicionar campo',
+    newField: 'Novo campo',
     editTitle: 'Editar campo',
     label: 'Nome do campo',
     help: 'Texto de ajuda',
     options: 'Opções (uma por linha)',
+    relatedObject: 'Objeto relacionado',
+    relatedObjectHint: 'O campo aponta para um registro deste objeto.',
+    relationNeedsTarget: 'Escolha o objeto relacionado.',
+    relationLocked: 'Campo com valores — não dá para trocar o objeto relacionado.',
     edit: 'Editar',
     save: 'Salvar',
     cancel: 'Cancelar',
@@ -118,7 +124,7 @@ function tr(language: string) {
     typeLocked: 'Campo com valores — não dá para mudar o tipo.',
     saved: 'Salvo',
     error: 'Não foi possível concluir',
-    types: { STRING: 'Texto', NUMBER: 'Número', CURRENCY: 'Moeda', DATE: 'Data', BOOLEAN: 'Sim/Não', SELECT: 'Lista' } as Record<FieldType, string>,
+    types: { STRING: 'Texto', NUMBER: 'Número', CURRENCY: 'Moeda', DATE: 'Data', BOOLEAN: 'Sim/Não', SELECT: 'Lista', RELATION: 'Relação' } as Record<FieldType, string>,
     nativeKinds: {
       text: 'Texto', number: 'Número', currency: 'Moeda', boolean: 'Sim/Não', date: 'Data/hora', enum: 'Lista fixa', json: 'JSON', relation: 'Relação',
     } as Record<NativeKind, string>,
@@ -139,7 +145,11 @@ function tr(language: string) {
     custom: 'Campos personalizados',
     system: 'sistema', required: 'Obligatorio', optional: 'Opcional', list: 'lista',
     field: 'Campo', colName: 'Nombre', type: 'Tipo', active: 'Activo',
-    add: 'Agregar campo', editTitle: 'Editar campo', label: 'Nombre del campo', help: 'Texto de ayuda', options: 'Opciones (una por línea)',
+    add: 'Agregar campo', newField: 'Nuevo campo', editTitle: 'Editar campo', label: 'Nombre del campo', help: 'Texto de ayuda', options: 'Opciones (una por línea)',
+    relatedObject: 'Objeto relacionado',
+    relatedObjectHint: 'El campo apunta a un registro de este objeto.',
+    relationNeedsTarget: 'Elige el objeto relacionado.',
+    relationLocked: 'Campo con valores — no se puede cambiar el objeto relacionado.',
     edit: 'Editar', save: 'Guardar', cancel: 'Cancelar', remove: 'Eliminar',
     actions: 'Acciones',
     deleteConfirm: '¿Eliminar este campo personalizado? Esta acción no se puede deshacer.',
@@ -150,7 +160,7 @@ function tr(language: string) {
     hasValues: 'Campo con valores — desactívalo en vez de eliminar.',
     typeLocked: 'Campo con valores — no se puede cambiar el tipo.',
     saved: 'Guardado', error: 'No se pudo completar',
-    types: { STRING: 'Texto', NUMBER: 'Número', CURRENCY: 'Moneda', DATE: 'Fecha', BOOLEAN: 'Sí/No', SELECT: 'Lista' },
+    types: { STRING: 'Texto', NUMBER: 'Número', CURRENCY: 'Moneda', DATE: 'Fecha', BOOLEAN: 'Sí/No', SELECT: 'Lista', RELATION: 'Relación' },
     nativeKinds: { text: 'Texto', number: 'Número', currency: 'Moneda', boolean: 'Sí/No', date: 'Fecha/hora', enum: 'Lista fija', json: 'JSON', relation: 'Relación' },
     tabFields: 'Campos', tabRelations: 'Relaciones', tabLayout: 'Layout',
     layoutHint: 'Qué aparece en la pantalla del usuario y en qué orden. Pronto con arrastrar y soltar.',
@@ -178,7 +188,11 @@ function tr(language: string) {
     custom: 'Custom fields',
     system: 'system', required: 'Required', optional: 'Optional', list: 'list',
     field: 'Field', colName: 'Name', type: 'Type', active: 'Active',
-    add: 'Add field', editTitle: 'Edit field', label: 'Field name', help: 'Help text', options: 'Options (one per line)',
+    add: 'Add field', newField: 'New field', editTitle: 'Edit field', label: 'Field name', help: 'Help text', options: 'Options (one per line)',
+    relatedObject: 'Related object',
+    relatedObjectHint: 'The field points to a record of this object.',
+    relationNeedsTarget: 'Choose the related object.',
+    relationLocked: 'Field has values — the related object cannot be changed.',
     edit: 'Edit', save: 'Save', cancel: 'Cancel', remove: 'Delete',
     actions: 'Actions',
     deleteConfirm: 'Delete this custom field? This cannot be undone.',
@@ -189,7 +203,7 @@ function tr(language: string) {
     hasValues: 'Field has values — deactivate instead of deleting.',
     typeLocked: 'Field has values — the type cannot be changed.',
     saved: 'Saved', error: 'Could not complete',
-    types: { STRING: 'Text', NUMBER: 'Number', CURRENCY: 'Currency', DATE: 'Date', BOOLEAN: 'Yes/No', SELECT: 'List' },
+    types: { STRING: 'Text', NUMBER: 'Number', CURRENCY: 'Currency', DATE: 'Date', BOOLEAN: 'Yes/No', SELECT: 'List', RELATION: 'Relation' },
     nativeKinds: { text: 'Text', number: 'Number', currency: 'Currency', boolean: 'Yes/No', date: 'Date/time', enum: 'Fixed list', json: 'JSON', relation: 'Relation' },
     tabFields: 'Fields', tabRelations: 'Relationships', tabLayout: 'Layout',
     layoutHint: 'What shows on the user screen and in what order. Drag & drop coming soon.',
@@ -205,7 +219,7 @@ function tr(language: string) {
 }
 
 const inputCls = 'h-10 w-full rounded-md border border-theme bg-transparent px-3 text-sm'
-const CUSTOM_TYPES: FieldType[] = ['STRING', 'NUMBER', 'CURRENCY', 'DATE', 'BOOLEAN', 'SELECT']
+const CUSTOM_TYPES: FieldType[] = ['STRING', 'NUMBER', 'CURRENCY', 'DATE', 'BOOLEAN', 'SELECT', 'RELATION']
 
 type SortState = { key: string; dir: 'asc' | 'desc' }
 
@@ -242,6 +256,8 @@ export default function ObjectsManager() {
     [listQ.data, language],
   )
   const selected = entity || objects[0]?.key || ''
+  const objNameByKey = useMemo(() => new Map(objects.map((o) => [o.key, objName(o)])), [objects, language])
+  const relationTargets = useMemo(() => objects.filter((o) => o.key !== selected), [objects, selected])
   const visibleObjects = useMemo(() => {
     const q = objectQuery.trim().toLowerCase()
     if (!q) return objects
@@ -258,8 +274,8 @@ export default function ObjectsManager() {
   const [fieldQuery, setFieldQuery] = useState('')
   const [nativeSort, setNativeSort] = useState<SortState>({ key: 'label', dir: 'asc' })
   const [customSort, setCustomSort] = useState<SortState>({ key: 'label', dir: 'asc' })
-  const formRef = useRef<HTMLDivElement>(null)
   const [editingNative, setEditingNative] = useState<string | null>(null)
+  const [modalOpen, setModalOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [fLabel, setFLabel] = useState('')
   const [fType, setFType] = useState<FieldType>('STRING')
@@ -267,6 +283,7 @@ export default function ObjectsManager() {
   const [fActive, setFActive] = useState(true)
   const [fHelp, setFHelp] = useState('')
   const [fOptions, setFOptions] = useState('')
+  const [fRelationEntity, setFRelationEntity] = useState('')
 
   function sortToggle(setter: (fn: (s: SortState) => SortState) => void) {
     return (col: string) => setter((s) => (s.key === col ? { key: col, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key: col, dir: 'asc' }))
@@ -279,7 +296,11 @@ export default function ObjectsManager() {
 
   function resetForm() {
     setEditingId(null)
-    setFLabel(''); setFType('STRING'); setFRequired(false); setFActive(true); setFHelp(''); setFOptions('')
+    setFLabel(''); setFType('STRING'); setFRequired(false); setFActive(true); setFHelp(''); setFOptions(''); setFRelationEntity('')
+  }
+  function openNew() {
+    resetForm()
+    setModalOpen(true)
   }
   function startEdit(f: CustomDef) {
     setEditingId(f.id)
@@ -289,11 +310,19 @@ export default function ObjectsManager() {
     setFActive(f.active)
     setFHelp(f.helpText ?? '')
     setFOptions(f.options.join('\n'))
-    formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    setFRelationEntity(f.relationEntity ?? '')
+    setModalOpen(true)
+  }
+  function closeModal() {
+    setModalOpen(false)
+    resetForm()
   }
 
   const optionsArr = () => fOptions.split('\n').map((s) => s.trim()).filter(Boolean)
-  const formInvalid = !fLabel.trim() || (fType === 'SELECT' && optionsArr().length < 2)
+  const formInvalid =
+    !fLabel.trim() ||
+    (fType === 'SELECT' && optionsArr().length < 2) ||
+    (fType === 'RELATION' && !fRelationEntity)
 
   const saveM = useMutation({
     mutationFn: () => {
@@ -303,6 +332,7 @@ export default function ObjectsManager() {
         required: fRequired,
         helpText: fHelp.trim() || null,
         options: fType === 'SELECT' ? optionsArr() : [],
+        relationEntity: fType === 'RELATION' ? fRelationEntity : null,
       }
       return editingId
         ? api(`/api/admin/custom-fields/${editingId}`, { method: 'PATCH', body: JSON.stringify({ ...payload, active: fActive }) })
@@ -310,10 +340,21 @@ export default function ObjectsManager() {
     },
     onSuccess: () => {
       toast.success(c.saved)
-      resetForm()
+      closeModal()
       invalidate()
     },
-    onError: (e: any) => toast.error(String(e?.message ?? '').includes('TYPE_LOCKED_WITH_VALUES') ? c.typeLocked : c.error),
+    onError: (e: any) => {
+      const m = String(e?.message ?? '')
+      toast.error(
+        m.includes('TYPE_LOCKED_WITH_VALUES')
+          ? c.typeLocked
+          : m.includes('RELATION_LOCKED_WITH_VALUES')
+            ? c.relationLocked
+            : m.includes('RELATION_NEEDS_TARGET') || m.includes('RELATION_SELF')
+              ? c.relationNeedsTarget
+              : c.error,
+      )
+    },
   })
   const patchM = useMutation({
     mutationFn: ({ id, data }: { id: string; data: Partial<CustomDef> }) => api(`/api/admin/custom-fields/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
@@ -503,13 +544,16 @@ export default function ObjectsManager() {
                 </div>
               </section>
 
-              <div className="flex justify-end">
+              <div className="flex items-center gap-2">
                 <input
                   className="h-9 w-full max-w-xs rounded-lg border border-theme bg-transparent px-3 text-sm"
                   placeholder={c.searchFields}
                   value={fieldQuery}
                   onChange={(e) => setFieldQuery(e.target.value)}
                 />
+                <button type="button" className="btn btn-primary btn-sm ml-auto whitespace-nowrap" onClick={openNew}>
+                  + {c.newField}
+                </button>
               </div>
 
               <section className="surface rounded-2xl border border-theme p-4">
@@ -639,7 +683,12 @@ export default function ObjectsManager() {
                               <code>{f.key}</code>
                               {f._count.values ? <span className="text-xs"> · {c.inUse(f._count.values)}</span> : null}
                             </td>
-                            <td className="px-2 py-1.5 text-[var(--text-muted)]">{c.types[f.type]}</td>
+                            <td className="px-2 py-1.5 text-[var(--text-muted)]">
+                              {c.types[f.type]}
+                              {f.type === 'RELATION' && f.relationEntity ? (
+                                <span className="text-xs"> → {objNameByKey.get(f.relationEntity) ?? f.relationEntity}</span>
+                              ) : null}
+                            </td>
                             <td className="px-2 py-1.5">
                               <div className="flex justify-end gap-1">
                                 <button className="btn btn-secondary btn-sm" onClick={() => startEdit(f)}>
@@ -663,62 +712,6 @@ export default function ObjectsManager() {
                       )}
                     </tbody>
                   </table>
-                </div>
-
-                <div ref={formRef} className="mt-4 rounded-xl border border-theme p-3">
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm font-semibold">{editingId ? c.editTitle : c.add}</div>
-                    {editingId ? (
-                      <button className="btn btn-secondary btn-sm" onClick={resetForm}>
-                        {c.cancel}
-                      </button>
-                    ) : null}
-                  </div>
-                  <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                    <label className="text-xs font-medium">
-                      {c.label}
-                      <input className={`${inputCls} mt-1`} value={fLabel} onChange={(e) => setFLabel(e.target.value)} />
-                    </label>
-                    <label className="text-xs font-medium">
-                      {c.type}
-                      <select className={`${inputCls} mt-1`} value={fType} onChange={(e) => setFType(e.target.value as FieldType)}>
-                        {CUSTOM_TYPES.map((tp) => (
-                          <option key={tp} value={tp}>
-                            {c.types[tp]}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="flex items-center gap-2 text-xs font-medium">
-                      <input type="checkbox" checked={fRequired} onChange={(e) => setFRequired(e.target.checked)} />
-                      {c.required}
-                    </label>
-                    {editingId ? (
-                      <label className="flex items-center gap-2 text-xs font-medium">
-                        <input type="checkbox" checked={fActive} onChange={(e) => setFActive(e.target.checked)} />
-                        {c.active}
-                      </label>
-                    ) : (
-                      <span />
-                    )}
-                    <label className="text-xs font-medium sm:col-span-2">
-                      {c.help}
-                      <input className={`${inputCls} mt-1`} value={fHelp} onChange={(e) => setFHelp(e.target.value)} />
-                    </label>
-                    {fType === 'SELECT' ? (
-                      <label className="text-xs font-medium sm:col-span-2">
-                        {c.options}
-                        <textarea className="mt-1 w-full rounded-md border border-theme bg-transparent px-3 py-2 text-sm" rows={3} value={fOptions} onChange={(e) => setFOptions(e.target.value)} />
-                      </label>
-                    ) : null}
-                  </div>
-                  <button
-                    className="btn btn-primary btn-sm mt-3"
-                    disabled={saveM.isPending || formInvalid}
-                    onClick={() => saveM.mutate()}
-                  >
-                    {editingId ? c.save : c.add}
-                  </button>
                 </div>
               </section>
               </>
@@ -810,6 +803,94 @@ export default function ObjectsManager() {
           )}
         </div>
       </div>
+
+      {modalOpen ? (
+        <div className="fixed inset-0 z-50">
+          <div className="absolute inset-0 bg-black/40" onClick={closeModal} />
+          <div className="surface modal-safe absolute bottom-0 left-0 right-0 mx-auto w-full max-w-xl rounded-t-2xl border border-theme p-5 shadow-xl sm:bottom-auto sm:top-20 sm:rounded-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <h2 className="text-lg font-semibold">
+                {editingId ? c.editTitle : c.newField}
+                <span className="ml-2 text-sm font-normal text-[var(--text-muted)]">{objNameByKey.get(selected) ?? selected}</span>
+              </h2>
+              <button className="btn btn-secondary btn-sm" onClick={closeModal}>
+                {c.cancel}
+              </button>
+            </div>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <label className="text-xs font-medium">
+                {c.label}
+                <input className={`${inputCls} mt-1`} value={fLabel} onChange={(e) => setFLabel(e.target.value)} autoFocus />
+              </label>
+              <label className="text-xs font-medium">
+                {c.type}
+                <select className={`${inputCls} mt-1`} value={fType} onChange={(e) => setFType(e.target.value as FieldType)}>
+                  {CUSTOM_TYPES.map((tp) => (
+                    <option key={tp} value={tp}>
+                      {c.types[tp]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              {fType === 'RELATION' ? (
+                <label className="text-xs font-medium sm:col-span-2">
+                  {c.relatedObject}
+                  <select className={`${inputCls} mt-1`} value={fRelationEntity} onChange={(e) => setFRelationEntity(e.target.value)}>
+                    <option value="">—</option>
+                    {relationTargets.map((o) => (
+                      <option key={o.key} value={o.key}>
+                        {objName(o)}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="mt-0.5 block font-normal text-[var(--text-muted)]">{c.relatedObjectHint}</span>
+                </label>
+              ) : null}
+
+              <label className="flex items-center gap-2 text-xs font-medium">
+                <input type="checkbox" checked={fRequired} onChange={(e) => setFRequired(e.target.checked)} />
+                {c.required}
+              </label>
+              {editingId ? (
+                <label className="flex items-center gap-2 text-xs font-medium">
+                  <input type="checkbox" checked={fActive} onChange={(e) => setFActive(e.target.checked)} />
+                  {c.active}
+                </label>
+              ) : (
+                <span />
+              )}
+
+              <label className="text-xs font-medium sm:col-span-2">
+                {c.help}
+                <input className={`${inputCls} mt-1`} value={fHelp} onChange={(e) => setFHelp(e.target.value)} />
+              </label>
+
+              {fType === 'SELECT' ? (
+                <label className="text-xs font-medium sm:col-span-2">
+                  {c.options}
+                  <textarea
+                    className="mt-1 w-full rounded-md border border-theme bg-transparent px-3 py-2 text-sm"
+                    rows={3}
+                    value={fOptions}
+                    onChange={(e) => setFOptions(e.target.value)}
+                  />
+                </label>
+              ) : null}
+            </div>
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button className="btn btn-secondary btn-sm" onClick={closeModal}>
+                {c.cancel}
+              </button>
+              <button className="btn btn-primary btn-sm" disabled={saveM.isPending || formInvalid} onClick={() => saveM.mutate()}>
+                {editingId ? c.save : c.add}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

@@ -1,6 +1,6 @@
 import type { CustomFieldType } from '@prisma/client'
 
-export const CUSTOM_FIELD_TYPES: CustomFieldType[] = ['STRING', 'NUMBER', 'CURRENCY', 'DATE', 'BOOLEAN', 'SELECT']
+export const CUSTOM_FIELD_TYPES: CustomFieldType[] = ['STRING', 'NUMBER', 'CURRENCY', 'DATE', 'BOOLEAN', 'SELECT', 'RELATION']
 
 export type CustomFieldDefLite = {
   key: string
@@ -48,6 +48,13 @@ export function coerceCustomFieldValue(type: CustomFieldType, raw: unknown, opti
     case 'SELECT': {
       const s = String(raw)
       if (!options.includes(s)) return { ok: false, error: 'NOT_AN_OPTION' }
+      return { ok: true, value: s }
+    }
+    case 'RELATION': {
+      // Guarda o id do registro alvo. A existência (workspace + objeto) é checada na rota.
+      const s = String(raw).trim()
+      if (!s) return { ok: true, value: null }
+      if (s.length > 200) return { ok: false, error: 'INVALID_REFERENCE' }
       return { ok: true, value: s }
     }
     default:

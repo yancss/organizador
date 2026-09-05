@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 import { prisma } from '@/lib/prisma'
 import { requireAdmin } from '@/lib/authz'
+import { isCustomFieldEntity } from '@/lib/custom-fields/registry'
 
 const DEF_SELECT = {
   id: true,
@@ -14,6 +15,7 @@ const DEF_SELECT = {
   helpText: true,
   options: true,
   order: true,
+  relationEntity: true,
   createdAt: true,
   updatedAt: true,
   _count: { select: { values: true } },
@@ -26,7 +28,8 @@ const PatchSchema = z.object({
   helpText: z.string().max(400).optional().nullable(),
   options: z.array(z.string().min(1).max(120)).max(50).optional(),
   order: z.coerce.number().int().min(0).max(9999).optional(),
-  type: z.enum(['STRING', 'NUMBER', 'CURRENCY', 'DATE', 'BOOLEAN', 'SELECT']).optional(),
+  type: z.enum(['STRING', 'NUMBER', 'CURRENCY', 'DATE', 'BOOLEAN', 'SELECT', 'RELATION']).optional(),
+  relationEntity: z.string().max(64).optional().nullable(),
 })
 
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -44,7 +47,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
 
   const def = await prisma.customFieldDefinition.findFirst({
     where: { id, workspaceId: wsId },
-    select: { id: true, type: true, _count: { select: { values: true } } },
+    select: { id: true, entity: true, type: true, relationEntity: true, _count: { select: { values: true } } },
   })
   if (!def) return Response.json({ error: 'NOT_FOUND' }, { status: 404 })
 
@@ -61,6 +64,21 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     return Response.json({ error: 'SELECT_NEEDS_OPTIONS' }, { status: 400 })
   }
 
+  const relationEntity =
+    parsed.data.relationEntity === undefined ? undefined : parsed.data.relationEntity?.trim() || null
+  const nextRelationEntity = relationEntity === undefined ? def.relationEntity : relationEntity
+  if (nextType === 'RELATION') {
+    if (!nextRelationEntity || !isCustomFieldEntity(nextRelationEntity)) {
+      return Response.json({ error: 'RELATION_NEEDS_TARGET' }, { status: 400 })
+    }
+    if (nextRelationEntity === def.entity) {
+      return Response.json({ error: 'RELATION_SELF' }, { status: 400 })
+    }
+    if (hasValues && nextRelationEntity !== def.relationEntity) {
+      return Response.json({ error: 'RELATION_LOCKED_WITH_VALUES' }, { status: 409 })
+    }
+  }
+
   const updated = await prisma.customFieldDefinition.update({
     where: { id },
     data: {
@@ -71,6 +89,11 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       ...(options !== undefined ? { options } : {}),
       ...(parsed.data.order !== undefined ? { order: parsed.data.order } : {}),
       ...(parsed.data.type !== undefined && !hasValues ? { type: parsed.data.type } : {}),
+      ...(nextType === 'RELATION'
+        ? { relationEntity: nextRelationEntity }
+        : parsed.data.type !== undefined && !hasValues
+          ? { relationEntity: null }
+          : {}),
       updatedById: auth.user.id,
     },
     select: DEF_SELECT,
