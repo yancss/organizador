@@ -155,3 +155,23 @@ Layout controla e que o `<EntityFieldsSection>` respeita.
   - Edição num formulário completo (o de "Adicionar campo" vira Editar): rótulo, tipo,
     obrigatório, ativo, ajuda e opções. A coluna Tipo dos nativos não mostra mais os
     valores do enum entre parênteses.
+
+### Busca + ordenação + Layout como controle único (2026-09-05)
+
+- **Campo `order`**: é a posição do campo na tela do usuário (`/api/entity-fields`
+  mescla nativos + personalizados e ordena por ele). Deixou de ser editável na grade de
+  Campos — passa a ser gerido só na aba **Layout**.
+- Aba **Campos**:
+  - Busca por objeto acima da lista lateral; busca por campo acima das tabelas (filtra
+    nativos + personalizados por nome técnico e rótulo).
+  - Tabelas em **ordem alfabética por padrão** (pelo rótulo), com **cabeçalhos
+    clicáveis** para ordenar por qualquer coluna (▲▼).
+  - Saíram as colunas **Visível** e **Editável** dos nativos — essas permissões passam a
+    ser por perfil (mais adiante). Enquanto isso, nativos entram como **somente leitura**
+    na tela do usuário; personalizados continuam editáveis.
+- Aba **Layout** vira o **controle único** de exibição:
+  - "Na tela do usuário": lista ordenável (▲▼) + `✕` para tirar da tela.
+  - "Campos disponíveis": chips `+ <campo>` para adicionar (nativo → `visible=true`,
+    personalizado → `active=true`; ordem = fim da lista).
+  - Esconder um personalizado da tela = desativá-lo (`active=false`); ele continua no
+    catálogo da aba Campos para reativar/editar.

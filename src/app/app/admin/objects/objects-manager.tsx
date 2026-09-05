@@ -66,8 +66,10 @@ function tr(language: string) {
     objectHint: 'Nome e descrição mostrados aos usuários nas telas de processo.',
     objectName: 'Nome de exibição',
     objectDesc: 'Descrição',
+    searchObjects: 'Buscar objeto…',
+    searchFields: 'Buscar campo…',
     native: 'Campos nativos',
-    nativeHint: 'Definidos pela aplicação. Ative "Visível" para mostrar na tela do usuário; ajuste o rótulo e libere a edição (onde possível).',
+    nativeHint: 'Definidos pela aplicação. Ajuste o rótulo mostrado ao usuário; o que aparece na tela e em que ordem é definido na aba Layout.',
     relations: 'Relacionamentos',
     custom: 'Campos personalizados',
     system: 'sistema',
@@ -77,18 +79,20 @@ function tr(language: string) {
     field: 'Campo',
     colName: 'Nome',
     type: 'Tipo',
-    order: 'Ordem',
     active: 'Ativo',
     rotulo: 'Rótulo (tela do usuário)',
-    visivel: 'Visível',
-    editavel: 'Editável',
-    notEligible: 'Este campo não pode ser editado pelo usuário.',
     labelPlaceholder: 'Padrão',
     tabFields: 'Campos',
     tabRelations: 'Relações',
     tabLayout: 'Layout',
-    layoutHint: 'Ordem dos campos na tela do usuário. Em breve com arrastar e soltar.',
-    layoutEmpty: 'Nenhum campo visível. Ative "Visível" nos campos ou crie campos personalizados.',
+    layoutHint: 'O que aparece na tela do usuário e em que ordem. Em breve com arrastar e soltar.',
+    layoutShown: 'Na tela do usuário',
+    layoutAvailable: 'Campos disponíveis',
+    layoutAvailableHint: 'Adicione para mostrar na tela do usuário.',
+    layoutEmpty: 'Nenhum campo na tela. Adicione da lista abaixo.',
+    availableEmpty: 'Todos os campos já estão na tela.',
+    addToLayout: 'Adicionar',
+    removeFromLayout: 'Remover',
     moveUp: 'Subir',
     moveDown: 'Descer',
     sourceNative: 'nativo',
@@ -105,6 +109,7 @@ function tr(language: string) {
     cancel: 'Cancelar',
     remove: 'Excluir',
     none: 'Nenhum campo personalizado neste objeto.',
+    noFieldMatch: 'Nenhum campo corresponde à busca.',
     inUse: (n: number) => `${n} valor(es)`,
     hasValues: 'Campo com valores — desative em vez de excluir.',
     typeLocked: 'Campo com valores — não dá para mudar o tipo.',
@@ -123,23 +128,32 @@ function tr(language: string) {
     objectHint: 'Nombre y descripción que ven los usuarios en las pantallas de proceso.',
     objectName: 'Nombre visible',
     objectDesc: 'Descripción',
+    searchObjects: 'Buscar objeto…',
+    searchFields: 'Buscar campo…',
     native: 'Campos nativos',
-    nativeHint: 'Definidos por la aplicación. Activa "Visible" para mostrarlo; ajusta el rótulo y libera la edición (donde sea posible).',
+    nativeHint: 'Definidos por la aplicación. Ajusta el rótulo visible; qué aparece y en qué orden se define en la pestaña Layout.',
     relations: 'Relaciones',
     custom: 'Campos personalizados',
     system: 'sistema', required: 'Obligatorio', optional: 'Opcional', list: 'lista',
-    field: 'Campo', colName: 'Nombre', type: 'Tipo', order: 'Orden', active: 'Activo',
+    field: 'Campo', colName: 'Nombre', type: 'Tipo', active: 'Activo',
     add: 'Agregar campo', editTitle: 'Editar campo', label: 'Nombre del campo', help: 'Texto de ayuda', options: 'Opciones (una por línea)',
     edit: 'Editar', save: 'Guardar', cancel: 'Cancelar', remove: 'Eliminar',
-    none: 'No hay campos personalizados en este objeto.', inUse: (n: number) => `${n} valor(es)`,
+    none: 'No hay campos personalizados en este objeto.',
+    noFieldMatch: 'Ningún campo coincide con la búsqueda.',
+    inUse: (n: number) => `${n} valor(es)`,
     hasValues: 'Campo con valores — desactívalo en vez de eliminar.',
     typeLocked: 'Campo con valores — no se puede cambiar el tipo.',
     saved: 'Guardado', error: 'No se pudo completar',
     types: { STRING: 'Texto', NUMBER: 'Número', CURRENCY: 'Moneda', DATE: 'Fecha', BOOLEAN: 'Sí/No', SELECT: 'Lista' },
     nativeKinds: { text: 'Texto', number: 'Número', currency: 'Moneda', boolean: 'Sí/No', date: 'Fecha/hora', enum: 'Lista fija', json: 'JSON', relation: 'Relación' },
     tabFields: 'Campos', tabRelations: 'Relaciones', tabLayout: 'Layout',
-    layoutHint: 'Orden de los campos en la pantalla del usuario. Pronto con arrastrar y soltar.',
-    layoutEmpty: 'Ningún campo visible. Activa "Visible" o crea campos personalizados.',
+    layoutHint: 'Qué aparece en la pantalla del usuario y en qué orden. Pronto con arrastrar y soltar.',
+    layoutShown: 'En la pantalla del usuario',
+    layoutAvailable: 'Campos disponibles',
+    layoutAvailableHint: 'Agrégalos para mostrarlos en la pantalla del usuario.',
+    layoutEmpty: 'Ningún campo en la pantalla. Agrégalo de la lista de abajo.',
+    availableEmpty: 'Todos los campos ya están en la pantalla.',
+    addToLayout: 'Agregar', removeFromLayout: 'Quitar',
     sourceNative: 'nativo', sourceCustom: 'personalizado', relFrom: 'Campo', relTo: 'Apunta a', moveUp: 'Subir', moveDown: 'Bajar',
   }
   const en: typeof pt = {
@@ -150,23 +164,32 @@ function tr(language: string) {
     objectHint: 'Name and description shown to users on process screens.',
     objectName: 'Display name',
     objectDesc: 'Description',
+    searchObjects: 'Search object…',
+    searchFields: 'Search field…',
     native: 'Native fields',
-    nativeHint: 'Defined by the application. Turn on "Visible" to show it; adjust the label and allow editing (where possible).',
+    nativeHint: 'Defined by the application. Adjust the label users see; what shows and in what order is set on the Layout tab.',
     relations: 'Relationships',
     custom: 'Custom fields',
     system: 'system', required: 'Required', optional: 'Optional', list: 'list',
-    field: 'Field', colName: 'Name', type: 'Type', order: 'Order', active: 'Active',
+    field: 'Field', colName: 'Name', type: 'Type', active: 'Active',
     add: 'Add field', editTitle: 'Edit field', label: 'Field name', help: 'Help text', options: 'Options (one per line)',
     edit: 'Edit', save: 'Save', cancel: 'Cancel', remove: 'Delete',
-    none: 'No custom fields on this object.', inUse: (n: number) => `${n} value(s)`,
+    none: 'No custom fields on this object.',
+    noFieldMatch: 'No field matches the search.',
+    inUse: (n: number) => `${n} value(s)`,
     hasValues: 'Field has values — deactivate instead of deleting.',
     typeLocked: 'Field has values — the type cannot be changed.',
     saved: 'Saved', error: 'Could not complete',
     types: { STRING: 'Text', NUMBER: 'Number', CURRENCY: 'Currency', DATE: 'Date', BOOLEAN: 'Yes/No', SELECT: 'List' },
     nativeKinds: { text: 'Text', number: 'Number', currency: 'Currency', boolean: 'Yes/No', date: 'Date/time', enum: 'Fixed list', json: 'JSON', relation: 'Relation' },
     tabFields: 'Fields', tabRelations: 'Relationships', tabLayout: 'Layout',
-    layoutHint: 'Field order on the user screen. Drag & drop coming soon.',
-    layoutEmpty: 'No visible fields. Turn on "Visible" or create custom fields.',
+    layoutHint: 'What shows on the user screen and in what order. Drag & drop coming soon.',
+    layoutShown: 'On the user screen',
+    layoutAvailable: 'Available fields',
+    layoutAvailableHint: 'Add them to show on the user screen.',
+    layoutEmpty: 'No fields on the screen. Add one from the list below.',
+    availableEmpty: 'Every field is already on the screen.',
+    addToLayout: 'Add', removeFromLayout: 'Remove',
     sourceNative: 'native', sourceCustom: 'custom', relFrom: 'Field', relTo: 'Points to', moveUp: 'Move up', moveDown: 'Move down',
   }
   return language === 'pt' ? pt : language === 'es' ? es : en
@@ -174,6 +197,25 @@ function tr(language: string) {
 
 const inputCls = 'h-10 w-full rounded-md border border-theme bg-transparent px-3 text-sm'
 const CUSTOM_TYPES: FieldType[] = ['STRING', 'NUMBER', 'CURRENCY', 'DATE', 'BOOLEAN', 'SELECT']
+
+type SortState = { key: string; dir: 'asc' | 'desc' }
+
+function cmpVals(a: string | number, b: string | number) {
+  if (typeof a === 'number' && typeof b === 'number') return a - b
+  return String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' })
+}
+
+function SortTh({ label, col, sort, onSort, className }: { label: string; col: string; sort: SortState; onSort: (c: string) => void; className?: string }) {
+  const active = sort.key === col
+  return (
+    <th className={`px-2 py-1.5 ${className ?? ''}`}>
+      <button type="button" className="inline-flex items-center gap-1 uppercase hover:text-[var(--foreground)]" onClick={() => onSort(col)}>
+        {label}
+        <span className="text-[10px] opacity-60">{active ? (sort.dir === 'asc' ? '▲' : '▼') : '↕'}</span>
+      </button>
+    </th>
+  )
+}
 
 export default function ObjectsManager() {
   const { language } = useSettings()
@@ -184,12 +226,18 @@ export default function ObjectsManager() {
 
   const listQ = useQuery({ queryKey: ['admin-objects'], queryFn: () => api<{ objects: ObjectRow[] }>('/api/admin/objects'), retry: false })
   const [entity, setEntity] = useState<string>('')
+  const [objectQuery, setObjectQuery] = useState('')
 
   const objects = useMemo(
     () => [...(listQ.data?.objects ?? [])].sort((a, b) => objName(a).localeCompare(objName(b), language)),
     [listQ.data, language],
   )
   const selected = entity || objects[0]?.key || ''
+  const visibleObjects = useMemo(() => {
+    const q = objectQuery.trim().toLowerCase()
+    if (!q) return objects
+    return objects.filter((o) => objName(o).toLowerCase().includes(q) || o.key.toLowerCase().includes(q))
+  }, [objects, objectQuery, language])
 
   const detailQ = useQuery({
     queryKey: ['admin-object', selected],
@@ -198,6 +246,9 @@ export default function ObjectsManager() {
   })
 
   const [tab, setTab] = useState<'fields' | 'relations' | 'layout'>('fields')
+  const [fieldQuery, setFieldQuery] = useState('')
+  const [nativeSort, setNativeSort] = useState<SortState>({ key: 'label', dir: 'asc' })
+  const [customSort, setCustomSort] = useState<SortState>({ key: 'label', dir: 'asc' })
   const formRef = useRef<HTMLDivElement>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [fLabel, setFLabel] = useState('')
@@ -206,6 +257,10 @@ export default function ObjectsManager() {
   const [fActive, setFActive] = useState(true)
   const [fHelp, setFHelp] = useState('')
   const [fOptions, setFOptions] = useState('')
+
+  function sortToggle(setter: (fn: (s: SortState) => SortState) => void) {
+    return (col: string) => setter((s) => (s.key === col ? { key: col, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key: col, dir: 'asc' }))
+  }
 
   const invalidate = () => {
     void qc.invalidateQueries({ queryKey: ['admin-object', selected] })
@@ -259,7 +314,7 @@ export default function ObjectsManager() {
     mutationFn: ({ fieldName, data }: { fieldName: string; data: Record<string, unknown> }) =>
       api(`/api/admin/objects/${selected}/fields/${fieldName}`, { method: 'PATCH', body: JSON.stringify(data) }),
     onSuccess: invalidate,
-    onError: (e: any) => toast.error(String(e?.message ?? '').includes('FIELD_NOT_EDITABLE') ? c.notEligible : c.error),
+    onError: () => toast.error(c.error),
   })
   const entityCfgM = useMutation({
     mutationFn: (data: { label?: string | null; description?: string | null }) =>
@@ -281,7 +336,30 @@ export default function ObjectsManager() {
 
   const d = detailQ.data
 
-  // Layout: lista unificada dos campos visíveis, ordenada.
+  const fieldMatch = (q: string, ...parts: string[]) => {
+    const s = q.trim().toLowerCase()
+    return !s || parts.some((p) => p.toLowerCase().includes(s))
+  }
+
+  const nativeRows = useMemo(() => {
+    if (!d) return []
+    const val = (f: NativeField): string | number =>
+      nativeSort.key === 'name' ? f.name : nativeSort.key === 'type' ? c.nativeKinds[f.kind] : f.label.toLowerCase()
+    return d.native.scalars
+      .filter((f) => fieldMatch(fieldQuery, f.name, f.label, f.defaultLabel))
+      .sort((a, b) => (nativeSort.dir === 'asc' ? 1 : -1) * cmpVals(val(a), val(b)))
+  }, [d, fieldQuery, nativeSort, c])
+
+  const customRows = useMemo(() => {
+    if (!d) return []
+    const val = (f: CustomDef): string | number =>
+      customSort.key === 'key' ? f.key : customSort.key === 'type' ? c.types[f.type] : f.label.toLowerCase()
+    return d.custom
+      .filter((f) => fieldMatch(fieldQuery, f.key, f.label))
+      .sort((a, b) => (customSort.dir === 'asc' ? 1 : -1) * cmpVals(val(a), val(b)))
+  }, [d, fieldQuery, customSort, c])
+
+  // Layout: campos que aparecem na tela do usuário (ordenados) + os disponíveis para adicionar.
   type LayoutItem = { source: 'native' | 'custom'; id: string; label: string; order: number }
   const layoutItems: LayoutItem[] = useMemo(() => {
     if (!d) return []
@@ -292,12 +370,27 @@ export default function ObjectsManager() {
     return items.sort((a, b) => a.order - b.order || a.label.localeCompare(b.label))
   }, [d])
 
+  const availableItems: LayoutItem[] = useMemo(() => {
+    if (!d) return []
+    const items: LayoutItem[] = [
+      ...d.native.scalars
+        .filter((f) => !f.visible && !f.system)
+        .map((f) => ({ source: 'native' as const, id: f.name, label: f.label, order: f.order })),
+      ...d.custom.filter((f) => !f.active).map((f) => ({ source: 'custom' as const, id: f.id, label: f.label, order: f.order })),
+    ]
+    return items.sort((a, b) => a.label.localeCompare(b.label))
+  }, [d])
+
+  function setShownOnScreen(it: LayoutItem, shown: boolean, order?: number) {
+    if (it.source === 'native') nativeCfgM.mutate({ fieldName: it.id, data: { visible: shown, ...(order != null ? { order } : {}) } })
+    else patchM.mutate({ id: it.id, data: { active: shown, ...(order != null ? { order } : {}) } })
+  }
+
   function moveLayout(index: number, dir: -1 | 1) {
     const next = [...layoutItems]
     const j = index + dir
     if (j < 0 || j >= next.length) return
     ;[next[index], next[j]] = [next[j], next[index]]
-    // Renumera 0..n-1 e persiste só o que mudou.
     next.forEach((it, i) => {
       if (it.order === i) return
       if (it.source === 'native') nativeCfgM.mutate({ fieldName: it.id, data: { order: i } })
@@ -314,13 +407,20 @@ export default function ObjectsManager() {
 
       <div className="grid gap-4 lg:grid-cols-[260px_minmax(0,1fr)]">
         <aside className="surface rounded-2xl border border-theme p-2">
-          {objects.map((o) => (
+          <input
+            className="mb-2 h-9 w-full rounded-lg border border-theme bg-transparent px-3 text-sm"
+            placeholder={c.searchObjects}
+            value={objectQuery}
+            onChange={(e) => setObjectQuery(e.target.value)}
+          />
+          {visibleObjects.map((o) => (
             <button
               key={o.key}
               type="button"
               onClick={() => {
                 setEntity(o.key)
                 resetForm()
+                setFieldQuery('')
               }}
               className={`flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-left text-sm ${selected === o.key ? 'bg-[var(--surface-3)] font-medium' : 'hover:bg-[var(--surface-2)]'}`}
             >
@@ -331,6 +431,7 @@ export default function ObjectsManager() {
               </span>
             </button>
           ))}
+          {visibleObjects.length === 0 ? <div className="px-2 py-3 text-xs text-[var(--text-muted)]">{c.noFieldMatch}</div> : null}
         </aside>
 
         <div className="space-y-4">
@@ -392,26 +493,32 @@ export default function ObjectsManager() {
                 </div>
               </section>
 
+              <div className="flex justify-end">
+                <input
+                  className="h-9 w-full max-w-xs rounded-lg border border-theme bg-transparent px-3 text-sm"
+                  placeholder={c.searchFields}
+                  value={fieldQuery}
+                  onChange={(e) => setFieldQuery(e.target.value)}
+                />
+              </div>
+
               <section className="surface rounded-2xl border border-theme p-4">
                 <div className="flex items-center justify-between">
                   <h2 className="text-sm font-semibold">{c.native}</h2>
-                  <span className="text-xs text-[var(--text-muted)]">{d.native.scalars.length}</span>
+                  <span className="text-xs text-[var(--text-muted)]">{nativeRows.length}/{d.native.scalars.length}</span>
                 </div>
                 <p className="mt-1 text-xs text-[var(--text-muted)]">{c.nativeHint}</p>
                 <div className="mt-3 overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="border-b border-theme text-left text-xs uppercase tracking-wide text-[var(--text-muted)]">
-                        <th className="px-2 py-1.5">{c.field}</th>
-                        <th className="px-2 py-1.5">{c.rotulo}</th>
-                        <th className="px-2 py-1.5">{c.type}</th>
-                        <th className="px-2 py-1.5">{c.visivel}</th>
-                        <th className="px-2 py-1.5">{c.editavel}</th>
-                        <th className="px-2 py-1.5">{c.order}</th>
+                      <tr className="border-b border-theme text-left text-xs tracking-wide text-[var(--text-muted)]">
+                        <SortTh label={c.field} col="name" sort={nativeSort} onSort={sortToggle(setNativeSort)} />
+                        <SortTh label={c.rotulo} col="label" sort={nativeSort} onSort={sortToggle(setNativeSort)} />
+                        <SortTh label={c.type} col="type" sort={nativeSort} onSort={sortToggle(setNativeSort)} />
                       </tr>
                     </thead>
                     <tbody>
-                      {d.native.scalars.map((f) => (
+                      {nativeRows.map((f) => (
                         <tr key={f.name} className="border-b border-theme/50">
                           <td className={`px-2 py-1.5 ${f.system ? 'text-[var(--text-muted)]' : ''}`}>
                             <code>{f.name}</code>
@@ -420,7 +527,7 @@ export default function ObjectsManager() {
                           </td>
                           <td className="px-2 py-1.5">
                             <input
-                              className="h-8 w-40 rounded border border-theme bg-transparent px-2 text-sm"
+                              className="h-8 w-44 rounded border border-theme bg-transparent px-2 text-sm"
                               defaultValue={f.configuredLabel ?? ''}
                               placeholder={f.defaultLabel}
                               onBlur={(e) => {
@@ -430,31 +537,11 @@ export default function ObjectsManager() {
                             />
                           </td>
                           <td className="px-2 py-1.5 text-[var(--text-muted)]">{c.nativeKinds[f.kind]}</td>
-                          <td className="px-2 py-1.5">
-                            <input type="checkbox" checked={f.visible} onChange={(e) => nativeCfgM.mutate({ fieldName: f.name, data: { visible: e.target.checked } })} />
-                          </td>
-                          <td className="px-2 py-1.5">
-                            <input
-                              type="checkbox"
-                              checked={f.editable}
-                              disabled={!f.editableEligible}
-                              title={!f.editableEligible ? c.notEligible : undefined}
-                              onChange={(e) => nativeCfgM.mutate({ fieldName: f.name, data: { editable: e.target.checked } })}
-                            />
-                          </td>
-                          <td className="px-2 py-1.5">
-                            <input
-                              className="h-8 w-14 rounded border border-theme bg-transparent px-2 text-sm"
-                              type="number"
-                              defaultValue={f.order}
-                              onBlur={(e) => {
-                                const v = Number(e.target.value)
-                                if (Number.isFinite(v) && v !== f.order) nativeCfgM.mutate({ fieldName: f.name, data: { order: v } })
-                              }}
-                            />
-                          </td>
                         </tr>
                       ))}
+                      {nativeRows.length === 0 ? (
+                        <tr><td colSpan={3} className="px-2 py-4 text-center text-[var(--text-muted)]">{c.noFieldMatch}</td></tr>
+                      ) : null}
                     </tbody>
                   </table>
                 </div>
@@ -469,10 +556,10 @@ export default function ObjectsManager() {
                 <div className="mt-3 overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="border-b border-theme text-left text-xs uppercase tracking-wide text-[var(--text-muted)]">
-                        <th className="px-2 py-1.5">{c.rotulo}</th>
-                        <th className="px-2 py-1.5">{c.colName}</th>
-                        <th className="px-2 py-1.5">{c.type}</th>
+                      <tr className="border-b border-theme text-left text-xs tracking-wide text-[var(--text-muted)]">
+                        <SortTh label={c.rotulo} col="label" sort={customSort} onSort={sortToggle(setCustomSort)} />
+                        <SortTh label={c.colName} col="key" sort={customSort} onSort={sortToggle(setCustomSort)} />
+                        <SortTh label={c.type} col="type" sort={customSort} onSort={sortToggle(setCustomSort)} />
                         <th className="px-2 py-1.5"></th>
                       </tr>
                     </thead>
@@ -483,8 +570,14 @@ export default function ObjectsManager() {
                             {c.none}
                           </td>
                         </tr>
+                      ) : customRows.length === 0 ? (
+                        <tr>
+                          <td colSpan={4} className="px-2 py-4 text-center text-[var(--text-muted)]">
+                            {c.noFieldMatch}
+                          </td>
+                        </tr>
                       ) : (
-                        d.custom.map((f) => (
+                        customRows.map((f) => (
                           <tr key={f.id} className={`border-b border-theme/50 ${f.active ? '' : 'opacity-50'} ${editingId === f.id ? 'bg-[var(--surface-2)]' : ''}`}>
                             <td className="px-2 py-1.5 font-medium">
                               {f.label}
@@ -610,10 +703,12 @@ export default function ObjectsManager() {
                 <section className="surface rounded-2xl border border-theme p-4">
                   <h2 className="text-sm font-semibold">{c.tabLayout}</h2>
                   <p className="mt-1 text-xs text-[var(--text-muted)]">{c.layoutHint}</p>
+
+                  <div className="mt-4 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">{c.layoutShown}</div>
                   {layoutItems.length === 0 ? (
-                    <div className="mt-4 text-sm text-[var(--text-muted)]">{c.layoutEmpty}</div>
+                    <div className="mt-2 text-sm text-[var(--text-muted)]">{c.layoutEmpty}</div>
                   ) : (
-                    <ol className="mt-3 space-y-1.5">
+                    <ol className="mt-2 space-y-1.5">
                       {layoutItems.map((it, idx) => (
                         <li
                           key={`${it.source}:${it.id}`}
@@ -627,26 +722,32 @@ export default function ObjectsManager() {
                             </span>
                           </span>
                           <span className="flex gap-1">
-                            <button
-                              className="btn btn-secondary btn-sm"
-                              disabled={idx === 0}
-                              title={c.moveUp}
-                              onClick={() => moveLayout(idx, -1)}
-                            >
-                              ▲
-                            </button>
-                            <button
-                              className="btn btn-secondary btn-sm"
-                              disabled={idx === layoutItems.length - 1}
-                              title={c.moveDown}
-                              onClick={() => moveLayout(idx, 1)}
-                            >
-                              ▼
-                            </button>
+                            <button className="btn btn-secondary btn-sm" disabled={idx === 0} title={c.moveUp} onClick={() => moveLayout(idx, -1)}>▲</button>
+                            <button className="btn btn-secondary btn-sm" disabled={idx === layoutItems.length - 1} title={c.moveDown} onClick={() => moveLayout(idx, 1)}>▼</button>
+                            <button className="btn btn-danger-soft btn-sm" title={c.removeFromLayout} onClick={() => setShownOnScreen(it, false)}>✕</button>
                           </span>
                         </li>
                       ))}
                     </ol>
+                  )}
+
+                  <div className="mt-5 text-xs font-semibold uppercase tracking-wide text-[var(--text-muted)]">{c.layoutAvailable}</div>
+                  <p className="mt-1 text-xs text-[var(--text-muted)]">{c.layoutAvailableHint}</p>
+                  {availableItems.length === 0 ? (
+                    <div className="mt-2 text-sm text-[var(--text-muted)]">{c.availableEmpty}</div>
+                  ) : (
+                    <ul className="mt-2 flex flex-wrap gap-1.5">
+                      {availableItems.map((it) => (
+                        <li key={`${it.source}:${it.id}`}>
+                          <button
+                            className="btn btn-secondary btn-sm"
+                            onClick={() => setShownOnScreen(it, true, layoutItems.length)}
+                          >
+                            + {it.label}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
                   )}
                 </section>
               ) : null}
